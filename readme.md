@@ -1,1 +1,1 @@
-lol
+<p align="center"> <img src="qt=q_95.webp" alt="Popssibilities Mexican Paletas logo" width="220"> </p> <h1 align="center">🍭 Popssibilities — Project Charter</h1> <h3 align="center">Digital Modernization & Catering Management System</h3>
