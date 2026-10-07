@@ -1,0 +1,340 @@
+{
+  "_notice": "NON-PRODUCTION SYNTHETIC EXAMPLES. No implementation, approved pricing, real data, or usable credentials. Dates are static fixtures.",
+  "quote_request": {
+    "catering_request": {
+      "quantity": 50,
+      "popsicle_shape": "standard",
+      "flavor_requests": "",
+      "add_ons": [],
+      "service_type": "delivery",
+      "dry_ice_blocks": null
+    },
+    "event": {
+      "type": "Example celebration",
+      "location": {
+        "line1": "100 Example Street",
+        "city": "Houston",
+        "region": "TX",
+        "postal_code": "77000",
+        "country_code": "US"
+      },
+      "starts_at": "2026-11-07T15:00:00-06:00",
+      "ends_at": "2026-11-07T17:00:00-06:00",
+      "timezone": "America/Chicago",
+      "notes": "Synthetic fixture - not a real event."
+    }
+  },
+  "quote_requires_review_response": {
+    "data": {
+      "id": "quote_example_001",
+      "status": "requires_review",
+      "expires_at": "2026-10-03T20:15:00Z",
+      "catering_request": {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": null
+      },
+      "event": {
+        "type": "Example celebration",
+        "location": {
+          "line1": "100 Example Street",
+          "city": "Houston",
+          "region": "TX",
+          "postal_code": "77000",
+          "country_code": "US"
+        },
+        "starts_at": "2026-11-07T15:00:00-06:00",
+        "ends_at": "2026-11-07T17:00:00-06:00",
+        "timezone": "America/Chicago",
+        "notes": "Synthetic fixture - not a real event."
+      },
+      "pricing": null,
+      "pricing_revision": null,
+      "unresolved_decisions": [
+        "D01",
+        "D04",
+        "D06",
+        "D07"
+      ],
+      "next_action": null
+    },
+    "meta": {
+      "request_id": "req_example_001"
+    }
+  },
+  "quote_priced_fixture_response": {
+    "data": {
+      "id": "quote_example_001",
+      "status": "priced",
+      "expires_at": "2026-10-03T20:15:00Z",
+      "catering_request": {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": null
+      },
+      "event": {
+        "type": "Example celebration",
+        "location": {
+          "line1": "100 Example Street",
+          "city": "Houston",
+          "region": "TX",
+          "postal_code": "77000",
+          "country_code": "US"
+        },
+        "starts_at": "2026-11-07T15:00:00-06:00",
+        "ends_at": "2026-11-07T17:00:00-06:00",
+        "timezone": "America/Chicago",
+        "notes": "Synthetic fixture - not a real event."
+      },
+      "pricing": {
+        "currency": "USD",
+        "line_items": [
+          {
+            "code": "synthetic_fixture",
+            "description": "Synthetic total only - not a client rate or pricing tier.",
+            "amount_cents": 20000
+          }
+        ],
+        "total_cents": 20000,
+        "deposit_due_cents": 10000
+      },
+      "pricing_revision": "synthetic_fixture_v1",
+      "unresolved_decisions": [],
+      "next_action": null
+    },
+    "meta": {
+      "request_id": "req_example_001"
+    }
+  },
+  "order_request": {
+    "customer": {
+      "name": "Example Customer",
+      "email": "customer@example.invalid",
+      "phone": "+1-202-555-0100"
+    },
+    "catering_request": {
+      "quantity": 50,
+      "popsicle_shape": "standard",
+      "flavor_requests": "",
+      "add_ons": [],
+      "service_type": "delivery",
+      "dry_ice_blocks": null
+    },
+    "event": {
+      "type": "Example celebration",
+      "location": {
+        "line1": "100 Example Street",
+        "city": "Houston",
+        "region": "TX",
+        "postal_code": "77000",
+        "country_code": "US"
+      },
+      "starts_at": "2026-11-07T15:00:00-06:00",
+      "ends_at": "2026-11-07T17:00:00-06:00",
+      "timezone": "America/Chicago",
+      "notes": "Synthetic fixture - not a real event."
+    },
+    "quote_id": "quote_example_001"
+  },
+  "order_response": {
+    "data": {
+      "id": "order_example_001",
+      "version": 1,
+      "status": "pending_review",
+      "customer": {
+        "name": "Example Customer",
+        "email": "customer@example.invalid",
+        "phone": "+1-202-555-0100"
+      },
+      "catering_request": {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": null
+      },
+      "event": {
+        "type": "Example celebration",
+        "location": {
+          "line1": "100 Example Street",
+          "city": "Houston",
+          "region": "TX",
+          "postal_code": "77000",
+          "country_code": "US"
+        },
+        "starts_at": "2026-11-07T15:00:00-06:00",
+        "ends_at": "2026-11-07T17:00:00-06:00",
+        "timezone": "America/Chicago",
+        "notes": "Synthetic fixture - not a real event."
+      },
+      "quote_id": "quote_example_001",
+      "pricing_revision": "synthetic_fixture_v1",
+      "pricing": {
+        "currency": "USD",
+        "line_items": [
+          {
+            "code": "synthetic_fixture",
+            "description": "Synthetic total only - not a client rate or pricing tier.",
+            "amount_cents": 20000
+          }
+        ],
+        "total_cents": 20000,
+        "deposit_due_cents": 10000
+      },
+      "deposit": {
+        "status": "pending",
+        "amount_due_cents": 10000,
+        "amount_confirmed_cents": 0
+      },
+      "payment_links": [],
+      "workflow": {
+        "customer_email": "pending",
+        "business_email": "pending",
+        "calendar": "not_scheduled",
+        "contract_email": "waiting_for_deposit"
+      },
+      "created_at": "2026-10-03T20:05:00Z",
+      "updated_at": "2026-10-03T20:05:00Z"
+    },
+    "meta": {
+      "request_id": "req_example_001"
+    }
+  },
+  "minimum_quantity_error": {
+    "error": {
+      "code": "validation_error",
+      "message": "Quantity must be at least 50.",
+      "fields": [
+        {
+          "field": "catering_request.quantity",
+          "message": "Minimum quantity is 50."
+        }
+      ],
+      "request_id": "req_example_001"
+    }
+  },
+  "deposit_request": {
+    "version": 1,
+    "status": "confirmed",
+    "amount_cents": 10000,
+    "provider": "square",
+    "external_reference": "SYNTHETIC_REFERENCE_NOT_A_PAYMENT",
+    "confirmed_at": "2026-10-03T20:06:00Z"
+  },
+  "deposit_response": {
+    "data": {
+      "id": "order_example_001",
+      "version": 2,
+      "status": "pending_review",
+      "customer": {
+        "name": "Example Customer",
+        "email": "customer@example.invalid",
+        "phone": "+1-202-555-0100"
+      },
+      "catering_request": {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": null
+      },
+      "event": {
+        "type": "Example celebration",
+        "location": {
+          "line1": "100 Example Street",
+          "city": "Houston",
+          "region": "TX",
+          "postal_code": "77000",
+          "country_code": "US"
+        },
+        "starts_at": "2026-11-07T15:00:00-06:00",
+        "ends_at": "2026-11-07T17:00:00-06:00",
+        "timezone": "America/Chicago",
+        "notes": "Synthetic fixture - not a real event."
+      },
+      "quote_id": "quote_example_001",
+      "pricing_revision": "synthetic_fixture_v1",
+      "pricing": {
+        "currency": "USD",
+        "line_items": [
+          {
+            "code": "synthetic_fixture",
+            "description": "Synthetic total only - not a client rate or pricing tier.",
+            "amount_cents": 20000
+          }
+        ],
+        "total_cents": 20000,
+        "deposit_due_cents": 10000
+      },
+      "deposit": {
+        "status": "confirmed",
+        "amount_due_cents": 10000,
+        "amount_confirmed_cents": 10000
+      },
+      "payment_links": [],
+      "workflow": {
+        "customer_email": "pending",
+        "business_email": "pending",
+        "calendar": "not_scheduled",
+        "contract_email": "pending"
+      },
+      "created_at": "2026-10-03T20:05:00Z",
+      "updated_at": "2026-10-03T20:06:00Z",
+      "admin_notes": ""
+    },
+    "meta": {
+      "request_id": "req_example_001"
+    }
+  },
+  "quote_outside_radius_response": {
+    "data": {
+      "id": "quote_example_001",
+      "status": "requires_review",
+      "expires_at": "2026-10-03T20:15:00Z",
+      "catering_request": {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": null
+      },
+      "event": {
+        "type": "Example celebration",
+        "location": {
+          "line1": "100 Example Street",
+          "city": "Houston",
+          "region": "TX",
+          "postal_code": "77000",
+          "country_code": "US"
+        },
+        "starts_at": "2026-11-07T15:00:00-06:00",
+        "ends_at": "2026-11-07T17:00:00-06:00",
+        "timezone": "America/Chicago",
+        "notes": "Synthetic fixture - not a real event."
+      },
+      "pricing": null,
+      "pricing_revision": null,
+      "unresolved_decisions": [
+        "D04"
+      ],
+      "next_action": {
+        "type": "contact_inquiry",
+        "reason_code": "outside_delivery_radius",
+        "message": "Delivery beyond 30 miles requires a custom event inquiry.",
+        "inquiry_url": "https://example.invalid/contact"
+      }
+    },
+    "meta": {
+      "request_id": "req_example_001"
+    }
+  }
+}
