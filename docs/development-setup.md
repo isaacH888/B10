@@ -1,7 +1,8 @@
 # Development setup and command status
 
-Updated October 5, 2026. React/Vite + Flask + MySQL scaffolding is approved.
-Shared shells exist; pricing/orders/auth/schema/provider features remain unimplemented.
+Updated October 8, 2026. React/Vite + Flask + MySQL scaffolding is approved.
+Authentication screens, sessions, migrations and Cognito adapters are implemented;
+pricing/orders/payment/email/calendar features remain unimplemented.
 
 ## Prerequisites
 
@@ -47,10 +48,18 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173` and select Check backend connection. This is a development
-shell, not the customer website or dashboard. `/api/v1/live` is process liveness;
+Open `http://localhost:5173`. Customer login is `/login`; team login is `/admin/login`.
+The frontend is a minimal authentication test interface; its appearance is not a
+final website design. The backend connection control checks Flask/MySQL.
+Authentication shows unavailable until its private configuration is supplied;
+account screens contain no business orders. `/api/v1/live` is process liveness;
 `/api/v1/health` checks MySQL connectivity and returns 503 while unconfigured/unavailable.
 A 200 DB probe does not establish that Bryson's domain migrations have run.
+
+Use `VITE_API_BASE_URL=/api/v1`; Vite proxies requests to Flask and preserves login cookies.
+Cognito callbacks must use `http://localhost:5173/api/v1/<area>/callback`, not port 5000.
+See [authentication setup](authentication-deployment.md) before enabling AUTH_ENABLED.
+Run `.venv/bin/python -m app.migrations` from backend after creating the disposable DB.
 
 Backend loads only `backend/.env` without overriding process variables. Vite loads
 only its frontend environment; expose only `VITE_API_BASE_URL` there. Origins are
@@ -74,9 +83,9 @@ The port is loopback-only and the named volume persists data. These variables
 initialize a fresh volume; changing them later does not rotate an existing MySQL user.
 Do not delete a volume to repair credentials without agreeing on data preservation.
 
-Compose creates only the server and empty development database/user. Bryson's ERD,
-migrations, models, seeds and migration command are still required. No schema or
-real customer data is provided by this scaffold. Docker commands were not executable
+Compose creates the server and empty development database/user. The shared authentication
+migration runner creates auth tables; domain migrations/models/seeds remain Bryson's work.
+No real customer data or default accounts are included. Docker commands were not executable
 on the current host and are not recorded as passed.
 
 ## Checks available now
@@ -85,6 +94,8 @@ on the current host and are not recorded as passed.
 backend/.venv/bin/python scripts/check_foundation.py
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
 npm run build --prefix frontend
+npx --prefix frontend playwright install chromium
+npm run test:browser --prefix frontend
 git diff --check
 curl --fail-with-body http://localhost:5000/api/v1/live
 curl -i http://localhost:5000/api/v1/health

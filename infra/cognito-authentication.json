@@ -1,0 +1,664 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Popsibilities isolated customer/admin Cognito authentication. Deploy explicitly after review; retained pools contain identities.",
+  "Parameters": {
+    "Environment": {
+      "Type": "String",
+      "AllowedValues": [
+        "development",
+        "production"
+      ],
+      "Default": "development"
+    },
+    "AuthOrigin": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Exact production HTTPS browser/BFF origin, without a trailing slash. Required in production.",
+      "AllowedPattern": "^(|https://[A-Za-z0-9.-]+(?::[0-9]+)?)$"
+    },
+    "DevelopmentOrigin": {
+      "Type": "String",
+      "Default": "http://localhost:5173",
+      "Description": "Exact local browser/BFF origin, used only in development.",
+      "AllowedPattern": "^http://localhost(?::[0-9]+)?$"
+    },
+    "CustomerDomainPrefix": {
+      "Type": "String",
+      "AllowedPattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "Description": "Unique Cognito managed-login prefix; use a separate value for every environment."
+    },
+    "AdminDomainPrefix": {
+      "Type": "String",
+      "AllowedPattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$",
+      "Description": "Unique admin managed-login prefix; distinct from customer prefix."
+    },
+    "GoogleOAuthSecretArn": {
+      "Type": "String",
+      "AllowedPattern": "^arn:[a-z-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:.+$",
+      "Description": "Existing secret containing Google client_id and client_secret; not a secret value."
+    },
+    "SesIdentityArn": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Verified SES identity ARN. Required in production; SES region must be supported by Cognito."
+    },
+    "EmailFrom": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Verified SES From address. Required when SesIdentityArn is supplied."
+    }
+  },
+  "Conditions": {
+    "IsDevelopment": {
+      "Fn::Equals": [{"Ref": "Environment"}, "development"]
+    },
+    "UseSES": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "SesIdentityArn"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Rules": {
+    "ProductionEmail": {
+      "RuleCondition": {
+        "Fn::Equals": [
+          {
+            "Ref": "Environment"
+          },
+          "production"
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {"Fn::Not": [{"Fn::Equals": [{"Ref": "AuthOrigin"}, ""]}]},
+          "AssertDescription": "Production requires an exact HTTPS authentication origin."
+        },
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "SesIdentityArn"
+                  },
+                  ""
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Production requires a verified SES identity."
+        }
+      ]
+    },
+    "SESFrom": {
+      "RuleCondition": {
+        "Fn::Not": [
+          {
+            "Fn::Equals": [
+              {
+                "Ref": "SesIdentityArn"
+              },
+              ""
+            ]
+          }
+        ]
+      },
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "EmailFrom"
+                  },
+                  ""
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Provide a verified From address for SES."
+        }
+      ]
+    },
+    "DistinctLoginDomains": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Equals": [
+                  {
+                    "Ref": "AdminDomainPrefix"
+                  },
+                  {
+                    "Ref": "CustomerDomainPrefix"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "Admin and customer login domains must be distinct."
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "CustomerPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "UserPoolName": {
+          "Fn::Sub": "popsibilities-${Environment}-customers"
+        },
+        "UserPoolTier": "ESSENTIALS",
+        "DeletionProtection": "ACTIVE",
+        "UsernameAttributes": [
+          "email"
+        ],
+        "UsernameConfiguration": {
+          "CaseSensitive": false
+        },
+        "AutoVerifiedAttributes": [
+          "email"
+        ],
+        "Schema": [
+          {
+            "Name": "email",
+            "AttributeDataType": "String",
+            "Required": true,
+            "Mutable": true
+          },
+          {
+            "Name": "name",
+            "AttributeDataType": "String",
+            "Required": false,
+            "Mutable": true
+          }
+        ],
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": false
+        },
+        "AccountRecoverySetting": {
+          "RecoveryMechanisms": [
+            {
+              "Name": "verified_email",
+              "Priority": 1
+            }
+          ]
+        },
+        "EmailConfiguration": {
+          "Fn::If": [
+            "UseSES",
+            {
+              "EmailSendingAccount": "DEVELOPER",
+              "SourceArn": {
+                "Ref": "SesIdentityArn"
+              },
+              "From": {
+                "Ref": "EmailFrom"
+              }
+            },
+            {
+              "EmailSendingAccount": "COGNITO_DEFAULT"
+            }
+          ]
+        },
+        "MfaConfiguration": "OFF",
+        "Policies": {
+          "PasswordPolicy": {
+            "MinimumLength": 12,
+            "RequireLowercase": false,
+            "RequireUppercase": false,
+            "RequireNumbers": false,
+            "RequireSymbols": false,
+            "TemporaryPasswordValidityDays": 1,
+            "PasswordHistorySize": 5
+          },
+          "SignInPolicy": {
+            "AllowedFirstAuthFactors": [
+              "PASSWORD"
+            ]
+          }
+        }
+      }
+    },
+    "AdminPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "UserPoolName": {
+          "Fn::Sub": "popsibilities-${Environment}-admins"
+        },
+        "UserPoolTier": "PLUS",
+        "DeletionProtection": "ACTIVE",
+        "UsernameAttributes": [
+          "email"
+        ],
+        "UsernameConfiguration": {
+          "CaseSensitive": false
+        },
+        "AutoVerifiedAttributes": [
+          "email"
+        ],
+        "Schema": [
+          {
+            "Name": "email",
+            "AttributeDataType": "String",
+            "Required": true,
+            "Mutable": true
+          },
+          {
+            "Name": "name",
+            "AttributeDataType": "String",
+            "Required": false,
+            "Mutable": true
+          }
+        ],
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": true,
+          "InviteMessageTemplate": {
+            "EmailSubject": "Popsibilities administrator invitation",
+            "EmailMessage": "Your approved Popsibilities administrator account is {username}. Temporary password: {####}. Open the approved administrator sign-in page, choose a new password, and enroll an authenticator app."
+          }
+        },
+        "AccountRecoverySetting": {
+          "RecoveryMechanisms": [
+            {
+              "Name": "admin_only",
+              "Priority": 1
+            }
+          ]
+        },
+        "EmailConfiguration": {
+          "Fn::If": [
+            "UseSES",
+            {
+              "EmailSendingAccount": "DEVELOPER",
+              "SourceArn": {
+                "Ref": "SesIdentityArn"
+              },
+              "From": {
+                "Ref": "EmailFrom"
+              }
+            },
+            {
+              "EmailSendingAccount": "COGNITO_DEFAULT"
+            }
+          ]
+        },
+        "MfaConfiguration": "ON",
+        "EnabledMfas": [
+          "SOFTWARE_TOKEN_MFA"
+        ],
+        "UserPoolAddOns": {
+          "AdvancedSecurityMode": "ENFORCED"
+        },
+        "Policies": {
+          "PasswordPolicy": {
+            "MinimumLength": 16,
+            "RequireLowercase": false,
+            "RequireUppercase": false,
+            "RequireNumbers": false,
+            "RequireSymbols": false,
+            "TemporaryPasswordValidityDays": 1,
+            "PasswordHistorySize": 5
+          },
+          "SignInPolicy": {
+            "AllowedFirstAuthFactors": [
+              "PASSWORD"
+            ]
+          }
+        }
+      }
+    },
+    "GoogleProvider": {
+      "Type": "AWS::Cognito::UserPoolIdentityProvider",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "CustomerPool"
+        },
+        "ProviderName": "Google",
+        "ProviderType": "Google",
+        "ProviderDetails": {
+          "client_id": {
+            "Fn::Sub": "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:client_id}}"
+          },
+          "client_secret": {
+            "Fn::Sub": "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:client_secret}}"
+          },
+          "authorize_scopes": "openid email profile"
+        },
+        "AttributeMapping": {
+          "email": "email",
+          "email_verified": "email_verified",
+          "name": "name"
+        }
+      }
+    },
+    "CustomerClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "DependsOn": "GoogleProvider",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "CustomerPool"
+        },
+        "ClientName": {
+          "Fn::Sub": "popsibilities-${Environment}-customer-bff"
+        },
+        "GenerateSecret": true,
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthFlows": [
+          "code"
+        ],
+        "AllowedOAuthScopes": [
+          "openid",
+          "email",
+          "profile",
+          "aws.cognito.signin.user.admin"
+        ],
+        "SupportedIdentityProviders": [
+          "COGNITO",
+          "Google"
+        ],
+        "CallbackURLs": [
+          {
+            "Fn::Sub": ["${EffectiveOrigin}/api/v1/customer/callback", {"EffectiveOrigin": {"Fn::If": ["IsDevelopment", {"Ref": "DevelopmentOrigin"}, {"Ref": "AuthOrigin"}]}}]
+          }
+        ],
+        "LogoutURLs": [
+          {
+            "Fn::Sub": ["${EffectiveOrigin}/login", {"EffectiveOrigin": {"Fn::If": ["IsDevelopment", {"Ref": "DevelopmentOrigin"}, {"Ref": "AuthOrigin"}]}}]
+          }
+        ],
+        "PreventUserExistenceErrors": "ENABLED",
+        "EnableTokenRevocation": true,
+        "ExplicitAuthFlows": [
+          "ALLOW_USER_AUTH"
+        ],
+        "RefreshTokenRotation": {
+          "Feature": "ENABLED",
+          "RetryGracePeriodSeconds": 10
+        },
+        "AccessTokenValidity": 15,
+        "IdTokenValidity": 15,
+        "RefreshTokenValidity": 168,
+        "TokenValidityUnits": {
+          "AccessToken": "minutes",
+          "IdToken": "minutes",
+          "RefreshToken": "hours"
+        },
+        "ReadAttributes": [
+          "email",
+          "email_verified",
+          "name"
+        ],
+        "WriteAttributes": [
+          "email",
+          "name"
+        ]
+      }
+    },
+    "AdminClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "AdminPool"
+        },
+        "ClientName": {
+          "Fn::Sub": "popsibilities-${Environment}-admin-bff"
+        },
+        "GenerateSecret": true,
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthFlows": [
+          "code"
+        ],
+        "AllowedOAuthScopes": [
+          "openid",
+          "email",
+          "profile",
+          "aws.cognito.signin.user.admin"
+        ],
+        "SupportedIdentityProviders": [
+          "COGNITO"
+        ],
+        "CallbackURLs": [
+          {
+            "Fn::Sub": ["${EffectiveOrigin}/api/v1/admin/callback", {"EffectiveOrigin": {"Fn::If": ["IsDevelopment", {"Ref": "DevelopmentOrigin"}, {"Ref": "AuthOrigin"}]}}]
+          }
+        ],
+        "LogoutURLs": [
+          {
+            "Fn::Sub": ["${EffectiveOrigin}/admin/login", {"EffectiveOrigin": {"Fn::If": ["IsDevelopment", {"Ref": "DevelopmentOrigin"}, {"Ref": "AuthOrigin"}]}}]
+          }
+        ],
+        "PreventUserExistenceErrors": "ENABLED",
+        "EnableTokenRevocation": true,
+        "ExplicitAuthFlows": [
+          "ALLOW_USER_AUTH"
+        ],
+        "RefreshTokenRotation": {
+          "Feature": "ENABLED",
+          "RetryGracePeriodSeconds": 10
+        },
+        "AccessTokenValidity": 5,
+        "IdTokenValidity": 5,
+        "RefreshTokenValidity": 8,
+        "TokenValidityUnits": {
+          "AccessToken": "minutes",
+          "IdToken": "minutes",
+          "RefreshToken": "hours"
+        },
+        "ReadAttributes": [
+          "email",
+          "email_verified",
+          "name"
+        ],
+        "WriteAttributes": ["email"]
+      }
+    },
+    "CustomerDomain": {
+      "Type": "AWS::Cognito::UserPoolDomain",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "CustomerPool"
+        },
+        "Domain": {
+          "Ref": "CustomerDomainPrefix"
+        },
+        "ManagedLoginVersion": 2
+      }
+    },
+    "AdminDomain": {
+      "Type": "AWS::Cognito::UserPoolDomain",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "AdminPool"
+        },
+        "Domain": {
+          "Ref": "AdminDomainPrefix"
+        },
+        "ManagedLoginVersion": 2
+      }
+    },
+    "CustomerBranding": {
+      "Type": "AWS::Cognito::ManagedLoginBranding",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "CustomerPool"
+        },
+        "ClientId": {
+          "Ref": "CustomerClient"
+        },
+        "UseCognitoProvidedValues": true
+      }
+    },
+    "AdminBranding": {
+      "Type": "AWS::Cognito::ManagedLoginBranding",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "AdminPool"
+        },
+        "ClientId": {
+          "Ref": "AdminClient"
+        },
+        "UseCognitoProvidedValues": true
+      }
+    },
+    "AdminRiskConfiguration": {
+      "Type": "AWS::Cognito::UserPoolRiskConfigurationAttachment",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "AdminPool"
+        },
+        "ClientId": "ALL",
+        "CompromisedCredentialsRiskConfiguration": {
+          "EventFilter": [
+            "SIGN_IN",
+            "PASSWORD_CHANGE",
+            "SIGN_UP"
+          ],
+          "Actions": {
+            "EventAction": "BLOCK"
+          }
+        },
+        "AccountTakeoverRiskConfiguration": {
+          "Actions": {
+            "HighAction": {
+              "EventAction": "NO_ACTION",
+              "Notify": false
+            },
+            "MediumAction": {
+              "EventAction": "NO_ACTION",
+              "Notify": false
+            },
+            "LowAction": {
+              "EventAction": "NO_ACTION",
+              "Notify": false
+            }
+          }
+        }
+      }
+    },
+    "AdminAuthLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/vendedlogs/popsibilities/${Environment}/cognito/admin-auth"
+        },
+        "RetentionInDays": 90
+      }
+    },
+    "AdminLogDelivery": {
+      "Type": "AWS::Cognito::LogDeliveryConfiguration",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "AdminPool"
+        },
+        "LogConfigurations": [
+          {
+            "EventSource": "userAuthEvents",
+            "LogLevel": "INFO",
+            "CloudWatchLogsConfiguration": {
+              "LogGroupArn": {
+                "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/vendedlogs/popsibilities/${Environment}/cognito/admin-auth"
+              }
+            }
+          }
+        ]
+      },
+      "DependsOn": "AdminAuthLogGroup"
+    },
+    "AdminOperatorPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Description": "Attach only to a separately authenticated private operator role, never the web runtime.",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "cognito-idp:AdminCreateUser",
+                "cognito-idp:AdminGetUser",
+                "cognito-idp:AdminUserGlobalSignOut",
+                "cognito-idp:AdminDisableUser",
+                "cognito-idp:AdminDeleteSoftwareToken",
+                "cognito-idp:AdminSetUserPassword"
+              ],
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AdminPool",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "CustomerPoolId": {
+      "Value": {
+        "Ref": "CustomerPool"
+      }
+    },
+    "AdminPoolId": {
+      "Value": {
+        "Ref": "AdminPool"
+      }
+    },
+    "CustomerClientId": {
+      "Value": {
+        "Ref": "CustomerClient"
+      }
+    },
+    "AdminClientId": {
+      "Value": {
+        "Ref": "AdminClient"
+      }
+    },
+    "CustomerIssuer": {
+      "Value": {
+        "Fn::Sub": "https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${CustomerPool}"
+      }
+    },
+    "AdminIssuer": {
+      "Value": {
+        "Fn::Sub": "https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${AdminPool}"
+      }
+    },
+    "CustomerLoginDomain": {
+      "Value": {
+        "Fn::Sub": "https://${CustomerDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+      }
+    },
+    "AdminLoginDomain": {
+      "Value": {
+        "Fn::Sub": "https://${AdminDomainPrefix}.auth.${AWS::Region}.amazoncognito.com"
+      }
+    },
+    "AdminOperatorPolicyArn": {
+      "Value": {
+        "Ref": "AdminOperatorPolicy"
+      }
+    },
+    "AdminAuthLogGroupName": {
+      "Value": {
+        "Ref": "AdminAuthLogGroup"
+      }
+    }
+  }
+}

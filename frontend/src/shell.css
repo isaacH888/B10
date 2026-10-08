@@ -1,5 +1,12 @@
-/* Minimal shell spacing; the frontend owners define the product design. */
-body { margin: 0; font-family: system-ui, sans-serif; }
-main { max-width: 48rem; margin: 3rem auto; padding: 0 1rem; }
-button { font: inherit; padding: 0.6rem 1rem; cursor: pointer; }
-button:disabled { cursor: wait; }
+body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.5; }
+.test-shell { max-width: 52rem; margin: 0 auto; padding: 1rem; }
+header { padding-bottom: 1rem; border-bottom: 1px solid #ccc; }
+nav, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+main { margin: 2rem 0; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; }
+.notice { margin: 1rem 0; padding-left: 1rem; border-left: 3px solid #666; }
+.notice p { margin-top: 0; }
+dt { margin-top: 0.75rem; font-weight: 600; }
+dd { margin-left: 0; overflow-wrap: anywhere; }
+footer { margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem; }

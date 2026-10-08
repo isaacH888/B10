@@ -24,6 +24,8 @@ __pycache__/
 dist/
 build/
 coverage/
+frontend/test-results/
+frontend/playwright-report/
 .coverage
 htmlcov/
 *.log

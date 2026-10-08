@@ -3,6 +3,8 @@
 import os
 from urllib.parse import urlsplit
 
+from .auth.settings import environment_settings
+
 
 def read_settings():
     environment = os.getenv("APP_ENV", "development")
@@ -40,4 +42,5 @@ def read_settings():
         required = ["SECRET_KEY", "DB_HOST", "DB_NAME", "DB_USER", "DB_PASSWORD", "DB_TLS_CA_FILE"]
         if any(not settings[key] for key in required):
             raise ValueError("Hosted environments require application and TLS database configuration")
+    settings.update(environment_settings(environment))
     return settings

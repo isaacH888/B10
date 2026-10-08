@@ -2,17 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Popssibilities - Proposed API Contract",
-    "version": "0.2.0-draft",
-    "description": "Week 4 shared contract aligned to the October 5 reference review. Only the shared /live and /health routes are implemented. Business endpoints remain proposals owned by assigned developers. All examples are synthetic and numeric totals are not real pricing. React/Vite, Flask and MySQL scaffolding was approved by Isaac; AWS research and full-payment replacement were not adopted."
+    "version": "0.3.0-draft",
+    "description": "Authentication and infrastructure routes are implemented. Business pricing/order/provider interfaces remain proposed and unimplemented. Examples contain synthetic data only."
   },
   "servers": [
     {
-      "url": "http://localhost:5000/api/v1",
-      "description": "Local shared shell URL; only /live and /health currently implemented."
-    },
-    {
       "url": "/api/v1",
-      "description": "Proposed same-origin hosted proxy."
+      "description": "Same-origin frontend/API proxy (development and hosted)"
     }
   ],
   "tags": [
@@ -458,7 +454,8 @@
         },
         "x-target-week": 3,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false
       }
     },
     "/orders": {
@@ -868,7 +865,8 @@
         },
         "x-target-week": 4,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false
       },
       "get": {
         "operationId": "listOrders",
@@ -1229,7 +1227,9 @@
         ],
         "x-target-week": 4,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-required-permission": "bookings:read"
       }
     },
     "/orders/{order_id}": {
@@ -1530,7 +1530,9 @@
         ],
         "x-target-week": 4,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-required-permission": "bookings:read"
       },
       "patch": {
         "operationId": "updateOrder",
@@ -1983,7 +1985,9 @@
         },
         "x-target-week": 5,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-authorization-note": "Staff may update contacts/notes or mark fulfilled only; confirmation, cancellation and repricing require owner permissions. Business handlers must enforce field/transition permissions."
       }
     },
     "/orders/{order_id}/status": {
@@ -2439,7 +2443,9 @@
         },
         "x-target-week": 5,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-authorization-note": "Staff may update contacts/notes or mark fulfilled only; confirmation, cancellation and repricing require owner permissions. Business handlers must enforce field/transition permissions."
       }
     },
     "/orders/{order_id}/deposit": {
@@ -2901,7 +2907,10 @@
         },
         "x-target-week": 5,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-required-permission": "payments:manage",
+        "x-recent-mfa-seconds": 300
       }
     },
     "/events/upcoming": {
@@ -3208,7 +3217,9 @@
         ],
         "x-target-week": 5,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-required-permission": "bookings:read"
       }
     },
     "/orders/export": {
@@ -3484,137 +3495,38 @@
         ],
         "x-target-week": 5,
         "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": false,
+        "x-required-permission": "customers:export",
+        "x-recent-mfa-seconds": 300
       }
     },
     "/admin/login": {
       "post": {
-        "operationId": "adminLogin",
-        "summary": "Admin login",
-        "description": "Proposed server session contract, not implemented. Validate credentials, rate-limit failures, return a generic 401, and require an allowed browser Origin before creating a session. Set a server-owned HttpOnly cookie; never return the session token in JSON. Require Secure in HTTPS environments and protect authenticated mutations with X-CSRF-Token.",
+        "operationId": "startAdminLogin",
+        "summary": "Start admin managed login",
         "tags": [
-          "Public"
+          "Authentication"
         ],
         "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
         "security": [],
         "responses": {
-          "200": {
-            "description": "Admin login succeeded.",
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Set-Cookie": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "popssibilities_admin=<opaque>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1. No Domain attribute. Local HTTP policy requires backend review."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminSessionResponse"
-                },
-                "examples": {
-                  "synthetic": {
-                    "summary": "Synthetic example only; no implementation or real pricing.",
-                    "value": {
-                      "data": {
-                        "administrator": {
-                          "id": "admin_example_001",
-                          "display_name": "Example Administrator",
-                          "role": "admin"
-                        },
-                        "expires_at": "2026-10-03T21:00:00Z",
-                        "csrf_token": "EXAMPLE_CSRF_TOKEN_NOT_VALID"
-                      },
-                      "meta": {
-                        "request_id": "req_example_001"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request could not be parsed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "bad_request",
-                    "message": "The request could not be parsed.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required or credentials were not accepted.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "unauthenticated",
-                    "message": "Credentials were not accepted.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
           "403": {
-            "description": "The request is not authorized.",
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3623,64 +3535,29 @@
                 "example": {
                   "error": {
                     "code": "forbidden",
-                    "message": "The request is not authorized.",
+                    "message": "This request is not allowed.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
-          "415": {
-            "description": "Use application/json for this request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "unsupported_media_type",
-                    "message": "Use application/json for this request.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
               }
             }
           },
           "422": {
-            "description": "One or more fields are invalid.",
+            "description": "Choose a supported login method.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3689,31 +3566,35 @@
                 "example": {
                   "error": {
                     "code": "validation_error",
-                    "message": "One or more fields are invalid.",
+                    "message": "Choose a supported login method.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
+            }
+          },
+          "429": {
+            "description": "Too many sign-in attempts. Please wait a minute and try again.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "60"
               }
-            }
-          },
-          "429": {
-            "description": "Too many requests. Try again later.",
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3722,37 +3603,60 @@
                 "example": {
                   "error": {
                     "code": "rate_limited",
-                    "message": "Too many requests. Try again later.",
+                    "message": "Too many sign-in attempts. Please wait a minute and try again.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
             "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Delay in seconds when available."
-              },
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
               }
             }
           },
           "500": {
             "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3767,25 +3671,54 @@
                   }
                 }
               }
-            },
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLoginResponse"
+                },
+                "example": {
+                  "data": {
+                    "authorization_url": "https://synthetic-admin.auth.us-east-1.amazoncognito.com/oauth2/authorize?response_type=code&client_id=synthetic&state=synthetic"
+                  },
+                  "meta": {
+                    "request_id": "req_example_001"
+                  }
+                }
               }
             }
           },
-          "503": {
-            "description": "A required service is temporarily unavailable.",
+          "401": {
+            "description": "The browser login generation was cancelled by logout. Clear its binding cookie and explicitly start again.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3793,59 +3726,28 @@
                 },
                 "example": {
                   "error": {
-                    "code": "service_unavailable",
-                    "message": "A required service is temporarily unavailable.",
+                    "code": "login_expired",
+                    "message": "This sign-in request has expired. Please start again.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Delay in seconds when available."
-              },
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
             }
           }
         },
+        "description": "Validate Origin and bind a ten-minute, single-use state/nonce/PKCE transaction to an HttpOnly browser cookie. Overlapping attempts reuse a valid browser binding until its TTL or logout. Return the configured Cognito authorization URL. No passwords or tokens are accepted.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
+                "$ref": "#/components/schemas/AdminLoginRequest"
               },
-              "examples": {
-                "synthetic": {
-                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
-                  "value": {
-                    "email": "admin@example.invalid",
-                    "password": "EXAMPLE_PASSWORD_NOT_VALID"
-                  }
-                }
-              }
+              "example": {}
             }
           }
-        },
-        "x-target-week": 2,
-        "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        }
       }
     },
     "/health": {
@@ -3971,26 +3873,27 @@
         },
         "x-target-week": 2,
         "x-runtime-status": "implemented shared shell",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": true
       }
     },
     "/admin/session": {
       "get": {
         "operationId": "readAdminSession",
-        "summary": "Read administrator session",
-        "description": "Supporting proposed auth interface: bootstrap the current administrator and CSRF token after a reload. Do not expose the cookie value. Session lifetime and account provisioning require team/client signoff.",
+        "summary": "Read admin session",
         "tags": [
-          "Admin"
+          "Authentication"
         ],
         "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
         "security": [
           {
             "adminSession": []
           }
         ],
         "responses": {
-          "200": {
-            "description": "Read administrator session succeeded.",
+          "401": {
+            "description": "Please sign in to continue.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
@@ -4001,8 +3904,131 @@
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
               }
             },
             "content": {
@@ -4010,210 +4036,63 @@
                 "schema": {
                   "$ref": "#/components/schemas/AdminSessionResponse"
                 },
-                "examples": {
-                  "synthetic": {
-                    "summary": "Synthetic example only; no implementation or real pricing.",
-                    "value": {
-                      "data": {
-                        "administrator": {
-                          "id": "admin_example_001",
-                          "display_name": "Example Administrator",
-                          "role": "admin"
-                        },
-                        "expires_at": "2026-10-03T21:00:00Z",
-                        "csrf_token": "EXAMPLE_CSRF_TOKEN_NOT_VALID"
-                      },
-                      "meta": {
-                        "request_id": "req_example_001"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication is required or credentials were not accepted.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
                 "example": {
-                  "error": {
-                    "code": "unauthenticated",
-                    "message": "Authentication is required or credentials were not accepted.",
-                    "fields": [],
+                  "data": {
+                    "administrator": {
+                      "id": "admin_example_001",
+                      "email": "admin@example.invalid",
+                      "name": "Example Admin",
+                      "role": "staff",
+                      "permissions": [
+                        "bookings:read",
+                        "bookings:contacts",
+                        "bookings:notes",
+                        "bookings:fulfill"
+                      ]
+                    },
+                    "expires_at": "2026-10-09T04:00:00Z",
+                    "idle_expires_at": "2026-10-08T20:15:00Z",
+                    "csrf_token": "0000000000000000000000000000000000000000000000000000000000000000"
+                  },
+                  "meta": {
                     "request_id": "req_example_001"
                   }
                 }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
-          "403": {
-            "description": "The request is not authorized.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "forbidden",
-                    "message": "The request is not authorized.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
-          "500": {
-            "description": "The request could not be completed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "internal_error",
-                    "message": "The request could not be completed.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
-            }
-          },
-          "503": {
-            "description": "A required service is temporarily unavailable.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "error": {
-                    "code": "service_unavailable",
-                    "message": "A required service is temporarily unavailable.",
-                    "fields": [],
-                    "request_id": "req_example_001"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Delay in seconds when available."
-              },
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
               }
             }
           }
         },
-        "x-target-week": 2,
-        "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        "description": "Return principal, permissions where applicable, absolute/idle expiry, and a session-bound CSRF token. Polling does not renew idle expiry. Cognito GetUser checks provider revocation."
       },
       "delete": {
-        "operationId": "logoutAdmin",
-        "summary": "Admin logout",
-        "description": "Supporting proposed auth interface: invalidate the server session and expire the cookie. Require CSRF validation; no response body on success. Do not implement auth in shared scaffolding.",
+        "operationId": "endAdminSession",
+        "summary": "End admin session",
         "tags": [
-          "Admin"
+          "Authentication"
         ],
         "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
         "security": [
           {
             "adminSession": []
           }
         ],
         "responses": {
-          "204": {
-            "description": "Session invalidated. No response body.",
+          "401": {
+            "description": "Please sign in to continue.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
                 }
               },
-              "Set-Cookie": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Expire the same session cookie path and attributes."
-              },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
               }
-            }
-          },
-          "401": {
-            "description": "Authentication is required or credentials were not accepted.",
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4222,31 +4101,29 @@
                 "example": {
                   "error": {
                     "code": "unauthenticated",
-                    "message": "Authentication is required or credentials were not accepted.",
+                    "message": "Please sign in to continue.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
               }
-            }
-          },
-          "403": {
-            "description": "The request is not authorized.",
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4255,31 +4132,60 @@
                 "example": {
                   "error": {
                     "code": "forbidden",
-                    "message": "The request is not authorized.",
+                    "message": "This request is not allowed.",
                     "fields": [],
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
               }
             }
           },
           "500": {
             "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -4294,71 +4200,53 @@
                   }
                 }
               }
-            },
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
             "headers": {
               "X-Request-ID": {
                 "schema": {
                   "type": "string"
-                },
-                "description": "Safe correlation identifier."
+                }
               },
               "Cache-Control": {
                 "schema": {
                   "type": "string"
                 },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
+                "example": "no-store"
               }
-            }
-          },
-          "503": {
-            "description": "A required service is temporarily unavailable.",
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/AuthLogoutResponse"
                 },
                 "example": {
-                  "error": {
-                    "code": "service_unavailable",
-                    "message": "A required service is temporarily unavailable.",
-                    "fields": [],
+                  "data": {
+                    "logout_url": "https://synthetic-admin.auth.us-east-1.amazoncognito.com/logout?client_id=synthetic&logout_uri=https%3A%2F%2Fsite.example.invalid%2Fadmin%2Flogin"
+                  },
+                  "meta": {
                     "request_id": "req_example_001"
                   }
                 }
               }
-            },
-            "headers": {
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Delay in seconds when available."
-              },
-              "X-Request-ID": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Safe correlation identifier."
-              },
-              "Cache-Control": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "no-store",
-                "description": "Do not cache private records, authentication results or financial quotes."
-              }
             }
           }
         },
+        "description": "Require exact Origin and X-CSRF-Token. Revoke local sessions and cancel pending login flows associated with the current browser binding before provider revocation. Clear session and binding cookies in the completed response and return the Cognito logout URL for top-level navigation. Local logout succeeds if provider revocation is temporarily unavailable; record pending reconciliation.",
         "parameters": [
           {
-            "$ref": "#/components/parameters/CsrfToken"
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            }
           }
-        ],
-        "x-target-week": 2,
-        "x-runtime-status": "not implemented",
-        "x-integration-owner": "Isaac Hernandez"
+        ]
       }
     },
     "/live": {
@@ -4412,7 +4300,758 @@
         },
         "x-target-week": 2,
         "x-runtime-status": "implemented shared shell",
-        "x-integration-owner": "Isaac Hernandez"
+        "x-integration-owner": "Isaac Hernandez",
+        "x-implemented": true
+      }
+    },
+    "/admin/callback": {
+      "get": {
+        "operationId": "completeAdminLogin",
+        "summary": "Complete admin managed login",
+        "tags": [
+          "Authentication"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redirect to the fixed account or login page; successful authentication sets the opaque session cookie.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "example": "http://localhost:5173/admin"
+              }
+            }
+          }
+        },
+        "description": "Consume the browser-bound OAuth transaction once. Validate token signature, issuer, client, nonce, expiry, and identity. Admins additionally require invited active access and fresh signed password-plus-TOTP assurance. Redirect to the account page on success or fixed login page with a safe error code on failure.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ]
+      }
+    },
+    "/customer/login": {
+      "post": {
+        "operationId": "startCustomerLogin",
+        "summary": "Start customer managed login",
+        "tags": [
+          "Authentication"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [],
+        "responses": {
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Choose a supported login method.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "Choose a supported login method.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many sign-in attempts. Please wait a minute and try again.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "60"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Too many sign-in attempts. Please wait a minute and try again.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLoginResponse"
+                },
+                "example": {
+                  "data": {
+                    "authorization_url": "https://synthetic-customer.auth.us-east-1.amazoncognito.com/oauth2/authorize?response_type=code&client_id=synthetic&state=synthetic"
+                  },
+                  "meta": {
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The browser login generation was cancelled by logout. Clear its binding cookie and explicitly start again.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "login_expired",
+                    "message": "This sign-in request has expired. Please start again.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Validate Origin and bind a ten-minute, single-use state/nonce/PKCE transaction to an HttpOnly browser cookie. Overlapping attempts reuse a valid browser binding until its TTL or logout. Return the configured Cognito authorization URL. No passwords or tokens are accepted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerLoginRequest"
+              },
+              "example": {
+                "provider": "password"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer/callback": {
+      "get": {
+        "operationId": "completeCustomerLogin",
+        "summary": "Complete customer managed login",
+        "tags": [
+          "Authentication"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redirect to the fixed account or login page; successful authentication sets the opaque session cookie.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "example": "http://localhost:5173/account"
+              }
+            }
+          }
+        },
+        "description": "Consume the browser-bound OAuth transaction once. Validate token signature, issuer, client, nonce, expiry, and identity. Admins additionally require invited active access and fresh signed password-plus-TOTP assurance. Redirect to the account page on success or fixed login page with a safe error code on failure.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ]
+      }
+    },
+    "/customer/session": {
+      "get": {
+        "operationId": "readCustomerSession",
+        "summary": "Read customer session",
+        "tags": [
+          "Authentication"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerSessionResponse"
+                },
+                "example": {
+                  "data": {
+                    "customer": {
+                      "id": "customer_example_001",
+                      "email": "customer@example.invalid",
+                      "name": "Example Customer"
+                    },
+                    "expires_at": "2026-10-09T04:00:00Z",
+                    "idle_expires_at": "2026-10-08T20:15:00Z",
+                    "csrf_token": "0000000000000000000000000000000000000000000000000000000000000000"
+                  },
+                  "meta": {
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Return principal, permissions where applicable, absolute/idle expiry, and a session-bound CSRF token. Polling does not renew idle expiry. Cognito GetUser checks provider revocation."
+      },
+      "delete": {
+        "operationId": "endCustomerSession",
+        "summary": "End customer session",
+        "tags": [
+          "Authentication"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success. Synthetic example only.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLogoutResponse"
+                },
+                "example": {
+                  "data": {
+                    "logout_url": "https://synthetic-customer.auth.us-east-1.amazoncognito.com/logout?client_id=synthetic&logout_uri=https%3A%2F%2Fsite.example.invalid%2Flogin"
+                  },
+                  "meta": {
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Require exact Origin and X-CSRF-Token. Revoke local sessions and cancel pending login flows associated with the current browser binding before provider revocation. Clear session and binding cookies in the completed response and return the Cognito logout URL for top-level navigation. Local logout succeeds if provider revocation is temporarily unavailable; record pending reconciliation.",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            }
+          }
+        ]
       }
     }
   },
@@ -5487,27 +6126,6 @@
         ],
         "additionalProperties": false
       },
-      "LoginRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 254,
-            "format": "email"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1024
-          }
-        },
-        "required": [
-          "email",
-          "password"
-        ],
-        "additionalProperties": false
-      },
       "AdminSessionData": {
         "type": "object",
         "properties": {
@@ -5520,7 +6138,12 @@
                 "maxLength": 100,
                 "pattern": "^[A-Za-z0-9_-]+$"
               },
-              "display_name": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "maxLength": 254
+              },
+              "name": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 150
@@ -5528,32 +6151,44 @@
               "role": {
                 "type": "string",
                 "enum": [
-                  "admin"
+                  "owner",
+                  "staff"
                 ]
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
               }
             },
             "required": [
               "id",
-              "display_name",
-              "role"
+              "email",
+              "name",
+              "role",
+              "permissions"
             ],
             "additionalProperties": false
           },
           "expires_at": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 40,
+            "format": "date-time"
+          },
+          "idle_expires_at": {
+            "type": "string",
             "format": "date-time"
           },
           "csrf_token": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 256
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
           "administrator",
           "expires_at",
+          "idle_expires_at",
           "csrf_token"
         ],
         "additionalProperties": false
@@ -5572,6 +6207,14 @@
             "type": "string",
             "enum": [
               "ok",
+              "unavailable"
+            ]
+          },
+          "authentication": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "ready",
               "unavailable"
             ]
           }
@@ -5762,14 +6405,166 @@
             "$ref": "#/components/schemas/ResponseMeta"
           }
         }
+      },
+      "CustomerSessionData": {
+        "type": "object",
+        "properties": {
+          "customer": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "maxLength": 254
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idle_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "csrf_token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "customer",
+          "expires_at",
+          "idle_expires_at",
+          "csrf_token"
+        ],
+        "additionalProperties": false
+      },
+      "CustomerSessionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CustomerSessionData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "AdminLoginRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "CustomerLoginRequest": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "password",
+              "google"
+            ],
+            "default": "password"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AuthLoginData": {
+        "type": "object",
+        "properties": {
+          "authorization_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "additionalProperties": false
+      },
+      "AuthLoginResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthLoginData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "AuthLogoutData": {
+        "type": "object",
+        "properties": {
+          "logout_url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "logout_url"
+        ],
+        "additionalProperties": false
+      },
+      "AuthLogoutResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthLogoutData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
       "adminSession": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "popssibilities_admin",
-        "description": "Proposed server-owned HttpOnly session cookie. Not implemented."
+        "name": "__Host-popssibilities_admin",
+        "description": "Server-side opaque admin session. Development cookie name is popssibilities_admin; hosted cookie is Secure, HttpOnly, SameSite=Lax, Path=/, no Domain."
+      },
+      "customerSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-popssibilities_customer",
+        "description": "Separate customer session. Development cookie name is popssibilities_customer; it never authorizes staff access."
       }
     },
     "parameters": {

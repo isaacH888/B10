@@ -1,6 +1,6 @@
 # Decision and integration-blocker register
 
-Owner: Isaac Hernandez. Updated October 5, 2026. Week 4 is October 5-9 under
+Owner: Isaac Hernandez. Updated October 8, 2026. Week 4 is October 5-9 under
 [the supplied dated plan](reference-alignment.md). Feature freeze October 23;
 release lock November 6; submission November 9. Open items stay open until the
 outcome, approver and acceptance evidence are recorded.
@@ -41,7 +41,7 @@ unconfirmed details or adopt research scope changes to close a blocker.
 | ID | Status / decision | Responsible reviewers |
 | --- | --- | --- |
 | T01 | Approved by Isaac in conversation October 5: React/Vite + Flask + MySQL scaffold. Locks included; CI targets Node 22/Python 3.12; local checks used Node 25.9/Python 3.9.6. MySQL 8.4 family selected for development/CI; production image/version and styling need release review | Isaac / component owners / Bryson |
-| T02 | Open: server cookie/CSRF/lifetime/rate-limit contract versus research Cognito and draft local admins; no auth implemented | Shourya / Dillion / Isaac |
+| T02 | Resolved for authentication branch by user October 8: separate Cognito customers/admin pools, Google customer login, required admin password/TOTP, Owner/Staff roles, server MySQL sessions/CSRF, private CLI administration, admin Plus tier; live provider configuration pending | Shourya / Dillion / Isaac |
 | T03 | Open: ORM/models, single migration runner/history and exact commands | Bryson / Anh |
 | T04 | Open: approved host and durable worker/scheduler execution model; no AWS adoption inferred | Isaac / Shourya / Bryson / client |
 | T05 | Open: technical limits, 15-minute quote lifetime, >=24-hour idempotency replay and export cap | Anh / Dillion / Bryson / Isaac |
@@ -61,7 +61,7 @@ mappings. Isaac reviews interfaces; Bryson retains migration/model ownership.
 | B03 | Bryson entity/attribute draft received; companion ERD, migrations, models/query code and runner not supplied | Bryson / Anh | Domain persistence/migration tests |
 | B04 | Pricing/fulfillment/payment-policy details remain open | Client through project managers / Anh | Final financial assertions |
 | B05 | Shared shells exist; catering form, pricing/order APIs and owner business components are absent in this checkout | Named owners in dependency map | Quote/order integration |
-| B06 | No auth implementation or approved private-route/account policy | Shourya / client / Isaac | Safe admin access |
+| B06 | Authentication implementation and guards exist on feat/authentication-macha; live Cognito/Google configuration and named admin provisioning still required | Shourya / client / Isaac | Safe admin access |
 | B07 | Research received; provider adapters, test access/recipients and durable job implementation unavailable | Shourya / client / Bryson | Week 4 emails; later calendar/contracts/reminders |
 | B08 | No approved host, reviewed deployable business release or migration/restore evidence | Isaac / Bryson / feature owners / client | October 7-8 staging goal |
 | B09 | Draft final-payment/count fields exist; API and reminder-state semantics not agreed | Anh / Bryson / Shourya / client | Week 6 automation |

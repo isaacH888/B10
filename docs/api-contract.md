@@ -1,12 +1,13 @@
 # API contract - Week 4 proposal
 
-Contract version: `0.2.0-draft`. Coordinator: Isaac Hernandez.
+Contract version: `0.3.0-draft`. Coordinator: Isaac Hernandez.
 Order/pricing API owner: Anh Hyunh. Auth/automation owner: Shourya Sai Macha. Frontend consumers:
 Aneena Paul and Dillion Nguyen. Persistence owner: Bryson Hawthorne.
 
-Status: feature interfaces remain proposed. Only shared `/live` and `/health` routes
-are implemented by Isaac; there is no pricing, order, auth, or provider implementation.
-Affected owners must approve the contract before it becomes the integration baseline.
+Status: health and customer/admin authentication routes are implemented.
+Pricing, orders, payments, email automation and Calendar interfaces remain proposed.
+The authentication design was approved by the user on October 8; business contract
+acceptance remains with the affected owners.
 
 The October 5 [reference review](reference-alignment.md) and
 [database mapping review](database-integration-review.md) identify conflicts with
@@ -49,14 +50,14 @@ policy rejects such quotes until priced. A manual-review order path needs D08 ap
 
 ## Shared protocol
 
-- Proposed base URL: `http://localhost:5000/api/v1` locally, `/api/v1` behind a hosted proxy.
+- Browser base URL: `/api/v1` behind the local Vite or hosted HTTPS proxy.
 - JSON request bodies use `Content-Type: application/json`; unknown fields are rejected.
 - Successful JSON returns `{ "data": ..., "meta": { "request_id": ... } }`.
 - Errors return `{ "error": { "code", "message", "fields", "request_id" } }`.
 - `fields` is an array of `{ "field", "message" }` with dotted field paths; it may be empty.
 - JSON errors contain safe messages, not SQL details, traces, credentials, or provider payloads.
 - Return `X-Request-ID` on all responses. Private resources use `Cache-Control: no-store`.
-- Export CSV and successful logout are documented exceptions to the JSON success envelope.
+- Export CSV and OAuth callback redirects are exceptions to the JSON success envelope.
 - Identifiers are opaque strings. IDs never grant permission to retrieve an order.
 - Timestamps include an offset; persist UTC and retain the event's IANA timezone.
 - Money uses nonnegative integer cents and explicit currency. The proposed currency is USD.
@@ -73,17 +74,23 @@ client business rules. Review them before owner implementation.
 
 ## Authentication and duplicate actions
 
-The proposed admin session is a backend-issued `popssibilities_admin` HttpOnly cookie.
-Require HTTPS and Secure cookies outside local development, omit Domain, use
-`Path=/api/v1`, and initially prefer same-origin hosting with `SameSite=Lax`.
-Cross-site deployment requires a separate cookie/CORS review. Server authorization
-checks are mandatory for every administrative route.
+The implemented backend issues separate customer/admin opaque cookies. Hosted names
+are `__Host-popssibilities_customer` and `__Host-popssibilities_admin`; development
+omits the prefix. Cookies use HttpOnly, SameSite=Lax, Path=/, no Domain, and Secure
+outside development. MySQL stores session hashes and encrypted provider tokens.
 
-Login and session-read responses return administrator details, expiry, and a CSRF
-token, never the session cookie value. Authenticated mutations require
-`X-CSRF-Token` and an allowed browser Origin. Login also validates Origin to prevent
-login CSRF. Session expiry, account provisioning, and auth design need T02/D15 signoff.
-The supporting session routes below provide logout and page-reload expectations.
+Login initiation validates exact Origin and returns a browser-bound Cognito URL.
+Callbacks consume one state/nonce/PKCE transaction. Admin access requires a provisioned
+active account plus fresh signed password-and-TOTP assurance. Customer identity never
+confers admin privileges. Role/status is authoritative in MySQL and checked on every
+request, alongside Cognito GetUser to detect revoked/disabled provider access.
+
+Session reads return identity, absolute/idle expiry and a CSRF token; tokens/cookie
+values never appear in JSON. Authenticated mutations require X-CSRF-Token and exact
+Origin. GET session polling does not renew idle expiry. Owners/staff have distinct
+permissions; financial changes and exports additionally require MFA within five minutes.
+The frontend starts fresh verification at `/admin/login?reauth=1` without replaying a
+business action. See [authentication](authentication.md) for implemented boundaries.
 
 `Idempotency-Key` is mandatory for order creation and deposit updates. Generate a
 high-entropy key (for example, a UUID) per logical action and reuse the exact payload
@@ -116,7 +123,11 @@ Planning an interface now does not implement the Week 5/6 features early.
 | `PATCH /orders/{order_id}/deposit` | Record verified deposit status | Admin, CSRF, idempotency | 200 | `UpdateDepositRequest` / `AdminOrderResponse` |
 | `GET /events/upcoming` | Retrieve persisted upcoming events | Admin | 200 | Window/pagination / `UpcomingEventsResponse` |
 | `GET /orders/export` | Export filtered order summaries | Admin | 200 CSV | Query filters / CSV string |
-| `POST /admin/login` | Establish an administrator session | Public login, allowed Origin | 200 | `LoginRequest` / `AdminSessionResponse` |
+| `POST /admin/login` | Start invited admin Cognito login | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
+| `POST /customer/login` | Start password or Google login | Exact Origin, shared rate limit | 200 | `CustomerLoginRequest` / `AuthLoginResponse` |
+| `GET /admin/callback`, `GET /customer/callback` | Complete login | Browser-bound OAuth transaction | 303 | Fixed redirect; opaque cookie on success |
+| `GET /admin/session`, `GET /customer/session` | Bootstrap session | Matching session | 200 | `AdminSessionResponse` / `CustomerSessionResponse` |
+| `DELETE /admin/session`, `DELETE /customer/session` | Revoke and log out | Matching session, Origin, CSRF | 200 | `AuthLogoutResponse` |
 
 Each operation in the OpenAPI file includes a complete example success response
 and examples for every declared error status. The details below identify additional
@@ -256,35 +267,36 @@ Success example: OpenAPI operation `exportOrders`, `200`, a complete synthetic C
 Error example: `422` `export_too_large` in the JSON error envelope. Never silently
 truncate, expose provider receipts, or write customer exports into source control.
 
-## Admin login
+## Login, session and logout
 
-`POST /admin/login` accepts email and password, validates the browser Origin, and
-rate-limits failures. On success, set the server session cookie and return
-administrator ID/display name/role, expiry, and CSRF token. Passwords and session
-tokens are never logged or returned. Return the same generic failure for unknown
-accounts and incorrect credentials.
+`POST /admin/login` accepts `{}`; `POST /customer/login` accepts the optional
+provider `password` or `google`. Credentials are entered only on Cognito/Google
+managed pages. Registration, email verification and customer password reset use
+Cognito. Admin registration and social authentication are disabled.
+Overlapping starts reuse the private realm-specific browser binding; callbacks
+retain it until its ten-minute cookie lifetime ends or authenticated logout.
+A login start using a canceled binding returns `401 login_expired` and clears that
+cookie, allowing an explicit fresh attempt.
 
-Success example: OpenAPI operation `adminLogin`, `200`; the documented `Set-Cookie`
-header describes cookie attributes without supplying a real credential. Error
-example: `401` `unauthenticated`; throttling returns 429 with Retry-After when available.
+Callbacks set the opaque session cookie and redirect to `/admin` or `/account`.
+Failure redirects to the fixed matching login page with a safe error code.
+Admin first-time enrollment is insufficient: signed `acr=urn:cognito:loa:4` and
+`amr` containing pwd, otp and mfa are required before session creation.
 
-## Supporting health and session interfaces
+GET session returns identity, permissions for admins, expiry and a CSRF token.
+Missing/expired sessions return 401, forbidden access 403, and unavailable provider
+or database 503. DELETE session invalidates locally, cancels associated pending
+login flows across overlapping tabs, clears session/binding cookies and returns
+Cognito logout_url for browser navigation. Provider-revocation failure is audited;
+local logout still succeeds, with manual provider reconciliation documented in
+[operations](authentication-operations.md). No background revocation retry is claimed.
 
-- `GET /health`: public minimal application/DB readiness. Return 200 with
-  `data.status=ok` and `data.database=ok`; DB failure returns 503 with the same
-  health envelope and `degraded`/`unavailable`. This is an intentional exception
-  to the generic JSON error shape for health monitoring. Provider failures are
-  tracked privately and do not block a durable-order service's readiness.
-- `GET /live`: implemented shared process liveness, with `data.status=ok` and
-  request metadata. It does not claim database or feature readiness. The implemented
-  health route checks connection/SELECT 1 only, not domain schema completeness.
-- `GET /admin/session`: admin-only page-reload bootstrap returning the same
-  session data as login, without exposing the cookie. Missing/expired sessions return 401.
-- `DELETE /admin/session`: admin/CSRF-protected logout. Invalidate the server
-  session, expire the cookie, return 204 with no body. Invalid CSRF returns 403.
+## Supporting health interfaces
 
-Health/liveness are owned by Isaac; the two session interfaces are owned by Shourya.
-Complete success and failure examples, including the no-body logout response, are in OpenAPI.
+GET `/live` proves process liveness only. GET `/health` checks MySQL and, when auth
+is enabled, its required migration/checksum and tables. Its health envelope includes
+status, database and authentication (disabled/ready/unavailable), with 503 on degraded
+readiness. Health does not prove live Cognito configuration or business features.
 
 ## Contract acceptance
 

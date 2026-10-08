@@ -2,6 +2,7 @@
 
 import pymysql
 from flask import Blueprint, current_app, g, jsonify
+from .auth.store import StoreUnavailable
 
 health = Blueprint("health", __name__)
 
@@ -37,7 +38,16 @@ def live():
 @health.get("/health")
 def readiness():
     available = database_available()
+    authentication_ready = not current_app.config["AUTH_ENABLED"]
+    if available and current_app.config["AUTH_ENABLED"]:
+        try:
+            authentication_ready = current_app.extensions["auth_store"].ready()
+        except StoreUnavailable:
+            authentication_ready = False
+    ready = available and authentication_ready
     return jsonify(
-        data={"status": "ok" if available else "degraded", "database": "ok" if available else "unavailable"},
+        data={"status": "ok" if ready else "degraded", "database": "ok" if available else "unavailable",
+              "authentication": "ready" if current_app.config["AUTH_ENABLED"] and authentication_ready else
+                                "disabled" if not current_app.config["AUTH_ENABLED"] else "unavailable"},
         meta={"request_id": g.request_id},
-    ), 200 if available else 503
+    ), 200 if ready else 503

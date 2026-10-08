@@ -4,11 +4,19 @@ Digital Modernization & Catering Management System. Lead Developer: Isaac Hernan
 
 ## Current status
 
-Updated October 5, 2026. Isaac approved React/Vite + Flask + MySQL scaffolding.
-The shared frontend/backend shells, configuration, local DB definition, contracts,
-review guidance and CI checks exist. The frontend build and backend foundation tests
-pass locally. No customer website, catering form, pricing/order/auth/provider features,
-domain migrations or staging service are implemented by this foundation.
+Updated October 8, 2026. Branch `feat/authentication-macha` adds customer and admin
+authentication to the approved React/Vite + Flask + MySQL foundation. Customers use
+Cognito email/password or Google; invited Owners/Staff require password plus TOTP.
+The backend implements server-side sessions, CSRF, role guards, revocation checks,
+audits, migrations, and private provisioning/recovery commands. React has basic
+login and protected session pages for testing; frontend design remains undecided.
+Cognito templates are prepared; no live cloud resources
+or accounts have been created. Business ordering/pricing/payment features remain pending.
+
+Start with [authentication](docs/authentication.md),
+[deployment/configuration](docs/authentication-deployment.md), and
+[private account operations](docs/authentication-operations.md). Authentication remains
+unavailable until MySQL and both Cognito clients are configured; there are no default users.
 
 The supplied dated plan puts Week 4 on October 5-9: form/pricing/DB integration,
 first staging build and team demo. Those runtime milestones remain blocked on owner
@@ -36,10 +44,12 @@ npm run build --prefix frontend
 git diff --check
 ```
 
-The real MySQL test skips without `RUN_DATABASE_INTEGRATION=1` and exported disposable
-DB settings. Local Docker/MySQL is unavailable; Compose is prepared but not run.
-[CI](.github/workflows/foundation-checks.yml) includes a disposable MySQL probe and
-frontend build. Review remote results in GitHub Actions; local evidence is in
+Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
+DB settings. Local validation used isolated MariaDB 11.8; MySQL 8.4 remains the CI target.
+Compose was not run because Docker daemon access is unavailable.
+[CI](.github/workflows/foundation-checks.yml) includes MySQL migrations/persistence tests,
+frontend build/browser tests and offline Cognito template lint. Review remote results in GitHub Actions; local evidence is in
+[authentication validation](docs/authentication-validation.md) and
 [foundation validation](docs/foundation-validation.md). No external deployment has occurred.
 
 ## Shared deliverables
@@ -65,12 +75,13 @@ frontend build. Review remote results in GitHub Actions; local evidence is in
 | Shourya Sai Macha | Authentication, email, Google Calendar, reminders and automation |
 | Bryson Hawthorne | ERD/schema/migrations/models/queries, integrity and recovery |
 
-Shourya's research and Bryson's entity/attribute draft are recognized contributions;
-they do not establish implemented services. Docs are shared interface/review guidance,
+Shourya's research and Bryson's entity/attribute draft inform the implementation;
+email and Calendar services remain pending. Docs are shared interface/review guidance,
 not a substitute for acceptance or an instruction to overwrite teammate designs.
 
 Keep new code free of emojis; use concise comments and standard hyphens. Do not
 commit credentials or real customer data. Teammate feature changes require Isaac's
 prior approval. Review this foundation on `feature/shared-foundation` through a PR
 to main. Branch protections remain unconfigured; external deployment and production
-release are separate reviewed and authorized actions.
+release are separate reviewed and authorized actions. Review authentication changes
+on `feat/authentication-macha`; the original foundation branch is preserved.
