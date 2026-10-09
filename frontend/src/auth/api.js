@@ -47,6 +47,8 @@ export function navigateToProvider(value) {
 }
 
 export function errorMessage(error) {
+  if (error?.code === "invalid_mfa_code") return "Enter a valid unused authenticator code. Wait for a new code if you already used this one.";
+  if (error?.code === "mfa_challenge_expired") return "This verification has expired. Sign in again to continue.";
   if (error?.code === "reauthentication_required") return "Sign in with your authenticator again before continuing with this action.";
   if (error?.status === 403) return "This account does not have access. Contact the owner if you need team access.";
   if (error?.status === 429) return "Too many sign-in attempts. Please wait a few minutes and try again.";
@@ -64,6 +66,7 @@ const callbackMessages = {
   admin_not_invited: "Team access is invitation only. Contact the owner for an invitation.",
   session_expired: "Your session has expired. Please sign in again.",
   login_expired: "That sign-in link has expired. Please start again.",
+  mfa_challenge_expired: "This verification has expired. Sign in again to continue.",
   authentication_failed: "Sign-in could not be completed. Please try again.",
   authentication_unavailable: "Sign-in is temporarily unavailable. Please try again later.",
 };

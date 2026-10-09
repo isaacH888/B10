@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
-import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
+import { ApiError, apiRequest, callbackMessage, errorMessage, navigateToProvider } from "./auth/api.js";
 
 function Layout({ children }) {
   return <div className="test-shell">
@@ -71,9 +71,9 @@ function LoginPage({ area }) {
   return <section>
     <h1>{reauthentication ? "Verify your access" : admin ? "Team sign-in" : "Customer sign-in"}</h1>
     <p>{reauthentication
-      ? "Sign in again with your password and authenticator to verify your access before sensitive actions."
+      ? "Sign in again and complete authenticator verification before sensitive actions."
       : admin
-        ? "Continue with your team email and password. Your authenticator app is required each time you sign in."
+        ? "Sign in with your team password or approved Google account. Your authenticator app is required each time you sign in."
         : "Sign in or create a customer account using email or Google."}</p>
     {admin && <p>Administrator access is invitation only.</p>}
     {queryMessage && <Notice>{queryMessage}</Notice>}
@@ -88,15 +88,228 @@ function LoginPage({ area }) {
     </Notice>}
     {session.status === "loading" ? <p role="status">Checking your session…</p> : <div className="actions">
       <button type="button" disabled={Boolean(busy) || session.logoutPending} onClick={() => begin("password")}>
-        {busy === "password" ? "Opening secure sign-in…" : admin ? "Continue to team sign-in" : "Continue with email"}
+        {busy === "password" ? "Opening secure sign-in…" : admin ? "Continue with password" : "Continue with email"}
       </button>
-      {!admin && <button type="button" disabled={Boolean(busy) || session.logoutPending} onClick={() => begin("google")}>
+      <button type="button" disabled={Boolean(busy) || session.logoutPending} onClick={() => begin("google")}>
         {busy === "google" ? "Opening Google sign-in…" : "Continue with Google"}
-      </button>}
+      </button>
     </div>}
     <p>{admin
       ? "Need an invitation or help with your authenticator? Contact the account owner."
       : "Account registration and password reset are available on the secure sign-in screen."}</p>
+  </section>;
+}
+
+const mfaStatuses = new Set(["approval_required", "enrollment_required", "challenge_required"]);
+
+function validMfa(data) {
+  return data && mfaStatuses.has(data.status)
+    && typeof data.csrf_token === "string" && data.csrf_token.length > 0
+    && Number.isFinite(Date.parse(data.expires_at))
+    && (data.approval_code == null || (typeof data.approval_code === "string" && data.approval_code.length > 0 && data.approval_code.length <= 512))
+    && (data.status !== "approval_required" || (typeof data.approval_code === "string" && data.approval_code.length > 0 && data.approval_code.length <= 512));
+}
+
+function AdminMfaPage() {
+  const { refresh, expire, login } = useAuth();
+  const navigate = useNavigate();
+  const [pending, setPending] = useState({ status: "loading" });
+  const [setup, setSetup] = useState(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [now, setNow] = useState(Date.now());
+  const version = useRef(0);
+  const mounted = useRef(false);
+
+  const failure = useCallback((cause) => {
+    setCode("");
+    setError(errorMessage(cause));
+    if (cause.status === 401 || cause.status === 403) {
+      version.current += 1;
+      setSetup(null);
+      setShowRecovery(false);
+      setPending({ status: cause.status === 401 ? "expired" : "denied" });
+      setBusy("");
+    }
+  }, []);
+
+  const checkPending = useCallback(async () => {
+    const requestVersion = ++version.current;
+    setBusy("refresh");
+    setPending({ status: "loading" });
+    setSetup(null);
+    setShowRecovery(false);
+    setCode("");
+    setError("");
+    try {
+      const data = await apiRequest("/admin/mfa");
+      if (!validMfa(data)) throw new ApiError(502, "invalid_response");
+      if (!mounted.current || requestVersion !== version.current) return;
+      setPending(Date.parse(data.expires_at) > Date.now() ? data : { status: "expired" });
+    } catch (cause) {
+      if (!mounted.current || requestVersion !== version.current) return;
+      setPending({ status: "error" });
+      failure(cause);
+    } finally {
+      if (mounted.current && requestVersion === version.current) setBusy("");
+    }
+  }, [failure]);
+
+  useEffect(() => {
+    mounted.current = true;
+    expire("admin");
+    checkPending();
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      mounted.current = false;
+      version.current += 1;
+      clearInterval(tick);
+    };
+  }, [checkPending, expire]);
+
+  useEffect(() => {
+    if (mfaStatuses.has(pending.status) && Date.parse(pending.expires_at) <= now) {
+      version.current += 1;
+      setPending({ status: "expired" });
+      setSetup(null);
+      setShowRecovery(false);
+      setCode("");
+      setError("");
+      setBusy("");
+    }
+  }, [now, pending]);
+
+  async function enroll() {
+    const requestVersion = version.current;
+    setBusy("enroll");
+    setError("");
+    try {
+      const data = await apiRequest("/admin/mfa/enroll", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": pending.csrf_token }, body: "{}",
+      });
+      const uri = new URL(data.otpauth_uri);
+      if (typeof data.secret !== "string" || !/^[A-Z2-7]{16,128}$/.test(data.secret)
+        || uri.protocol !== "otpauth:" || uri.hostname !== "totp" || uri.searchParams.get("secret") !== data.secret
+        || !Number.isFinite(Date.parse(data.expires_at))) throw new ApiError(502, "invalid_response");
+      if (!mounted.current || requestVersion !== version.current) return;
+      const deadline = Math.min(Date.parse(pending.expires_at), Date.parse(data.expires_at));
+      if (deadline <= Date.now()) throw new ApiError(401, "mfa_challenge_expired");
+      setSetup({ secret: data.secret });
+      setPending((current) => ({ ...current, expires_at: new Date(deadline).toISOString() }));
+    } catch (cause) {
+      if (mounted.current && requestVersion === version.current) failure(cause);
+    } finally {
+      if (mounted.current && requestVersion === version.current) setBusy("");
+    }
+  }
+
+  async function verify(event) {
+    event.preventDefault();
+    const requestVersion = version.current;
+    setBusy("verify");
+    setError("");
+    try {
+      const data = await apiRequest("/admin/mfa/verify", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": pending.csrf_token }, body: JSON.stringify({ code }),
+      });
+      if (!["authenticated", "enrolled"].includes(data.status)) throw new ApiError(502, "invalid_response");
+      if (!mounted.current || requestVersion !== version.current) return;
+      setSetup(null);
+      setShowRecovery(false);
+      setCode("");
+      setPending({ status: data.status });
+      if (data.status === "authenticated") {
+        const session = await refresh("admin", { force: true });
+        if (!mounted.current || requestVersion !== version.current) return;
+        if (session.status === "authenticated") navigate("/admin", { replace: true });
+        else {
+          setPending({ status: "denied" });
+          failure(session.error || new ApiError(403, "forbidden"));
+        }
+      }
+    } catch (cause) {
+      if (mounted.current && requestVersion === version.current) failure(cause);
+    } finally {
+      if (mounted.current && requestVersion === version.current) setBusy("");
+    }
+  }
+
+  async function cancel() {
+    const requestVersion = version.current;
+    setBusy("cancel");
+    setError("");
+    setSetup(null);
+    setShowRecovery(false);
+    setCode("");
+    setPending((current) => ({ ...current, approval_code: undefined }));
+    try {
+      const data = await apiRequest("/admin/mfa", {
+        method: "DELETE", headers: { "X-CSRF-Token": pending.csrf_token },
+      });
+      if (!mounted.current || requestVersion !== version.current) return;
+      setPending({ status: "cancelled" });
+      navigateToProvider(data.logout_url);
+    } catch (cause) {
+      if (mounted.current && requestVersion === version.current) failure(cause);
+    } finally {
+      if (mounted.current && requestVersion === version.current) setBusy("");
+    }
+  }
+
+  async function signInAgain() {
+    setBusy("login");
+    setError("");
+    try { await login("admin", "google"); }
+    catch (cause) { failure(cause); setBusy(""); }
+  }
+
+  const active = mfaStatuses.has(pending.status);
+  return <section>
+    <h1>Authenticator verification</h1>
+    <p>Google sign-in requires separate administrator approval and authenticator verification.</p>
+    {error && <Notice>{error}</Notice>}
+    {pending.status === "loading" && <p role="status">Checking verification…</p>}
+    {pending.status === "approval_required" && <>
+      <h2>Administrator approval required</h2>
+      <p>This Google sign-in has no administrator access. Share this approval code privately with the account operator, who must verify your identity and Google account ownership separately.</p>
+      {pending.approval_code && <p>Approval code: <code>{pending.approval_code}</code></p>}
+      <button type="button" onClick={checkPending} disabled={Boolean(busy)}>Check approval</button>
+    </>}
+    {pending.status === "enrollment_required" && <>
+      <h2>Set up your authenticator</h2>
+      <p>Add an account in your authenticator app using the setup key below. Completing enrollment does not grant a signed-in administrator session.</p>
+      {!setup && <button type="button" onClick={enroll} disabled={Boolean(busy)}>{busy === "enroll" ? "Creating setup key…" : "Create authenticator setup key"}</button>}
+      {setup && <p>Authenticator setup key: <code>{setup.secret}</code></p>}
+    </>}
+    {pending.status === "challenge_required" && pending.approval_code && <>
+      <button type="button" onClick={() => setShowRecovery(true)} disabled={Boolean(busy)}>Recover authenticator</button>
+      {showRecovery && <>
+        <p>Contact the authorized account operator privately. The operator must verify your identity separately before approving a replacement authenticator. This code does not reset your authenticator or grant administrator access.</p>
+        <p>Private recovery code: <code>{pending.approval_code}</code></p>
+      </>}
+    </>}
+    {(pending.status === "challenge_required" || (pending.status === "enrollment_required" && setup)) && <form onSubmit={verify}>
+      <p><label htmlFor="authenticator-code">Six-digit authenticator code</label></p>
+      <input id="authenticator-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6}
+        required value={code} onChange={(event) => setCode(event.target.value.replace(/[^0-9]/g, ""))} disabled={Boolean(busy)} />
+      <p><button type="submit" disabled={Boolean(busy) || !/^[0-9]{6}$/.test(code)}>{busy === "verify" ? "Verifying…" : "Verify authenticator code"}</button></p>
+    </form>}
+    {active && <>
+      <p>This verification expires at <time dateTime={pending.expires_at}>{new Date(pending.expires_at).toLocaleTimeString()}</time>.</p>
+      <button type="button" onClick={cancel} disabled={Boolean(busy)}>{busy === "cancel" ? "Cancelling…" : "Cancel sign-in"}</button>
+    </>}
+    {pending.status === "enrolled" && <>
+      <p role="status">Authenticator enrolled. Sign in again, then enter a new authenticator code.</p>
+      <button type="button" onClick={signInAgain} disabled={Boolean(busy)}>Continue with Google</button>
+    </>}
+    {pending.status === "authenticated" && <p role="status">Checking verified access…</p>}
+    {pending.status === "expired" && <Notice>This verification has expired. Sign in again to continue.</Notice>}
+    {pending.status === "denied" && <p>No administrator access is available from this verification.</p>}
+    {pending.status === "cancelled" && <p>Sign-in cancelled.</p>}
+    {pending.status === "error" && <button type="button" onClick={checkPending} disabled={Boolean(busy)}>Try again</button>}
+    {!active && pending.status !== "loading" && pending.status !== "authenticated" && <p><Link to="/admin/login?reauth=1">Back to admin sign-in</Link></p>}
   </section>;
 }
 
@@ -182,6 +395,7 @@ export default function App() {
     <Route path="/login" element={<LoginPage area="customer" />} />
     <Route path="/account" element={<ProtectedPage area="customer" />} />
     <Route path="/admin/login" element={<LoginPage area="admin" />} />
+    <Route path="/admin/mfa" element={<AdminMfaPage />} />
     <Route path="/admin" element={<ProtectedPage area="admin" />} />
     <Route path="*" element={<NotFound />} />
   </Routes></Layout></AuthProvider></BrowserRouter>;

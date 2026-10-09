@@ -1,6 +1,7 @@
 """Maintained OAuth/JOSE clients with Cognito-specific assurance validation."""
 
 import hmac
+import re
 import threading
 import time
 from urllib.parse import urlencode
@@ -38,10 +39,12 @@ class CognitoProvider:
 
     def authorization_url(self, state, nonce, verifier, provider):
         parameters = {"state": state, "nonce": nonce, "code_verifier": verifier}
-        if self.area == "admin":
-            parameters.update(prompt="login", max_age=0, acr_values="urn:cognito:loa:4")
+        if self.area == "admin" and provider == "password":
+            parameters.update(identity_provider="COGNITO", prompt="login", max_age=0, acr_values="urn:cognito:loa:4")
         elif provider == "google":
             parameters["identity_provider"] = "Google"
+            if self.area == "admin":
+                parameters["prompt"] = "select_account"
         with self.oauth() as client:
             url, _ = client.create_authorization_url(self.domain + "/oauth2/authorize", **parameters)
             return url
@@ -111,10 +114,28 @@ class CognitoProvider:
             raise AuthError("authentication_failed", "Invalid authentication response.")
         return claims
 
-    def validate(self, tokens, now, nonce=None, started_at=None):
+    @staticmethod
+    def google_identity(identity):
+        # An identities attribute alone is not proof of a Google sign-in:
+        # Cognito also places it on native accounts linked at the provider.
+        identities = identity.get("identities")
+        if not isinstance(identities, list) or len(identities) != 1 or not isinstance(identities[0], dict):
+            raise AuthError("authentication_failed", "Invalid authentication response.")
+        entry = identities[0]
+        subject = entry.get("userId")
+        if (entry.get("providerName") != "Google" or entry.get("providerType") != "Google"
+                or not isinstance(subject, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", subject)
+                or identity.get("cognito:username") not in {"Google_" + subject, "google_" + subject.lower()}):
+            raise AuthError("authentication_failed", "Invalid authentication response.")
+        return subject
+
+    def validate(self, tokens, now, nonce=None, started_at=None, provider="password"):
+        if provider not in {"password", "google"}:
+            raise AuthError("authentication_failed", "Invalid authentication response.")
         identity = self._decode(tokens.get("id_token"), "id", now)
         access = self._decode(tokens.get("access_token"), "access", now)
-        if identity["sub"] != access["sub"] or "aws.cognito.signin.user.admin" not in access.get("scope", "").split():
+        scope = access.get("scope")
+        if identity["sub"] != access["sub"] or not isinstance(scope, str) or "aws.cognito.signin.user.admin" not in scope.split():
             raise AuthError("authentication_failed", "Invalid authentication response.")
         if nonce is not None and not hmac.compare_digest(str(identity.get("nonce", "")).encode(), nonce.encode()):
             raise AuthError("authentication_failed", "Invalid authentication response.")
@@ -125,7 +146,10 @@ class CognitoProvider:
         if type(authenticated_at) is not int or authenticated_at > now + 60:
             raise AuthError("authentication_failed", "Invalid authentication response.")
         assurance = {"acr": identity.get("acr"), "amr": identity.get("amr", [])}
-        if self.area == "admin":
+        google_subject = None
+        if self.area == "admin" and provider == "google":
+            google_subject = self.google_identity(identity)
+        elif self.area == "admin":
             if (assurance["acr"] != "urn:cognito:loa:4" or not isinstance(assurance["amr"], list)
                     or not all(isinstance(method, str) for method in assurance["amr"])
                     or not {"pwd", "otp", "mfa"}.issubset(set(assurance["amr"]))
@@ -133,9 +157,11 @@ class CognitoProvider:
                 raise AuthError("mfa_required", "Complete authenticator setup, then sign in again.", 403)
         return {"issuer": self.issuer, "subject": identity["sub"], "email": email,
                 "name": str(identity.get("name") or email)[:150], "auth_time": authenticated_at,
-                "assurance": assurance, "token_expires_at": access["exp"]}
+                "assurance": assurance, "token_expires_at": min(access["exp"], identity["exp"]),
+                "provider": provider, "google_subject": google_subject,
+                "provider_username": identity.get("cognito:username")}
 
-    def current_user(self, access_token, subject):
+    def current_user(self, access_token, subject, provider="password", google_subject=None):
         try:
             response = requests.post(f"https://cognito-idp.{self.region}.amazonaws.com/",
                                      headers={"Content-Type": "application/x-amz-json-1.1",
@@ -161,7 +187,10 @@ class CognitoProvider:
         attributes = {attribute["Name"]: attribute["Value"] for attribute in values}
         if attributes.get("sub") != subject:
             raise AuthError("authentication_failed", "Invalid authentication response.")
-        if self.area == "admin" and "SOFTWARE_TOKEN_MFA" not in methods:
+        if self.area == "admin" and provider == "google":
+            if not google_subject or body.get("Username") not in {"Google_" + google_subject, "google_" + google_subject.lower()}:
+                raise AuthError("authentication_failed", "Invalid authentication response.")
+        elif self.area == "admin" and "SOFTWARE_TOKEN_MFA" not in methods:
             raise AuthError("mfa_required", "Complete authenticator setup, then sign in again.", 403)
 
     def revoke(self, refresh_token):

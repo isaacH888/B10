@@ -123,15 +123,27 @@ Planning an interface now does not implement the Week 5/6 features early.
 | `PATCH /orders/{order_id}/deposit` | Record verified deposit status | Admin, CSRF, idempotency | 200 | `UpdateDepositRequest` / `AdminOrderResponse` |
 | `GET /events/upcoming` | Retrieve persisted upcoming events | Admin | 200 | Window/pagination / `UpcomingEventsResponse` |
 | `GET /orders/export` | Export filtered order summaries | Admin | 200 CSV | Query filters / CSV string |
-| `POST /admin/login` | Start invited admin Cognito login | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
+| `POST /admin/login` | Start native password/TOTP or approved Google login | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
 | `POST /customer/login` | Start password or Google login | Exact Origin, shared rate limit | 200 | `CustomerLoginRequest` / `AuthLoginResponse` |
-| `GET /admin/callback`, `GET /customer/callback` | Complete login | Browser-bound OAuth transaction | 303 | Fixed redirect; opaque cookie on success |
+| `GET /admin/callback`, `GET /customer/callback` | Complete provider login | Browser-bound OAuth transaction | 303 | Google admin receives pending MFA cookie only; other success sets session |
+| `GET /admin/mfa` | Read Google approval/enrollment/challenge | Bound pending MFA and flow cookies | 200 | `AdminMfaResponse` |
+| `POST /admin/mfa/enroll` | Create authenticator seed after private approval | Exact approved pending challenge, Origin, CSRF | 200 | Empty JSON / `AdminMfaEnrollmentResponse` |
+| `POST /admin/mfa/verify` | Verify unused TOTP; enrollment grants no session | Pending challenge, Origin, CSRF, shared rate limit | 200 | `AdminMfaVerifyRequest` / `AdminMfaVerifyResponse` |
+| `DELETE /admin/mfa` | Cancel pending Google sign-in | Pending challenge, Origin, CSRF | 200 | `AuthLogoutResponse` |
 | `GET /admin/session`, `GET /customer/session` | Bootstrap session | Matching session | 200 | `AdminSessionResponse` / `CustomerSessionResponse` |
 | `DELETE /admin/session`, `DELETE /customer/session` | Revoke and log out | Matching session, Origin, CSRF | 200 | `AuthLogoutResponse` |
 
-Each operation in the OpenAPI file includes a complete example success response
-and examples for every declared error status. The details below identify additional
+The OpenAPI file specifies success schemas and examples for declared errors.
+The details below identify additional
 semantic validation that JSON schema alone cannot enforce.
+
+Both login requests accept `provider: password|google`, defaulting to password.
+Google admin access requires a private exact-identity approval and the separate
+application authenticator; email matching never links accounts or authorizes
+enrollment. Successful enrollment returns `enrolled`, consumes the pending cookie,
+and creates no admin session. A new Google sign-in and unused TOTP return
+`authenticated` with an opaque session cookie. See [authentication](authentication.md)
+for assurance, rate limiting, replay protection, refresh, revocation and recovery.
 
 ## Calculate quote
 

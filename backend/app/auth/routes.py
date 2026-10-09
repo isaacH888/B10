@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, g, jsonify, redirect, request
 
 from .errors import AuthError
 from .guards import service
-from .settings import cookie_name
+from .settings import cookie_name, mfa_cookie_name
 from .store import StoreUnavailable
 
 
@@ -36,7 +36,7 @@ def login(area):
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         raise AuthError("validation_error", "Send a JSON login request.", 422)
-    expected = {"provider"} if area == "customer" else set()
+    expected = {"provider"}
     provider = payload.get("provider", "password")
     if set(payload) - expected or not isinstance(provider, str) or provider not in {"password", "google"}:
         raise AuthError("validation_error", "Choose a supported login method.", 422)
@@ -67,9 +67,17 @@ def callback(area):
                                        request.cookies.get(cookie_name(current_app.config, area, flow=True)),
                                        request.args.get("code"), request.remote_addr,
                                        request.cookies.get(cookie_name(current_app.config, area)))
-        result = redirect(current_app.config["AUTH_ORIGIN"] + ("/admin" if area == "admin" else "/account"), code=303)
-        result.set_cookie(cookie_name(current_app.config, area), token,
-                          max_age=current_app.config[f"{area.upper()}_SESSION_SECONDS"], **cookie_options())
+        if isinstance(token, dict):
+            result = redirect(current_app.config["AUTH_ORIGIN"] + "/admin/mfa", code=303)
+            result.set_cookie(mfa_cookie_name(current_app.config), token["challenge"],
+                              max_age=max(1, token["expires_at"] - service().now()), **cookie_options())
+            result.delete_cookie(cookie_name(current_app.config, "admin"), **cookie_options())
+        else:
+            result = redirect(current_app.config["AUTH_ORIGIN"] + ("/admin" if area == "admin" else "/account"), code=303)
+            result.set_cookie(cookie_name(current_app.config, area), token,
+                              max_age=current_app.config[f"{area.upper()}_SESSION_SECONDS"], **cookie_options())
+            if area == "admin":
+                result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
     except (AuthError, StoreUnavailable) as error:
         code = error.code if isinstance(error, AuthError) else "authentication_unavailable"
         result = redirect(current_app.config["AUTH_ORIGIN"] + landing + "?" + urlencode({"error": code}), code=303)
@@ -94,4 +102,48 @@ def logout(area):
     result = response({"logout_url": service().logout(area, request)})
     result.delete_cookie(cookie_name(current_app.config, area), **cookie_options())
     result.delete_cookie(cookie_name(current_app.config, area, flow=True), **cookie_options())
+    if area == "admin":
+        result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+    return result
+
+
+def mfa_payload(expected):
+    if not request.is_json or (request.content_length or 0) > 2048:
+        raise AuthError("validation_error", "Send a small JSON authenticator request.", 422)
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or set(payload) != expected:
+        raise AuthError("validation_error", "Send a valid authenticator request.", 422)
+    return payload
+
+
+@auth.get("/admin/mfa")
+def read_google_mfa():
+    return response(service().read_google_mfa(request))
+
+
+@auth.post("/admin/mfa/enroll")
+def enroll_google_mfa():
+    mfa_payload(set())
+    return response(service().enroll_google_mfa(request))
+
+
+@auth.post("/admin/mfa/verify")
+def verify_google_mfa():
+    payload = mfa_payload({"code"})
+    data = service().verify_google_mfa(request, payload["code"])
+    token = data.pop("token")
+    result = response(data)
+    if token:
+        result.set_cookie(cookie_name(current_app.config, "admin"), token,
+                          max_age=current_app.config["ADMIN_SESSION_SECONDS"], **cookie_options())
+    result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+    return result
+
+
+@auth.delete("/admin/mfa")
+def cancel_google_mfa():
+    result = response({"logout_url": service().cancel_google_mfa(request)})
+    result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+    result.delete_cookie(cookie_name(current_app.config, "admin", flow=True), **cookie_options())
+    result.delete_cookie(cookie_name(current_app.config, "admin"), **cookie_options())
     return result

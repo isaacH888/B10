@@ -33,12 +33,33 @@ class LoginCancelledError(ValueError):
     """Logout cancelled this browser's pending authentication transaction."""
 
 
-IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active
-    FROM auth_identities i LEFT JOIN auth_admin_access a ON a.identity_id=i.id"""
+IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active,
+    COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
+    (l.provider_identity_id IS NOT NULL) AS is_google_alias,
+    l.google_subject, l.provider_username, f.version AS mfa_version,
+    (f.encrypted_secret IS NOT NULL) AS mfa_enrolled
+    FROM auth_identities i
+    LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
+    LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
 SESSION_SELECT = """SELECT s.*, i.issuer, i.subject, i.email, i.name,
-    a.role AS admin_role, a.active AS admin_active
+    a.role AS admin_role, a.active AS admin_active,
+    COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
+    (l.provider_identity_id IS NOT NULL) AS is_google_alias,
+    l.google_subject, l.provider_username, f.version AS mfa_version,
+    (f.encrypted_secret IS NOT NULL) AS mfa_enrolled
     FROM auth_sessions s JOIN auth_identities i ON i.id=s.identity_id
-    LEFT JOIN auth_admin_access a ON a.identity_id=i.id"""
+    LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
+    LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
+GOOGLE_CHALLENGE_SELECT = """SELECT c.*, i.issuer, i.subject, i.email, i.name,
+    l.admin_identity_id AS canonical_identity_id, a.role AS admin_role, a.active AS admin_active,
+    f.version AS mfa_version, (f.encrypted_secret IS NOT NULL) AS mfa_enrolled,
+    f.enrollment_challenge_hash, f.enrollment_expires_at
+    FROM auth_admin_google_challenges c JOIN auth_identities i ON i.id=c.identity_id
+    LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=c.identity_id
+    LEFT JOIN auth_admin_access a ON a.identity_id=l.admin_identity_id
+    LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=l.admin_identity_id"""
 
 
 def _area(area):
@@ -55,7 +76,7 @@ def _role(role):
 
 def _decode_identity(row):
     if row:
-        for key in ("issuer", "subject"):
+        for key in ("issuer", "subject", "google_subject"):
             if isinstance(row.get(key), bytes):
                 row[key] = row[key].decode("utf-8")
     return row
@@ -119,13 +140,16 @@ class Store:
                     self._local.connection = None
 
     def ready(self):
-        from ..migrations import MIGRATIONS, checksum
+        from ..migrations import checksum, migration_files
 
         with self._transaction() as connection, connection.cursor() as cursor:
-            cursor.execute("SELECT checksum, applied_at FROM schema_migrations WHERE version=1")
-            row = cursor.fetchone()
-            if not row or row["applied_at"] is None or row["checksum"] != checksum(MIGRATIONS / "0001_auth.sql"):
-                return False
+            cursor.execute("SELECT version,name,checksum,applied_at FROM schema_migrations")
+            history = {row["version"]: row for row in cursor.fetchall()}
+            for path in migration_files():
+                row = history.get(int(path.name[:4]))
+                if (not row or row["applied_at"] is None or row["name"] != path.name
+                        or row["checksum"] != checksum(path)):
+                    return False
             for query in (
                 "SELECT id, issuer, subject, area, email, name FROM auth_identities LIMIT 0",
                 "SELECT identity_id, role, active FROM auth_admin_access LIMIT 0",
@@ -134,6 +158,9 @@ class Store:
                 "SELECT binding_hash, area, expires_at FROM auth_flow_cancellations LIMIT 0",
                 "SELECT event, detail FROM auth_audit_events LIMIT 0",
                 "SELECT bucket_hash, attempts, window_start FROM auth_rate_limits LIMIT 0",
+                "SELECT provider_identity_id,admin_identity_id,google_subject,provider_username FROM auth_admin_google_links LIMIT 0",
+                "SELECT canonical_identity_id,encrypted_secret,version,last_counter FROM auth_admin_totp LIMIT 0",
+                "SELECT challenge_hash,binding_hash,proof_hash,encrypted_payload,attempts FROM auth_admin_google_challenges LIMIT 0",
             ):
                 cursor.execute(query)
         return True
@@ -203,6 +230,8 @@ class Store:
                     cursor.execute("DELETE FROM auth_flows WHERE binding_hash=%s AND area=%s", (binding_hash, area))
                     cursor.execute("""UPDATE auth_sessions SET revoked_at=%s,encrypted_tokens=''
                         WHERE login_binding_hash=%s AND area=%s AND revoked_at IS NULL""", (now, binding_hash, area))
+                    if area == "admin":
+                        cursor.execute("DELETE FROM auth_admin_google_challenges WHERE binding_hash=%s", (binding_hash,))
                     self._audit(cursor, "login.cancelled", None, None, {"area": area}, now)
                     connection.commit()
 
@@ -246,10 +275,20 @@ class Store:
             return self._owner_count(cursor, issuer)
 
     @staticmethod
-    def _revoke_identity(cursor, identity_id, now):
+    def _revoke_identity(cursor, identity_id, now, keep_challenge_hash=None):
+        cursor.execute("SELECT admin_identity_id FROM auth_admin_google_links WHERE provider_identity_id=%s", (identity_id,))
+        link = cursor.fetchone()
+        canonical = link["admin_identity_id"] if link else identity_id
         cursor.execute("""UPDATE auth_sessions SET revoked_at=%s,encrypted_tokens=''
-            WHERE identity_id=%s AND revoked_at IS NULL""", (now, identity_id))
-        return cursor.rowcount
+            WHERE revoked_at IS NULL AND (identity_id=%s OR identity_id IN (
+                SELECT provider_identity_id FROM auth_admin_google_links WHERE admin_identity_id=%s))""", (now, canonical, canonical))
+        count = cursor.rowcount
+        cursor.execute("""DELETE FROM auth_admin_google_challenges WHERE
+            (identity_id=%s OR identity_id IN (SELECT provider_identity_id FROM auth_admin_google_links WHERE admin_identity_id=%s))
+            AND (%s IS NULL OR challenge_hash<>%s)""", (canonical, canonical, keep_challenge_hash, keep_challenge_hash))
+        cursor.execute("""UPDATE auth_admin_totp SET enrollment_challenge_hash=NULL,enrollment_expires_at=NULL
+            WHERE canonical_identity_id=%s""", (canonical,))
+        return count
 
     def grant_admin(self, identity_id, role, now, actor_id=None, bootstrap=False):
         _role(role)
@@ -258,7 +297,7 @@ class Store:
                 with connection.cursor() as cursor:
                     cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (identity_id,))
                     row = _decode_identity(cursor.fetchone())
-                    if not row or row["area"] != "admin":
+                    if not row or row["area"] != "admin" or row["is_google_alias"]:
                         raise ValueError("An administrator identity is required")
                     owners = self._owner_count(cursor, row["issuer"])
                     if bootstrap and (role != "owner" or owners):
@@ -286,7 +325,7 @@ class Store:
                 with connection.cursor() as cursor:
                     cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (identity_id,))
                     row = _decode_identity(cursor.fetchone())
-                    if not row or row["area"] != "admin" or row["admin_role"] is None:
+                    if not row or row["area"] != "admin" or row["admin_role"] is None or row["is_google_alias"]:
                         raise ValueError("Existing administrator access is required")
                     next_role = row["admin_role"] if role is None else role
                     next_active = bool(row["admin_active"]) if active is None else active
@@ -317,16 +356,21 @@ class Store:
                 cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (session["identity_id"],))
                 identity = _decode_identity(cursor.fetchone())
                 if (not identity or identity["area"] != area
+                        or identity["is_google_alias"]
                         or (area == "admin" and not identity["admin_active"])):
                     raise AccessDeniedError("Identity has no access to this authentication area")
-                fields = ("token_hash", "identity_id", "area", "created_at", "last_seen", "expires_at", "auth_time")
-                values = tuple(session[key] for key in fields) + (
-                    json.dumps(session.get("assurance", {}), separators=(",", ":")), session["encrypted_tokens"], binding,
-                )
-                cursor.execute("""INSERT INTO auth_sessions
-                    (token_hash,identity_id,area,created_at,last_seen,expires_at,auth_time,assurance,encrypted_tokens,login_binding_hash)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", values)
+                self._insert_session(cursor, session)
                 connection.commit()
+
+    @staticmethod
+    def _insert_session(cursor, session):
+        fields = ("token_hash", "identity_id", "area", "created_at", "last_seen", "expires_at", "auth_time")
+        values = tuple(session[key] for key in fields) + (
+            json.dumps(session.get("assurance", {}), separators=(",", ":")), session["encrypted_tokens"], session.get("login_binding_hash"),
+        )
+        cursor.execute("""INSERT INTO auth_sessions
+            (token_hash,identity_id,area,created_at,last_seen,expires_at,auth_time,assurance,encrypted_tokens,login_binding_hash)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", values)
 
     def get_session(self, token_hash, area):
         _area(area)
@@ -351,10 +395,226 @@ class Store:
             return cursor.rowcount == 1
 
     def revoke_identity_sessions(self, identity_id, now):
+        with self._transaction() as connection:
+            with self._advisory_lock(connection, "auth-admin-access", "all"):
+                with connection.cursor() as cursor:
+                    count = self._revoke_identity(cursor, identity_id, now)
+                    self._audit(cursor, "identity.sessions_revoked", identity_id, None, {"count": count}, now)
+                    connection.commit()
+                    return count
+
+    @staticmethod
+    def _google_source(row):
+        subject = row.get("google_subject")
+        username = row.get("provider_username")
+        return (isinstance(subject, str) and 0 < len(subject.encode()) <= 128
+                and isinstance(username, str)
+                and username in {"Google_" + subject, "google_" + subject.lower()})
+
+    def put_google_challenge(self, row):
+        if (not self._google_source(row) or row["expires_at"] <= row["created_at"]
+                or row["expires_at"] > row["created_at"] + 300):
+            raise ValueError("Google challenge source and lifetime must be valid")
+        with self._transaction() as connection:
+            with self._advisory_lock(connection, "auth-admin-access", "all"):
+                with self._advisory_lock(connection, "auth-flow", row["binding_hash"]):
+                    with connection.cursor() as cursor:
+                        cursor.execute("""SELECT binding_hash FROM auth_flow_cancellations
+                            WHERE binding_hash=%s AND area='admin' AND expires_at>%s""",
+                            (row["binding_hash"], row["created_at"]))
+                        if cursor.fetchone():
+                            raise LoginCancelledError("This sign-in transaction was cancelled")
+                        cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (row["identity_id"],))
+                        identity = _decode_identity(cursor.fetchone())
+                        if (not identity or identity["area"] != "admin"
+                                or (identity["admin_role"] is not None and not identity["is_google_alias"])
+                                or (identity["is_google_alias"] and
+                                    (not identity["admin_active"] or identity["google_subject"] != row["google_subject"]
+                                     or identity["provider_username"] != row["provider_username"]))):
+                            raise AccessDeniedError("Google administrator access is not available")
+                        fields = ("challenge_hash", "binding_hash", "identity_id", "google_subject", "provider_username",
+                                  "proof_hash", "created_at", "expires_at", "encrypted_payload")
+                        cursor.execute("""INSERT INTO auth_admin_google_challenges
+                            (challenge_hash,binding_hash,identity_id,google_subject,provider_username,proof_hash,
+                            created_at,expires_at,encrypted_payload) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                            tuple(row[key] for key in fields))
+                        connection.commit()
+
+    @staticmethod
+    def _pending_valid(row, binding_hash, now):
+        return (row is not None and row["expires_at"] > now and row["attempts"] < 5
+                and hmac.compare_digest(row["binding_hash"], binding_hash))
+
+    def get_google_challenge(self, challenge_hash, binding_hash, now):
         with self._transaction() as connection, connection.cursor() as cursor:
-            count = self._revoke_identity(cursor, identity_id, now)
-            self._audit(cursor, "identity.sessions_revoked", identity_id, None, {"count": count}, now)
-            return count
+            cursor.execute(GOOGLE_CHALLENGE_SELECT + " WHERE c.challenge_hash=%s", (challenge_hash,))
+            row = _decode_identity(cursor.fetchone())
+            return row if self._pending_valid(row, binding_hash, now) else None
+
+    def get_google_proof(self, proof_hash, issuer, now):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute(GOOGLE_CHALLENGE_SELECT + " WHERE c.proof_hash=%s AND i.issuer=%s", (proof_hash, issuer))
+            row = _decode_identity(cursor.fetchone())
+            if row is None or row["expires_at"] <= now or row["attempts"] >= 5:
+                return None
+            row.pop("encrypted_payload", None)
+            return row
+
+    def set_google_challenge_payload(self, challenge_hash, binding_hash, expected_payload, new_payload, now):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("""UPDATE auth_admin_google_challenges SET encrypted_payload=%s
+                WHERE challenge_hash=%s AND binding_hash=%s AND encrypted_payload=%s
+                AND expires_at>%s AND attempts<5""", (new_payload, challenge_hash, binding_hash, expected_payload, now))
+            return cursor.rowcount == 1
+
+    def fail_google_challenge(self, challenge_hash, binding_hash, now):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM auth_admin_google_challenges WHERE challenge_hash=%s FOR UPDATE", (challenge_hash,))
+            row = cursor.fetchone()
+            if not self._pending_valid(row, binding_hash, now):
+                return False
+            if row["attempts"] >= 4:
+                cursor.execute("DELETE FROM auth_admin_google_challenges WHERE challenge_hash=%s", (challenge_hash,))
+            else:
+                cursor.execute("UPDATE auth_admin_google_challenges SET attempts=attempts+1 WHERE challenge_hash=%s", (challenge_hash,))
+            return True
+
+    def revoke_google_challenge(self, challenge_hash, binding_hash, now):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute(GOOGLE_CHALLENGE_SELECT + " WHERE c.challenge_hash=%s FOR UPDATE", (challenge_hash,))
+            row = _decode_identity(cursor.fetchone())
+            if row is None or not hmac.compare_digest(row["binding_hash"], binding_hash):
+                return None
+            cursor.execute("DELETE FROM auth_admin_google_challenges WHERE challenge_hash=%s", (challenge_hash,))
+            return row
+
+    def get_google_factor(self, canonical_id):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM auth_admin_totp WHERE canonical_identity_id=%s", (canonical_id,))
+            return cursor.fetchone()
+
+    def admin_provider_identities(self, canonical_id):
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s OR l.admin_identity_id=%s ORDER BY i.id", (canonical_id, canonical_id))
+            rows = [_decode_identity(row) for row in cursor.fetchall()]
+            for row in rows:
+                row["provider_username"] = row["provider_username"] or row["subject"]
+            return rows
+
+    def _approve_google(self, proof_hash, target_id, issuer, now, actor_id, recovery):
+        with self._transaction() as connection:
+            with self._advisory_lock(connection, "auth-admin-access", "all"):
+                with connection.cursor() as cursor:
+                    cursor.execute(GOOGLE_CHALLENGE_SELECT + " WHERE c.proof_hash=%s AND i.issuer=%s FOR UPDATE", (proof_hash, issuer))
+                    proof = _decode_identity(cursor.fetchone())
+                    if (not proof or proof["expires_at"] <= now or proof["attempts"] >= 5
+                            or not self._google_source(proof)):
+                        raise ValueError("A fresh exact Google identity proof is required")
+                    cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (target_id,))
+                    target = _decode_identity(cursor.fetchone())
+                    if (not target or target["area"] != "admin" or target["issuer"] != issuer
+                            or target["is_google_alias"] or not target["admin_active"]
+                            or target["admin_role"] not in {"owner", "staff"} or target_id == proof["identity_id"]):
+                        raise ValueError("An active canonical administrator is required")
+                    cursor.execute("SELECT identity_id FROM auth_admin_access WHERE identity_id=%s", (proof["identity_id"],))
+                    if cursor.fetchone():
+                        raise ValueError("A role-owning identity cannot become a Google alias")
+                    cursor.execute("""SELECT * FROM auth_admin_google_links WHERE provider_identity_id=%s
+                        OR admin_identity_id=%s OR google_subject=%s FOR UPDATE""",
+                        (proof["identity_id"], target_id, proof["google_subject"]))
+                    links = [_decode_identity(row) for row in cursor.fetchall()]
+                    if any(row["provider_identity_id"] != proof["identity_id"] or row["admin_identity_id"] != target_id
+                           or row["google_subject"] != proof["google_subject"]
+                           or row["provider_username"] != proof["provider_username"] for row in links):
+                        raise ValueError("Google aliases cannot be reassigned")
+                    if recovery and not links:
+                        raise ValueError("Recovery requires the existing Google alias")
+                    cursor.execute("SELECT * FROM auth_admin_totp WHERE canonical_identity_id=%s FOR UPDATE", (target_id,))
+                    factor = cursor.fetchone()
+                    if not recovery and factor and factor["encrypted_secret"] is not None:
+                        raise ValueError("An enrolled factor requires the recovery command")
+                    if not links:
+                        cursor.execute("""INSERT INTO auth_admin_google_links
+                            (provider_identity_id,admin_identity_id,google_subject,provider_username,created_at)
+                            VALUES (%s,%s,%s,%s,%s)""", (proof["identity_id"], target_id, proof["google_subject"], proof["provider_username"], now))
+                    self._revoke_identity(cursor, target_id, now, keep_challenge_hash=proof["challenge_hash"])
+                    if factor is None:
+                        cursor.execute("""INSERT INTO auth_admin_totp
+                            (canonical_identity_id,enrollment_challenge_hash,enrollment_expires_at) VALUES (%s,%s,%s)""",
+                            (target_id, proof["challenge_hash"], proof["expires_at"]))
+                    else:
+                        version = factor["version"] + (1 if recovery else 0)
+                        cursor.execute("""UPDATE auth_admin_totp SET encrypted_secret=NULL,version=%s,last_counter=-1,
+                            enrollment_challenge_hash=%s,enrollment_expires_at=%s WHERE canonical_identity_id=%s""",
+                            (version, proof["challenge_hash"], proof["expires_at"], target_id))
+                    cursor.execute("UPDATE auth_admin_google_challenges SET proof_hash=NULL WHERE challenge_hash=%s", (proof["challenge_hash"],))
+                    self._audit(cursor, "admin.google_factor_recovery" if recovery else "admin.google_link_approved", target_id, None,
+                                {"provider_identity_id": proof["identity_id"], "actor_id": actor_id}, now)
+                    connection.commit()
+                    proof.update(canonical_identity_id=target_id, admin_role=target["admin_role"], admin_active=target["admin_active"], proof_hash=None)
+                    return proof
+
+    def approve_google_link(self, proof_hash, target_id, issuer, now, actor_id=None):
+        return self._approve_google(proof_hash, target_id, issuer, now, actor_id, recovery=False)
+
+    def recover_google_factor(self, proof_hash, target_id, issuer, now, actor_id=None):
+        return self._approve_google(proof_hash, target_id, issuer, now, actor_id, recovery=True)
+
+    def complete_google_mfa(self, challenge_hash, binding_hash, now, counter, expected_version, expected_payload,
+                            session=None, encrypted_secret=None):
+        if type(counter) is not int or counter < 0:
+            return False
+        with self._transaction() as connection:
+            with self._advisory_lock(connection, "auth-admin-access", "all"):
+                with self._advisory_lock(connection, "auth-flow", binding_hash):
+                    with connection.cursor() as cursor:
+                        cursor.execute(GOOGLE_CHALLENGE_SELECT + " WHERE c.challenge_hash=%s FOR UPDATE", (challenge_hash,))
+                        pending = _decode_identity(cursor.fetchone())
+                        if (not self._pending_valid(pending, binding_hash, now) or not pending["admin_active"]
+                                or pending["admin_role"] not in {"owner", "staff"}
+                                or pending["canonical_identity_id"] is None
+                                or not hmac.compare_digest(pending["encrypted_payload"], expected_payload)):
+                            return False
+                        cursor.execute("SELECT * FROM auth_admin_google_links WHERE provider_identity_id=%s", (pending["identity_id"],))
+                        link = _decode_identity(cursor.fetchone())
+                        if (not link or link["google_subject"] != pending["google_subject"]
+                                or link["provider_username"] != pending["provider_username"]):
+                            return False
+                        cursor.execute("SELECT binding_hash FROM auth_flow_cancellations WHERE binding_hash=%s AND area='admin' AND expires_at>%s",
+                                       (binding_hash, now))
+                        if cursor.fetchone():
+                            return False
+                        cursor.execute("SELECT * FROM auth_admin_totp WHERE canonical_identity_id=%s FOR UPDATE", (pending["canonical_identity_id"],))
+                        factor = cursor.fetchone()
+                        if not factor or factor["version"] != expected_version or counter <= factor["last_counter"]:
+                            return False
+                        if session is None:
+                            if (factor["encrypted_secret"] is not None or not isinstance(encrypted_secret, str) or not encrypted_secret
+                                    or factor["enrollment_challenge_hash"] != challenge_hash
+                                    or factor["enrollment_expires_at"] is None or factor["enrollment_expires_at"] <= now):
+                                return False
+                            cursor.execute("""UPDATE auth_admin_totp SET encrypted_secret=%s,last_counter=%s,
+                                enrollment_challenge_hash=NULL,enrollment_expires_at=NULL WHERE canonical_identity_id=%s""",
+                                (encrypted_secret, counter, pending["canonical_identity_id"]))
+                            event = "admin.google_factor_enrolled"
+                        else:
+                            assurance = session.get("assurance", {})
+                            if (factor["encrypted_secret"] is None or encrypted_secret is not None
+                                    or session["identity_id"] != pending["identity_id"] or session["area"] != "admin"
+                                    or session.get("login_binding_hash") != binding_hash or session["auth_time"] != now
+                                    or assurance.get("provider") != "google" or assurance.get("method") != "app_totp"
+                                    or assurance.get("mfa_version") != expected_version
+                                    or assurance.get("google_subject") != pending["google_subject"]
+                                    or assurance.get("verified_at") != now):
+                                return False
+                            self._insert_session(cursor, session)
+                            cursor.execute("UPDATE auth_admin_totp SET last_counter=%s WHERE canonical_identity_id=%s",
+                                           (counter, pending["canonical_identity_id"]))
+                            event = "admin.google_mfa_completed"
+                        cursor.execute("DELETE FROM auth_admin_google_challenges WHERE challenge_hash=%s", (challenge_hash,))
+                        self._audit(cursor, event, pending["canonical_identity_id"], None, {}, now)
+                        connection.commit()
+                        return True
 
     def update_tokens(self, token_hash, encrypted, now):
         with self._transaction() as connection, connection.cursor() as cursor:
@@ -366,7 +626,7 @@ class Store:
         """Purge expired credential-bearing state; retain audit history."""
         with self._transaction() as connection, connection.cursor() as cursor:
             counts = {}
-            for table in ("auth_flows", "auth_flow_cancellations", "auth_rate_limits", "auth_sessions"):
+            for table in ("auth_flows", "auth_flow_cancellations", "auth_admin_google_challenges", "auth_rate_limits", "auth_sessions"):
                 cursor.execute("DELETE FROM " + table + " WHERE expires_at<=%s", (now,))
                 counts[table] = cursor.rowcount
             return counts

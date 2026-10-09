@@ -8,4 +8,5 @@ joserfc>=1.7,<2
 boto3>=1.43.109,<2
 cryptography>=50,<51
 requests>=2.32,<3
+PyOTP>=2.10,<3
 pytest>=8,<9

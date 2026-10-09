@@ -4,9 +4,11 @@ Digital Modernization & Catering Management System. Lead Developer: Isaac Hernan
 
 ## Current status
 
-Updated October 8, 2026. Branch `feat/authentication-macha` adds customer and admin
+Updated October 9, 2026. Branch `feat/authentication-macha` adds customer and admin
 authentication to the approved React/Vite + Flask + MySQL foundation. Customers use
-Cognito email/password or Google; invited Owners/Staff require password plus TOTP.
+Cognito email/password or Google; invited Owners/Staff use password plus Cognito
+TOTP or explicitly approved Google plus application TOTP. Both admin methods share
+the canonical role and access status; matching emails never grant or link access.
 The backend implements server-side sessions, CSRF, role guards, revocation checks,
 audits, migrations, and private provisioning/recovery commands. React has basic
 login and protected session pages for testing; frontend design remains undecided.

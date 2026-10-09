@@ -111,7 +111,7 @@ class FakeProvider:
     def exchange(self, code, verifier):
         return {"access_token": "private-access-token", "id_token": "private-id-token", "refresh_token": "private-refresh-token"}
 
-    def validate(self, tokens, now, nonce=None, started_at=None):
+    def validate(self, tokens, now, nonce=None, started_at=None, provider="password"):
         if self.fail:
             raise self.fail
         if nonce is not None:
@@ -180,7 +180,7 @@ def invite(app, role="owner"):
 
 
 def begin(client, area="customer", provider="password"):
-    result = client.post(f"/api/v1/{area}/login", json={"provider": provider} if area == "customer" else {}, headers={"Origin": ORIGIN})
+    result = client.post(f"/api/v1/{area}/login", json={"provider": provider}, headers={"Origin": ORIGIN})
     assert result.status_code == 200, result.json
     state = parse_qs(urlsplit(result.json["data"]["authorization_url"]).query)["state"][0]
     return state
@@ -220,11 +220,11 @@ def test_customer_flow_cookie_and_session_do_not_expose_tokens(auth_app):
     assert flow is None
 
 
-def test_google_is_customer_only_and_credentials_are_rejected(auth_app):
+def test_both_realms_offer_google_and_raw_credentials_are_rejected(auth_app):
     client = auth_app.test_client()
     assert "method=google" in client.post("/api/v1/customer/login", json={"provider": "google"}, headers={"Origin": ORIGIN}).json["data"]["authorization_url"]
-    for payload in ({"provider": "google"}, {"email": "owner@example.invalid", "password": "private"}):
-        assert client.post("/api/v1/admin/login", json=payload, headers={"Origin": ORIGIN}).status_code == 422
+    assert "method=google" in client.post("/api/v1/admin/login", json={"provider": "google"}, headers={"Origin": ORIGIN}).json["data"]["authorization_url"]
+    assert client.post("/api/v1/admin/login", json={"email": "owner@example.invalid", "password": "private"}, headers={"Origin": ORIGIN}).status_code == 422
 
 
 @pytest.mark.parametrize("provider", [[], {}, None, 12, "unsupported"])

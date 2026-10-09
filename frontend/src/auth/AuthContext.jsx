@@ -25,7 +25,11 @@ export function AuthProvider({ children }) {
   const pending = useRef({});
   const logoutTokens = useRef({});
 
-  const refresh = useCallback((area) => {
+  const refresh = useCallback((area, { force = false } = {}) => {
+    if (force) {
+      versions.current[area] += 1;
+      delete pending.current[area];
+    }
     if (pending.current[area]) return pending.current[area];
     const version = versions.current[area];
     const request = (async () => {
@@ -64,7 +68,7 @@ export function AuthProvider({ children }) {
     const data = await apiRequest(`/${area}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(area === "customer" ? { provider } : {}),
+      body: JSON.stringify({ provider }),
     });
     navigateToProvider(data.authorization_url);
   }, []);

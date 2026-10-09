@@ -25,17 +25,23 @@ def test_admin_pool_requires_password_and_totp_with_private_recovery():
     assert admin["Policies"]["PasswordPolicy"]["MinimumLength"] >= 16
 
 
-def test_customer_google_provider_is_isolated_from_admin():
+def test_google_providers_are_isolated_by_realm():
     assert props("CustomerPool")["UserPoolTier"] == "ESSENTIALS"
     assert props("CustomerPool")["AdminCreateUserConfig"]["AllowAdminCreateUserOnly"] is False
     assert props("GoogleProvider")["UserPoolId"] == {"Ref": "CustomerPool"}
+    assert props("AdminGoogleProvider")["UserPoolId"] == {"Ref": "AdminPool"}
+    assert RESOURCES["AdminClient"]["DependsOn"] == "AdminGoogleProvider"
+    assert props("AdminGoogleProvider")["ProviderName"] == "Google"
+    assert props("AdminGoogleProvider")["AttributeMapping"] == props("GoogleProvider")["AttributeMapping"]
     assert props("GoogleProvider")["AttributeMapping"] == {"email": "email", "email_verified": "email_verified", "name": "name"}
-    assert props("AdminClient")["SupportedIdentityProviders"] == ["COGNITO"]
+    assert props("AdminClient")["SupportedIdentityProviders"] == ["COGNITO", "Google"]
     assert props("CustomerClient")["SupportedIdentityProviders"] == ["COGNITO", "Google"]
     assert "aws.cognito.signin.user.admin" in props("CustomerClient")["AllowedOAuthScopes"]
     assert "aws.cognito.signin.user.admin" in props("AdminClient")["AllowedOAuthScopes"]
     assert props("CustomerClient")["WriteAttributes"] == ["email", "name"]
-    assert props("AdminClient")["WriteAttributes"] == ["email"]
+    assert props("AdminClient")["WriteAttributes"] == ["email", "name"]
+    assert "ReadAttributes" not in props("AdminClient")
+    assert "identities" not in props("AdminClient")["WriteAttributes"]
 
 
 def test_clients_use_code_and_rotated_short_tokens():
@@ -104,9 +110,10 @@ def test_privileged_iam_actions_are_scoped_only_to_admin_pool():
 
 
 def test_secrets_are_dynamic_references_and_never_outputs():
-    details = props("GoogleProvider")["ProviderDetails"]
-    for field in ("client_id", "client_secret"):
-        assert details[field]["Fn::Sub"] == "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:" + field + "}}"
+    for provider in ("GoogleProvider", "AdminGoogleProvider"):
+        details = props(provider)["ProviderDetails"]
+        for field in ("client_id", "client_secret"):
+            assert details[field]["Fn::Sub"] == "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:" + field + "}}"
     outputs = json.dumps(TEMPLATE["Outputs"]).lower()
     assert "clientsecret" not in outputs and "client_secret" not in outputs and "secretstring" not in outputs
     assert "GoogleOAuthSecretArn" not in TEMPLATE["Outputs"]

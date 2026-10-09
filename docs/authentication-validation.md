@@ -1,42 +1,51 @@
 # Authentication validation
 
-Validated locally on October 8, 2026, on `feat/authentication-macha`, using Node
-24.18.0 and Python 3.14.4. No AWS resources or application accounts were provisioned.
+Validated locally on October 9, 2026, on `feat/authentication-macha`, starting from
+reviewed commit `88afc1f`, using Node 24.18.0 and Python 3.14.4. No AWS changes,
+operator invitations, or live-user mutations were performed.
 
 | Check | Result |
 | --- | --- |
-| Backend suite, including disposable database integration | 145 passed |
-| Persistence subset against isolated MariaDB 11.8 | 25 passed, included above |
-| Chromium authentication browser suite | 21 passed |
+| Complete backend suite, including disposable database integration | 270 passed |
+| Persistence subset against isolated MariaDB 11.8 | 43 passed, included above |
+| Chromium authentication browser suite | 42 passed |
 | Frontend production build | Passed |
-| OpenAPI standards, examples, configuration and foundation checks | Passed |
+| OpenAPI standards, examples, configuration and foundation checks | Passed: 23 operations, 146 examples |
 | Cognito CloudFormation, cfn-lint 1.57.2 | Passed with no findings |
 | Whitespace checks | Passed |
 
-The backend suite covers signed JWT verification, issuer/client/subject isolation,
-required completed TOTP, invitation and permission checks, CSRF and Origin,
-session expiry, provider outages/revocation, encrypted token rotation, owner
-lifecycle protection, private recovery commands, and concurrent session/flow
-operations. Logout races include a consumed callback, overlapping tab starts,
-canceled-generation retries, and session revocation during provider requests.
-Private operator tests also verify passwords are excluded from SDK debug logs.
+The backend suite covers both login methods, signed RS256 JWT verification,
+issuer/client/subject isolation, nonce and PKCE handling, verified email, native
+Cognito TOTP assurance, exact stable Google identities, unapproved users,
+explicit private proof linking, existing profiles and same-email ambiguity,
+application-factor enrollment without a session, enrollment authorization bound
+to the exact browser challenge, controlled recovery, principal/peer rate limits,
+OTP replay, CSRF/Origin, role/disable changes, fresh authentication, refresh,
+expiration, logout, provider failures and customer regression. Audit failures,
+concurrent OTP consumption, recovery/disable races, and delayed callbacks are
+covered. Secret values are excluded from browser storage and operator SDK logs.
 
-The browser suite uses controlled API/provider responses to check protected pages,
-customer/Google and admin redirects, fresh authentication, permission displays,
-expiry, polling, logout retries, and safe unavailable states. These tests do not
-prove live Cognito, Google, email delivery, or production proxy behavior.
+The database subset verifies migration 0001 to 0002 preserves native accounts,
+grants and sessions; both migration checksums are required for readiness.
+Migration 0001 is unchanged. Tests exercise real row locks, alias/canonical role
+joins, enrollment payload compare-and-swap, exact-proof authorization, monotonic
+OTP counters, factor versions, cancellation tombstones and atomic auditing.
+This local evidence used disposable MariaDB 11.8; CI targets MySQL 8.4. No remote
+CI or live production database result is claimed.
 
-After simplifying the frontend to a basic testing interface, the production build
-and all 21 browser tests passed again. That run used installed Chrome for Testing
-149.0.7827.55 through a temporary Playwright executable-path override; the committed
-CI configuration continues to install Playwright's matching Chromium revision.
-The simplified pages also passed an unmocked check against the running local site.
+The browser suite uses controlled API/provider responses. It covers password
+and Google initiation, pending approval with no access, enrollment without a
+session, verified-session bootstrap, unused-code errors, throttling, private
+recovery receipt display, expiry clearing sensitive content, role/disable
+changes, customer isolation, reauthentication, polling and logout. Expiry tests
+freeze the browser clock before navigation to avoid wall-clock worker races.
+These checks do not establish live Cognito, Google, email delivery, deployed
+CloudFormation, or production TLS/proxy behavior.
 
-An additional unmocked smoke check ran Chromium against Vite on port 5173 and
-Flask on port 5000. It verified the same-origin API proxy, customer/admin screens,
-liveness, and protected access denial with `AUTH_ENABLED=false`, without browser
-exceptions. Readiness returned 503 because the default local database and Cognito
-configuration are absent; the disposable test database was configured only for tests.
+The local Chromium run used installed Chrome for Testing 149.0.7827.55 through a
+temporary Playwright executable-path override. The committed CI configuration
+continues to install Playwright's matching Chromium revision. The frontend stays
+basic for testing; it introduces no finalized design system.
 
 Repeat checks after installing the pinned dependencies:
 
@@ -45,6 +54,7 @@ backend/.venv/bin/python scripts/check_foundation.py
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
 npm run build --prefix frontend
 npm run test:browser --prefix frontend
+cfn-lint infra/cognito-authentication.json
 git diff --check
 ```
 
@@ -52,12 +62,12 @@ Database integration skips unless `RUN_DATABASE_INTEGRATION=1` and disposable
 `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` are exported. Apply
 `python -m app.migrations` from `backend/` first. Integration tests mutate and clean
 the authentication tables, so use a dedicated test database. Playwright requires
-its Chromium installation. CloudFormation lint is independent of application
-dependencies.
+its Chromium installation. Template lint is independent of backend dependencies.
 
-[CI](../.github/workflows/foundation-checks.yml) targets MySQL 8.4 and runs migrations,
-backend integration, browser/build checks, and template lint. Local persistence
-evidence used MariaDB because Docker daemon access was unavailable; no remote CI
-result is claimed. Complete the real-provider release checks in
-[deployment](authentication-deployment.md) before launch, including the documented
-customer password-reset and provider-logout limitations.
+Before release, complete the exact Google redirect, stack, backend configuration,
+migration, private native bootstrap, Google proof approval, enrollment and live
+provider checks in [deployment](authentication-deployment.md) and
+[operator procedures](authentication-operations.md). In particular, verify
+Google signed identities metadata, native ACR/AMR, application TOTP recovery,
+refresh rotation and all-profile disable against the non-production pools.
+Customer password-reset/provider-logout limitations remain documented there.

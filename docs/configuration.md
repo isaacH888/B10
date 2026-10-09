@@ -27,7 +27,7 @@ backend private files. The MySQL root password belongs only to Compose.
 | `MYSQL_ROOT_PASSWORD` | Local Compose; Isaac | Required for initialization only; never passed to Flask |
 | `AUTH_ENABLED` | Flask authentication; Shourya | Explicit true/false. Local default false; hosted authentication must be enabled. Never permits a fallback identity. |
 | `AUTH_TRUSTED_PROXY_HOPS` | Flask proxy middleware; Shourya | Default zero ignores forwarded IPs. Set to the exact trusted proxy count (0–3) only after blocking direct backend access. |
-| `AUTH_TOKEN_ENCRYPTION_KEY` | Flask authentication; Shourya | Private Fernet key encrypts provider tokens and OAuth verifier/nonce material in MySQL; no default. |
+| `AUTH_TOKEN_ENCRYPTION_KEY` | Flask authentication; Shourya | Private Fernet key encrypts provider tokens, OAuth transactions and persistent Google-admin TOTP seeds in MySQL; no default. Rotation requires ciphertext migration or controlled factor recovery. |
 | `COGNITO_CUSTOMER_ISSUER`, `COGNITO_ADMIN_ISSUER` | Flask OIDC; Shourya | Exact distinct Cognito pool issuers; immutable issuer/subject identify accounts. |
 | `COGNITO_CUSTOMER_CLIENT_ID`, `COGNITO_ADMIN_CLIENT_ID` | Flask OIDC; Shourya | Confidential client identifiers; must match exact callback and logout URLs. |
 | `COGNITO_CUSTOMER_CLIENT_SECRET`, `COGNITO_ADMIN_CLIENT_SECRET` | Flask OIDC; Shourya | Backend-only client secrets, never Vite settings or template outputs. |
@@ -56,7 +56,7 @@ confirmation. See [source alignment](reference-alignment.md).
 Hosted startup rejects missing core application/TLS DB configuration and invalid
 origins or ports. Development permits blank DB credentials so the shell can start;
 `/live` returns 200 while `/health` returns 503 until the DB probe succeeds.
-When authentication is enabled, readiness also requires the exact authentication migration/checksum and tables. This does not prove domain migrations or live Cognito connectivity.
+When authentication is enabled, readiness also requires all authentication migrations/checksums and tables, including additive `0002_admin_google_mfa.sql`. This does not prove domain migrations or live Cognito connectivity.
 
 Reserved flags do not enable a feature by themselves. Feature owners must add
 explicit boolean parsing, enabled-feature credential validation and safe adapters.

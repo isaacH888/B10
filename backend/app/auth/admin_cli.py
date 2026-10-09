@@ -2,6 +2,8 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+import hashlib
+import json
 import logging
 import re
 import time
@@ -95,15 +97,72 @@ def _email(value):
 def _target(operator, email):
     records = operator.store.find_identity_by_email(_email(email), area="admin")
     records = [record for record in records if record["issuer"] == operator.issuer
-               and record.get("area") == "admin"]
+               and record.get("area") == "admin"
+               and record.get("admin_role") in {"owner", "staff"}
+               and record.get("canonical_identity_id", record["id"]) == record["id"]
+               and not record.get("is_google_alias")]
     if len(records) != 1:
         raise click.ClickException("The configured admin pool must have exactly one matching local account.")
     return records[0]
 
 
-def _revoke_provider(operator, identity):
-    operator.provider.admin_user_global_sign_out(UserPoolId=operator.pool_id,
-                                                Username=identity["subject"])
+def _provider_identities(operator, identity):
+    profiles = operator.store.admin_provider_identities(identity["id"])
+    if not profiles or not any(profile.get("subject") == identity["subject"] for profile in profiles):
+        raise click.ClickException("The canonical admin provider identity is unavailable.")
+    for profile in profiles:
+        if (profile.get("issuer") != operator.issuer or profile.get("area") != "admin"
+                or not isinstance(profile.get("subject"), str) or not profile["subject"]):
+            raise click.ClickException("Linked identities must belong to the configured admin pool.")
+        username = profile.get("provider_username") or profile["subject"]
+        google_subject = profile.get("google_subject")
+        if google_subject is not None:
+            if (not isinstance(google_subject, str) or not google_subject
+                    or username not in {"Google_" + google_subject, "google_" + google_subject.lower()}):
+                raise click.ClickException("A linked Google provider identity is invalid.")
+        elif username != profile["subject"]:
+            raise click.ClickException("The native admin provider identity is invalid.")
+    return profiles
+
+
+def _revoke_provider(operator, identity, profiles=None):
+    for profile in profiles if profiles is not None else _provider_identities(operator, identity):
+        operator.provider.admin_user_global_sign_out(UserPoolId=operator.pool_id,
+                                                    Username=profile.get("provider_username") or profile["subject"])
+
+
+def _google_proof(operator):
+    code = click.prompt("One-time Google approval code", hide_input=True).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{40,128}", code):
+        raise click.ClickException("Supply the fresh approval code displayed after Google sign-in.")
+    proof_hash = hashlib.sha256(code.encode("ascii")).hexdigest()
+    code = None
+    proof = operator.store.get_google_proof(proof_hash, operator.issuer, int(time.time()))
+    if (not proof or proof.get("issuer") != operator.issuer
+            or not isinstance(proof.get("subject"), str) or not proof["subject"]
+            or not isinstance(proof.get("google_subject"), str)
+            or not 1 <= len(proof["google_subject"]) <= 128):
+        raise click.ClickException("The Google approval proof is unavailable, used, or expired. Start Google sign-in again.")
+    uid = proof["google_subject"]
+    username = proof.get("provider_username")
+    if username not in {"Google_" + uid, "google_" + uid.lower()}:
+        raise click.ClickException("The proof does not identify an independent Google provider profile.")
+    response = operator.provider.admin_get_user(UserPoolId=operator.pool_id, Username=username)
+    attributes = {item["Name"]: item["Value"] for item in response.get("UserAttributes", [])}
+    try:
+        identities = json.loads(attributes.get("identities", "null"))
+    except (ValueError, TypeError):
+        identities = None
+    if (response.get("Enabled") is not True or response.get("UserStatus") != "EXTERNAL_PROVIDER"
+            or response.get("Username") != username or attributes.get("sub") != proof["subject"]
+            or attributes.get("email_verified") != "true"
+            or not isinstance(identities, list) or len(identities) != 1
+            or not isinstance(identities[0], dict)
+            or identities[0].get("providerName") != "Google"
+            or identities[0].get("providerType") != "Google"
+            or identities[0].get("userId") != uid):
+        raise click.ClickException("The live provider profile does not match the verified Google proof. No approval was granted.")
+    return proof_hash
 
 
 def _provision(operator, email, name, role, bootstrap=False):
@@ -112,7 +171,7 @@ def _provision(operator, email, name, role, bootstrap=False):
     if not name or len(name) > 150:
         raise click.ClickException("Supply a name of 1-150 characters.")
     if operator.store.find_identity_by_email(email, area="admin"):
-        raise click.ClickException("An admin identity already exists locally. Use the account lifecycle commands.")
+        raise click.ClickException("An admin identity already exists locally. Use lifecycle commands for approved accounts. If Google sign-in created an unapproved profile first, provision a distinct privately verified native-admin email; do not delete or merge the Google profile.")
     if bootstrap and operator.store.count_active_owners(operator.issuer):
         raise click.ClickException("An active owner already exists. Use invite-admin instead.")
     # Cognito generates and delivers the temporary password; no password is
@@ -189,8 +248,11 @@ def disable_admin(email):
     with _operator("disable-admin") as operator:
         identity = _target(operator, email)
         operator.store.set_admin_access(identity["id"], active=False, now=int(time.time()))
-        _revoke_provider(operator, identity)
-        operator.provider.admin_disable_user(UserPoolId=operator.pool_id, Username=identity["subject"])
+        profiles = _provider_identities(operator, identity)
+        _revoke_provider(operator, identity, profiles)
+        for profile in profiles:
+            operator.provider.admin_disable_user(UserPoolId=operator.pool_id,
+                                                  Username=profile.get("provider_username") or profile["subject"])
         operator.audit("admin_disabled_by_operator", identity)
     click.echo("Admin disabled. Existing sessions were invalidated.")
 
@@ -242,6 +304,44 @@ def recover_admin(email, verified_out_of_band, lost_mfa, reset_password):
                        verification="out_of_band")
     temporary_password = None
     click.echo("Recovery completed. Existing sessions remain invalid; complete fresh password/TOTP authentication.")
+
+
+@auth_commands.command("link-admin-google")
+@click.option("--email", required=True, help="Approved native admin account that will own this Google alias.")
+@click.option("--verified-out-of-band", is_flag=True, help="Confirm the Google account belongs to this approved administrator.")
+@with_appcontext
+def link_admin_google(email, verified_out_of_band):
+    """Approve a specific signed Google sign-in for local admin access."""
+    if not verified_out_of_band:
+        raise click.ClickException("Verify both identities privately and supply --verified-out-of-band.")
+    with _operator("link-admin-google") as operator:
+        identity = _target(operator, email)
+        if not identity.get("admin_active") or identity.get("admin_role") not in {"owner", "staff"}:
+            raise click.ClickException("Google access requires an active approved native admin account.")
+        proof_hash = _google_proof(operator)
+        operator.store.approve_google_link(proof_hash, identity["id"], operator.issuer,
+                                          int(time.time()), actor_id=operator.arn)
+        operator.audit("admin_google_link_approved_by_operator", identity, verification="out_of_band")
+    click.echo("Google identity approved. Continue in the same sign-in browser to enroll the application authenticator. Enrollment creates no session: start a new Google login and use the next unused authenticator code for dashboard access.")
+
+
+@auth_commands.command("recover-google-mfa")
+@click.option("--email", required=True, help="Canonical approved admin account with the linked Google identity.")
+@click.option("--verified-out-of-band", is_flag=True, help="Confirm the documented private identity verification was completed.")
+@with_appcontext
+def recover_google_mfa(email, verified_out_of_band):
+    """Replace a lost application TOTP factor using a fresh approved Google proof."""
+    if not verified_out_of_band:
+        raise click.ClickException("Complete private identity verification and supply --verified-out-of-band.")
+    with _operator("recover-google-mfa") as operator:
+        identity = _target(operator, email)
+        if not identity.get("admin_active") or identity.get("admin_role") not in {"owner", "staff"}:
+            raise click.ClickException("A disabled or unapproved admin cannot be recovered.")
+        proof_hash = _google_proof(operator)
+        operator.store.recover_google_factor(proof_hash, identity["id"], operator.issuer,
+                                            int(time.time()), actor_id=operator.arn)
+        operator.audit("admin_google_mfa_recovered_by_operator", identity, verification="out_of_band")
+    click.echo("Google authenticator recovery approved. Existing sessions are invalid. Continue in the same sign-in browser to enroll a new application authenticator, then start a new Google login and use the next unused authenticator code for access.")
 
 
 def register_admin_commands(app):
