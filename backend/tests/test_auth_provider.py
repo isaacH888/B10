@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 import pytest
+import requests
 
 from app.auth.errors import AuthError
 from app.auth.provider import CognitoProvider
@@ -67,6 +68,71 @@ def test_valid_signed_mfa_identity(provider, key):
     assert result["auth_time"] == NOW
 
 
+@pytest.mark.parametrize("missing", ["acr", "amr", "both"])
+def test_missing_signed_mfa_claims_have_private_diagnostic(provider, key, missing):
+    identity, access = claims()
+    for field in ("acr", "amr") if missing == "both" else (missing,):
+        identity.pop(field)
+    with pytest.raises(AuthError) as failure:
+        provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)
+    assert failure.value.code == "mfa_required"
+    assert failure.value.status == 403
+    assert failure.value.reason == "mfa_assurance_missing"
+    assert "mfa_assurance_missing" not in failure.value.message
+    assert identity["email"] not in failure.value.message
+
+
+@pytest.mark.parametrize("access_changes,assured", [
+    ({}, False),
+    ({"acr": "urn:cognito:loa:4", "amr": ["pwd", "otp", "mfa"]}, True),
+    ({"acr": "urn:cognito:loa:4", "amr": ["pwd"]}, False),
+    ({"acr": "urn:cognito:loa:4", "amr": ["pwd", "otp", "mfa", {}]}, False),
+])
+def test_mfa_diagnostics_record_only_signed_claim_presence_booleans(provider, key, access_changes, assured):
+    identity, access = claims()
+    identity.pop("acr")
+    identity.pop("amr")
+    access.update(access_changes)
+    with pytest.raises(AuthError) as failure:
+        provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)
+    assert failure.value.code == "mfa_required"
+    assert failure.value.reason == "mfa_assurance_missing"
+    assert failure.value.diagnostics == {"id_acr_present": False, "id_amr_present": False,
+                                        "access_acr_present": "acr" in access_changes,
+                                        "access_amr_present": "amr" in access_changes,
+                                        "access_totp_assured": assured}
+    assert all(type(value) is bool for value in failure.value.diagnostics.values())
+    assert identity["sub"] not in str(failure.value.diagnostics)
+    assert identity["email"] not in str(failure.value.diagnostics)
+
+
+@pytest.mark.parametrize("changes", [
+    {"acr": "urn:cognito:loa:1", "amr": ["pwd"]},
+    {"acr": "urn:cognito:loa:3", "amr": ["pwd", "sms", "mfa"]},
+    {"amr": ["pwd", "otp"]}, {"amr": []}, {"amr": "pwd otp mfa"},
+    {"amr": ["pwd", "otp", "mfa", {}]},
+])
+def test_insufficient_signed_mfa_claims_have_private_diagnostic(provider, key, changes):
+    identity, access = claims()
+    identity.update(changes)
+    with pytest.raises(AuthError) as failure:
+        provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)
+    assert failure.value.code == "mfa_required"
+    assert failure.value.reason == "mfa_assurance_insufficient"
+    assert "mfa_assurance_insufficient" not in failure.value.message
+
+
+def test_signed_mfa_freshness_has_private_diagnostic_and_keeps_clock_skew_boundary(provider, key):
+    identity, access = claims()
+    identity["auth_time"] = NOW - 61
+    with pytest.raises(AuthError) as failure:
+        provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)
+    assert failure.value.code == "mfa_required"
+    assert failure.value.reason == "mfa_authentication_stale"
+    identity["auth_time"] = NOW - 60
+    assert provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)["auth_time"] == NOW - 60
+
+
 @pytest.mark.parametrize("field,value", [
     ("iss", "https://evil.example.invalid"), ("aud", "different-client"), ("sub", ""),
     ("token_use", "access"), ("exp", NOW), ("iat", NOW + 61), ("nbf", NOW + 61),
@@ -108,86 +174,21 @@ def test_oauth_request_requests_fresh_totp_with_pkce_and_no_secret(provider):
     assert "private-client-secret" not in result and "v" * 64 not in result
 
 
-def test_google_oauth_uses_separate_admin_client_and_preserves_browser_binding(provider):
-    verifier = "private-pkce-verifier" * 4
-    result = provider.authorization_url("private-state", "private-nonce", verifier, "google")
-    url = urlsplit(result)
-    query = parse_qs(url.query)
-    assert url.netloc == "staff.auth.us-east-1.amazoncognito.com"
-    assert query["client_id"] == ["fixture-client"]
-    assert query["redirect_uri"] == ["http://localhost:5173/api/v1/admin/callback"]
-    assert query["identity_provider"] == ["Google"]
-    assert query["prompt"] == ["select_account"]
-    assert query["state"] == ["private-state"]
-    assert query["nonce"] == ["private-nonce"]
-    assert query["code_challenge_method"] == ["S256"]
-    assert query["code_challenge"] == [base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")]
-    assert set(query["scope"][0].split()) == {"openid", "email", "profile", "aws.cognito.signin.user.admin"}
-    assert "acr_values" not in query
-    assert "private-client-secret" not in result and verifier not in result
-
-
-@pytest.mark.parametrize("username", ["Google_123456789012345678901", "google_123456789012345678901"])
-def test_signed_google_identity_is_pinned_without_claiming_cognito_mfa(provider, key, username):
-    identity, access = google_claims()
-    identity["cognito:username"] = username
-    result = provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW, provider="google")
-    assert result["subject"] == "fixture-subject"
-    assert result["google_subject"] == "123456789012345678901"
-    assert result["provider"] == "google"
-    assert result["provider_username"] == username
-    assert result["assurance"] == {"acr": None, "amr": []}
-
-
-@pytest.mark.parametrize("identity_changes", [
-    {"identities": None}, {"identities": []}, {"identities": "Google"},
-    {"identities": [None]}, {"identities": [{"providerName": "Google", "providerType": "Google", "userId": ""}]},
-    {"identities": [{"providerName": "google", "providerType": "Google", "userId": "123456789012345678901"}]},
-    {"identities": [{"providerName": "Google", "providerType": "OIDC", "userId": "123456789012345678901"}]},
-    {"identities": [{"providerName": "Google", "providerType": "Google", "userId": 123456789012345678901}]},
-    {"identities": [{"providerName": "Google", "providerType": "Google", "userId": "different-subject"}]},
-    {"identities": [{"providerName": "Google", "providerType": "Google", "userId": "123456789012345678901"}] * 2},
-    {"cognito:username": "approved-password-user"}, {"cognito:username": "Google_someone-else"},
-    {"cognito:username": "fixture@example.invalid"}, {"cognito:username": None},
-])
-def test_google_signed_identity_rejects_ambiguous_links_and_mismatched_profiles(provider, key, identity_changes):
-    identity, access = google_claims()
-    identity.update(identity_changes)
+@pytest.mark.parametrize("operation", ["authorize", "validate", "get_user"])
+def test_admin_google_is_rejected_before_provider_io(provider, monkeypatch, operation):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("A removed admin login method must not contact the provider.")
+    monkeypatch.setattr(provider, "oauth", unexpected)
+    monkeypatch.setattr(provider, "_decode", unexpected)
+    monkeypatch.setattr("app.auth.provider.requests.post", unexpected)
     with pytest.raises(AuthError) as failure:
-        provider.validate(tokens(key, identity, access), NOW, provider="google")
-    assert failure.value.code == "authentication_failed"
-
-
-@pytest.mark.parametrize("field,value", [
-    ("iss", "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_customer"),
-    ("aud", "customer-client"), ("nonce", "another-browser"), ("exp", NOW), ("iat", NOW + 61),
-    ("nbf", NOW + 61), ("email_verified", False), ("email_verified", "true"),
-    ("email", ""), ("email", None), ("auth_time", NOW + 61),
-])
-def test_google_signed_tokens_still_require_issuer_client_nonce_expiry_and_verified_email(provider, key, field, value):
-    identity, access = google_claims()
-    identity[field] = value
-    with pytest.raises(AuthError):
-        provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", provider="google")
-
-
-@pytest.mark.parametrize("field,value", [
-    ("sub", "someone-else"), ("client_id", "customer-client"),
-    ("iss", "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_customer"),
-    ("exp", NOW), ("scope", "openid email"), ("token_use", "id"),
-])
-def test_google_access_token_is_bound_to_signed_admin_identity(provider, key, field, value):
-    identity, access = google_claims()
-    access[field] = value
-    with pytest.raises(AuthError):
-        provider.validate(tokens(key, identity, access), NOW, provider="google")
-
-
-def test_google_token_with_wrong_signature_is_rejected(provider):
-    wrong_key = RSAKey.generate_key(parameters={"kid": "fixture-key"})
-    identity, access = google_claims()
-    with pytest.raises(AuthError):
-        provider.validate(tokens(wrong_key, identity, access), NOW, provider="google")
+        if operation == "authorize":
+            provider.authorization_url("state", "nonce", "v" * 64, "google")
+        elif operation == "validate":
+            provider.validate({}, NOW, provider="google")
+        else:
+            provider.current_user("private-token", "fixture-subject", provider="google")
+    assert failure.value.code == ("validation_error" if operation == "authorize" else "authentication_failed")
 
 
 def test_google_identity_cannot_use_password_route_to_skip_native_mfa(provider, key):
@@ -208,58 +209,11 @@ def test_current_user_rejects_revocation_and_removed_mfa(provider, monkeypatch):
     assert error.value.code == "session_expired"
     assert "private" not in error.value.message
     Response.status_code = 200
-    Response.json = lambda self: {"UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}], "UserMFASettingList": []}
+    Response.json = lambda self: {"Username": "approved-password-user", "UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}],
+                                 "UserMFASettingList": [], "ConfiguredUserAuthFactors": ["PASSWORD"]}
     with pytest.raises(AuthError) as error:
         provider.current_user("private-access-token", "fixture-subject")
     assert error.value.code == "mfa_required"
-
-
-def test_google_current_user_pins_external_username_without_native_cognito_mfa(provider, monkeypatch):
-    captured = {}
-    class Response:
-        status_code = 200
-        def json(self):
-            return {"Username": "Google_123456789012345678901", "UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}]}
-    def request(url, **kwargs):
-        captured.update(url=url, **kwargs)
-        return Response()
-    monkeypatch.setattr("app.auth.provider.requests.post", request)
-    provider.current_user("private-access-token", "fixture-subject", provider="google", google_subject="123456789012345678901")
-    assert captured["url"] == "https://cognito-idp.us-east-1.amazonaws.com/"
-    assert captured["json"] == {"AccessToken": "private-access-token"}
-    assert captured["headers"]["X-Amz-Target"].endswith(".GetUser")
-    assert "Authorization" not in captured["headers"]
-
-
-@pytest.mark.parametrize("username,subject,google_subject", [
-    ("Google_123456789012345678901", "different-subject", "123456789012345678901"),
-    ("Google_another-google-user", "fixture-subject", "123456789012345678901"),
-    ("approved-password-user", "fixture-subject", "123456789012345678901"),
-    (None, "fixture-subject", "123456789012345678901"),
-    ("Google_123456789012345678901", "fixture-subject", None),
-])
-def test_google_get_user_rejects_wrong_identity_and_native_linked_accounts(provider, monkeypatch, username, subject, google_subject):
-    class Response:
-        status_code = 200
-        def json(self):
-            return {"Username": username, "UserAttributes": [{"Name": "sub", "Value": subject}], "UserMFASettingList": ["SOFTWARE_TOKEN_MFA"]}
-    monkeypatch.setattr("app.auth.provider.requests.post", lambda *args, **kwargs: Response())
-    with pytest.raises(AuthError) as failure:
-        provider.current_user("private-access-token", "fixture-subject", provider="google", google_subject=google_subject)
-    assert failure.value.code == "authentication_failed"
-
-
-@pytest.mark.parametrize("code", ["NotAuthorizedException", "UserNotFoundException", "PasswordResetRequiredException"])
-def test_google_get_user_rejects_disabled_and_revoked_profiles(provider, monkeypatch, code):
-    class Response:
-        status_code = 400
-        def json(self):
-            return {"__type": code, "message": "private-provider-details"}
-    monkeypatch.setattr("app.auth.provider.requests.post", lambda *args, **kwargs: Response())
-    with pytest.raises(AuthError) as failure:
-        provider.current_user("private-access-token", "fixture-subject", provider="google", google_subject="123456789012345678901")
-    assert failure.value.code == "session_expired"
-    assert "private" not in failure.value.message
 
 
 def test_password_current_user_continues_to_require_native_totp(provider, monkeypatch):
@@ -271,30 +225,243 @@ def test_password_current_user_continues_to_require_native_totp(provider, monkey
     assert provider.current_user("private-access-token", "fixture-subject", provider="password") is None
 
 
-@pytest.mark.parametrize("method", ["password", "google"])
-def test_customer_pool_login_preserves_existing_non_admin_assurance(provider, key, method):
-    issuer = ISSUER.replace("fixture", "customer")
-    customer = CognitoProvider({"AUTH_ORIGIN": "http://localhost:5173", "COGNITO_CUSTOMER_ISSUER": issuer,
-                               "COGNITO_CUSTOMER_CLIENT_ID": "customer-client", "COGNITO_CUSTOMER_CLIENT_SECRET": "private-customer-secret",
-                               "COGNITO_CUSTOMER_DOMAIN": "https://customers.auth.us-east-1.amazoncognito.com"}, "customer")
+@pytest.mark.parametrize("methods", [None, [], ["SMS_MFA"]])
+def test_missing_native_totp_registration_has_private_diagnostic(provider, monkeypatch, methods):
+    class Response:
+        status_code = 200
+        def json(self):
+            body = {"Username": "approved-password-user", "UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}],
+                    "ConfiguredUserAuthFactors": ["PASSWORD"]}
+            if methods is not None:
+                body["UserMFASettingList"] = methods
+            return body
+    monkeypatch.setattr("app.auth.provider.requests.post", lambda *args, **kwargs: Response())
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.code == "mfa_required"
+    assert failure.value.status == 403
+    assert failure.value.reason == "mfa_enrollment_missing"
+    assert "mfa_enrollment_missing" not in failure.value.message
+    assert "private-access-token" not in failure.value.message
+
+
+@pytest.fixture
+def user_operations(monkeypatch):
+    responses = {"GetUser": {"status": 200, "body": {"Username": "approved-password-user",
+                    "UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}]}},
+                 "GetUserAuthFactors": {"status": 200, "body": {"Username": "approved-password-user",
+                    "ConfiguredUserAuthFactors": ["PASSWORD", "SOFTWARE_TOKEN"]}}}
+    calls = []
+
+    class Response:
+        def __init__(self, data):
+            self.data = data
+            self.status_code = data["status"]
+        def json(self):
+            return self.data["body"]
+
+    def post(url, **kwargs):
+        operation = kwargs["headers"]["X-Amz-Target"].split(".")[-1]
+        calls.append((operation, url, kwargs))
+        if responses[operation].get("exception"):
+            raise responses[operation]["exception"]
+        return Response(responses[operation])
+
+    monkeypatch.setattr("app.auth.provider.requests.post", post)
+    return responses, calls
+
+
+def test_registered_totp_without_preference_supports_a_signed_mfa_login(provider, key, user_operations):
+    _, calls = user_operations
+    signed = tokens(key)
+    identity = provider.validate(signed, NOW, nonce="fixture-nonce", started_at=NOW)
+    assert provider.current_user(signed["access_token"], identity["subject"]) is None
+    assert [call[0] for call in calls] == ["GetUser", "GetUserAuthFactors"]
+    for _, url, arguments in calls:
+        assert url == "https://cognito-idp.us-east-1.amazonaws.com/"
+        assert arguments["json"] == {"AccessToken": signed["access_token"]}
+        assert arguments["timeout"] == (3, 5)
+        assert "Authorization" not in arguments["headers"]
+        assert set(arguments["headers"]) == {"Content-Type", "X-Amz-Target"}
+
+
+def test_registered_factor_does_not_bypass_missing_signed_mfa_proof(provider, key, user_operations):
+    _, calls = user_operations
+    identity, access = claims()
+    identity.pop("acr")
+    identity.pop("amr")
+    with pytest.raises(AuthError) as failure:
+        verified = provider.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", started_at=NOW)
+        provider.current_user("private-access-token", verified["subject"])
+    assert failure.value.code == "mfa_required"
+    assert failure.value.reason == "mfa_assurance_missing"
+    assert not calls
+
+
+def test_activated_native_totp_does_not_need_factor_query(provider, user_operations):
+    responses, calls = user_operations
+    responses["GetUser"]["body"]["UserMFASettingList"] = ["SOFTWARE_TOKEN_MFA"]
+    assert provider.current_user("private-access-token", "fixture-subject") is None
+    assert [call[0] for call in calls] == ["GetUser"]
+
+
+def test_customer_without_totp_does_not_query_admin_factor_state(customer, user_operations):
+    _, calls = user_operations
+    assert customer.current_user("private-access-token", "fixture-subject", provider="google") is None
+    assert [call[0] for call in calls] == ["GetUser"]
+
+
+@pytest.mark.parametrize("configured", [[], ["PASSWORD"], ["PASSWORD", "SMS_OTP", "EMAIL_OTP"]])
+def test_removed_software_factor_still_denies_access(provider, user_operations, configured):
+    responses, calls = user_operations
+    responses["GetUserAuthFactors"]["body"]["ConfiguredUserAuthFactors"] = configured
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.code == "mfa_required"
+    assert failure.value.reason == "mfa_enrollment_missing"
+    assert [call[0] for call in calls] == ["GetUser", "GetUserAuthFactors"]
+
+
+@pytest.mark.parametrize("body,status", [
+    ([], 503), (None, 503), ({}, 503),
+    ({"Username": "approved-password-user", "ConfiguredUserAuthFactors": None}, 503),
+    ({"Username": "approved-password-user", "ConfiguredUserAuthFactors": "SOFTWARE_TOKEN"}, 503),
+    ({"Username": "approved-password-user", "ConfiguredUserAuthFactors": ["SOFTWARE_TOKEN", {}]}, 503),
+    ({"Username": "different-password-user", "ConfiguredUserAuthFactors": ["SOFTWARE_TOKEN"]}, 401),
+    ({"ConfiguredUserAuthFactors": ["SOFTWARE_TOKEN"]}, 401),
+])
+def test_factor_response_fails_closed_on_malformed_or_wrong_user(provider, user_operations, body, status):
+    responses, _ = user_operations
+    responses["GetUserAuthFactors"]["body"] = body
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.status == status
+
+
+@pytest.mark.parametrize("username", [None, "", 12])
+def test_factor_lookup_requires_the_get_user_username(provider, user_operations, username):
+    responses, calls = user_operations
+    responses["GetUser"]["body"]["Username"] = username
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.status == 503
+    assert [call[0] for call in calls] == ["GetUser"]
+
+
+@pytest.mark.parametrize("code,status", [("NotAuthorizedException", 401), ("UserNotFoundException", 401),
+                                         ("PasswordResetRequiredException", 401), ("InternalErrorException", 503),
+                                         ("TooManyRequestsException", 503), ("OperationNotEnabledException", 503)])
+def test_factor_provider_errors_preserve_revocation_and_outage_handling(provider, user_operations, code, status):
+    responses, _ = user_operations
+    responses["GetUserAuthFactors"].update(status=400, body={"__type": code, "message": "private-provider-details"})
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.status == status
+    assert "private" not in failure.value.message
+
+
+def test_factor_network_outage_grants_no_access(provider, user_operations):
+    responses, _ = user_operations
+    responses["GetUserAuthFactors"]["exception"] = requests.Timeout("private-provider-details")
+    with pytest.raises(AuthError) as failure:
+        provider.current_user("private-access-token", "fixture-subject")
+    assert failure.value.status == 503
+    assert "private" not in failure.value.message
+
+
+@pytest.fixture
+def customer(provider):
+    # The provider fixture installs a local public key for both pools.
+    return CognitoProvider({"AUTH_ORIGIN": "http://localhost:5173",
+                           "COGNITO_CUSTOMER_ISSUER": ISSUER.replace("fixture", "customer"),
+                           "COGNITO_CUSTOMER_CLIENT_ID": "customer-client",
+                           "COGNITO_CUSTOMER_CLIENT_SECRET": "private-customer-secret",
+                           "COGNITO_CUSTOMER_DOMAIN": "https://customers.auth.us-east-1.amazoncognito.com"}, "customer")
+
+
+def customer_claims(customer, method="google"):
     identity, access = google_claims() if method == "google" else claims()
     identity.pop("acr", None)
     identity.pop("amr", None)
-    identity.update(iss=issuer, aud="customer-client")
-    access.update(iss=issuer, client_id="customer-client")
+    identity.update(iss=customer.issuer, aud=customer.client_id)
+    access.update(iss=customer.issuer, client_id=customer.client_id)
+    return identity, access
+
+
+@pytest.mark.parametrize("method", ["password", "google"])
+def test_customer_pool_login_preserves_existing_non_admin_assurance(customer, provider, key, method):
+    identity, access = customer_claims(customer, method)
     result = customer.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", provider=method)
-    assert result["issuer"] == issuer
+    assert result["issuer"] == customer.issuer
     assert result["provider"] == method
     assert result["assurance"] == {"acr": None, "amr": []}
     with pytest.raises(AuthError):
         provider.validate(tokens(key, identity, access), NOW, provider=method)
-    query = parse_qs(urlsplit(customer.authorization_url("customer-state", "customer-nonce", "v" * 64, method)).query)
+    verifier = "private-pkce-verifier" * 4
+    query = parse_qs(urlsplit(customer.authorization_url("customer-state", "customer-nonce", verifier, method)).query)
     assert query["client_id"] == ["customer-client"]
     assert query["redirect_uri"] == ["http://localhost:5173/api/v1/customer/callback"]
+    assert query["state"] == ["customer-state"]
+    assert query["nonce"] == ["customer-nonce"]
     assert query["code_challenge_method"] == ["S256"]
+    assert query["code_challenge"] == [base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")]
     assert "acr_values" not in query
     if method == "google":
         assert query["identity_provider"] == ["Google"]
+
+
+@pytest.mark.parametrize("field,value", [
+    ("iss", ISSUER), ("aud", "fixture-client"), ("nonce", "another-browser"),
+    ("exp", NOW), ("iat", NOW + 61), ("nbf", NOW + 61), ("email_verified", False),
+    ("email_verified", "true"), ("email", ""), ("email", None), ("auth_time", NOW + 61),
+])
+def test_customer_google_checks_signed_identity_claims(customer, key, field, value):
+    identity, access = customer_claims(customer)
+    identity[field] = value
+    with pytest.raises(AuthError):
+        customer.validate(tokens(key, identity, access), NOW, nonce="fixture-nonce", provider="google")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("sub", "someone-else"), ("client_id", "fixture-client"), ("iss", ISSUER),
+    ("exp", NOW), ("scope", "openid email"), ("token_use", "id"),
+])
+def test_customer_google_checks_access_token_binding(customer, key, field, value):
+    identity, access = customer_claims(customer)
+    access[field] = value
+    with pytest.raises(AuthError):
+        customer.validate(tokens(key, identity, access), NOW, provider="google")
+
+
+def test_customer_google_rejects_wrong_signature(customer):
+    wrong_key = RSAKey.generate_key(parameters={"kid": "fixture-key"})
+    identity, access = customer_claims(customer)
+    with pytest.raises(AuthError):
+        customer.validate(tokens(wrong_key, identity, access), NOW, provider="google")
+
+
+@pytest.mark.parametrize("code", ["NotAuthorizedException", "UserNotFoundException", "PasswordResetRequiredException"])
+def test_customer_google_rejects_disabled_or_revoked_provider_user(customer, monkeypatch, code):
+    class Response:
+        status_code = 400
+        def json(self):
+            return {"__type": code, "message": "private-provider-details"}
+    monkeypatch.setattr("app.auth.provider.requests.post", lambda *args, **kwargs: Response())
+    with pytest.raises(AuthError) as failure:
+        customer.current_user("private-access-token", "fixture-subject", provider="google")
+    assert failure.value.code == "session_expired"
+    assert "private" not in failure.value.message
+
+
+def test_customer_google_get_user_requires_same_subject_without_admin_mfa(customer, monkeypatch):
+    class Response:
+        status_code = 200
+        def json(self):
+            return {"UserAttributes": [{"Name": "sub", "Value": "fixture-subject"}]}
+    monkeypatch.setattr("app.auth.provider.requests.post", lambda *args, **kwargs: Response())
+    assert customer.current_user("private-access-token", "fixture-subject", provider="google") is None
+    with pytest.raises(AuthError):
+        customer.current_user("private-access-token", "someone-else", provider="google")
 
 
 @pytest.mark.parametrize("operation", ["exchange", "refresh"])

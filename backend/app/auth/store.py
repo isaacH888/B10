@@ -161,6 +161,7 @@ class Store:
                 "SELECT provider_identity_id,admin_identity_id,google_subject,provider_username FROM auth_admin_google_links LIMIT 0",
                 "SELECT canonical_identity_id,encrypted_secret,version,last_counter FROM auth_admin_totp LIMIT 0",
                 "SELECT challenge_hash,binding_hash,proof_hash,encrypted_payload,attempts FROM auth_admin_google_challenges LIMIT 0",
+                "SELECT token_hash,binding_hash,created_at,expires_at,attempts,encrypted_payload FROM auth_admin_native_flows LIMIT 0",
             ):
                 cursor.execute(query)
         return True
@@ -219,6 +220,53 @@ class Store:
             cursor.execute("DELETE FROM auth_flows WHERE state_hash=%s", (state_hash,))
             return row
 
+    def put_admin_native_flow(self, flow):
+        """Persist a short native challenge under the shared logout cancellation lock."""
+        created = flow["created_at"]
+        expires = flow["expires_at"]
+        attempts = flow.get("attempts", 0)
+        if (type(created) is not int or type(expires) is not int or created < 0
+                or not created < expires <= created + 300):
+            raise ValueError("Native sign-in challenges expire within five minutes")
+        if type(attempts) is not int or not 0 <= attempts <= 5:
+            raise ValueError("Native sign-in challenge attempts must be between zero and five")
+        with self._transaction() as connection:
+            with self._advisory_lock(connection, "auth-flow", flow["binding_hash"]):
+                with connection.cursor() as cursor:
+                    cursor.execute("""SELECT binding_hash FROM auth_flow_cancellations
+                        WHERE binding_hash=%s AND area='admin' AND expires_at>%s""",
+                        (flow["binding_hash"], created))
+                    if cursor.fetchone():
+                        raise LoginCancelledError("This sign-in transaction was cancelled")
+                    cursor.execute("""INSERT INTO auth_admin_native_flows
+                        (token_hash,binding_hash,created_at,expires_at,attempts,encrypted_payload)
+                        VALUES (%s,%s,%s,%s,%s,%s)""",
+                        (flow["token_hash"], flow["binding_hash"], created, expires,
+                         attempts, flow["encrypted_payload"]))
+                    connection.commit()
+
+    def get_admin_native_flow(self, token_hash, binding_hash, now):
+        """Read pending state only for its initiating browser and before its deadline."""
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM auth_admin_native_flows WHERE token_hash=%s", (token_hash,))
+            row = cursor.fetchone()
+            if (not row or row["expires_at"] <= now or row["attempts"] >= 5
+                    or not hmac.compare_digest(row["binding_hash"], binding_hash)):
+                return None
+            return row
+
+    def consume_admin_native_flow(self, token_hash, binding_hash, now):
+        """Consume before calling Cognito so racing attempts cannot replay its session."""
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM auth_admin_native_flows WHERE token_hash=%s FOR UPDATE", (token_hash,))
+            row = cursor.fetchone()
+            if (not row or row["expires_at"] <= now or row["attempts"] >= 5
+                    or not hmac.compare_digest(row["binding_hash"], binding_hash)):
+                return None
+            cursor.execute("DELETE FROM auth_admin_native_flows WHERE token_hash=%s", (token_hash,))
+            row["attempts"] += 1
+            return row
+
     def cancel_login(self, binding_hash, area, now):
         _area(area)
         with self._transaction() as connection:
@@ -231,6 +279,7 @@ class Store:
                     cursor.execute("""UPDATE auth_sessions SET revoked_at=%s,encrypted_tokens=''
                         WHERE login_binding_hash=%s AND area=%s AND revoked_at IS NULL""", (now, binding_hash, area))
                     if area == "admin":
+                        cursor.execute("DELETE FROM auth_admin_native_flows WHERE binding_hash=%s", (binding_hash,))
                         cursor.execute("DELETE FROM auth_admin_google_challenges WHERE binding_hash=%s", (binding_hash,))
                     self._audit(cursor, "login.cancelled", None, None, {"area": area}, now)
                     connection.commit()
@@ -626,7 +675,7 @@ class Store:
         """Purge expired credential-bearing state; retain audit history."""
         with self._transaction() as connection, connection.cursor() as cursor:
             counts = {}
-            for table in ("auth_flows", "auth_flow_cancellations", "auth_admin_google_challenges", "auth_rate_limits", "auth_sessions"):
+            for table in ("auth_flows", "auth_flow_cancellations", "auth_admin_google_challenges", "auth_admin_native_flows", "auth_rate_limits", "auth_sessions"):
                 cursor.execute("DELETE FROM " + table + " WHERE expires_at<=%s", (now,))
                 counts[table] = cursor.rowcount
             return counts

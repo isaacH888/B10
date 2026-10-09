@@ -25,22 +25,24 @@ def test_admin_pool_requires_password_and_totp_with_private_recovery():
     assert admin["Policies"]["PasswordPolicy"]["MinimumLength"] >= 16
 
 
-def test_google_providers_are_isolated_by_realm():
+def test_customer_supports_google_and_password_while_admin_is_native_only():
     assert props("CustomerPool")["UserPoolTier"] == "ESSENTIALS"
     assert props("CustomerPool")["AdminCreateUserConfig"]["AllowAdminCreateUserOnly"] is False
     assert props("GoogleProvider")["UserPoolId"] == {"Ref": "CustomerPool"}
-    assert props("AdminGoogleProvider")["UserPoolId"] == {"Ref": "AdminPool"}
-    assert RESOURCES["AdminClient"]["DependsOn"] == "AdminGoogleProvider"
-    assert props("AdminGoogleProvider")["ProviderName"] == "Google"
-    assert props("AdminGoogleProvider")["AttributeMapping"] == props("GoogleProvider")["AttributeMapping"]
+    assert "AdminGoogleProvider" not in RESOURCES
+    assert "DependsOn" not in RESOURCES["AdminClient"]
+    assert RESOURCES["CustomerClient"]["DependsOn"] == "GoogleProvider"
+    providers = [resource["Properties"] for resource in RESOURCES.values()
+                 if resource["Type"] == "AWS::Cognito::UserPoolIdentityProvider"]
+    assert len(providers) == 1 and providers[0]["UserPoolId"] == {"Ref": "CustomerPool"}
     assert props("GoogleProvider")["AttributeMapping"] == {"email": "email", "email_verified": "email_verified", "name": "name"}
-    assert props("AdminClient")["SupportedIdentityProviders"] == ["COGNITO", "Google"]
+    assert props("AdminClient")["SupportedIdentityProviders"] == ["COGNITO"]
     assert props("CustomerClient")["SupportedIdentityProviders"] == ["COGNITO", "Google"]
     assert "aws.cognito.signin.user.admin" in props("CustomerClient")["AllowedOAuthScopes"]
     assert "aws.cognito.signin.user.admin" in props("AdminClient")["AllowedOAuthScopes"]
     assert props("CustomerClient")["WriteAttributes"] == ["email", "name"]
-    assert props("AdminClient")["WriteAttributes"] == ["email", "name"]
-    assert "ReadAttributes" not in props("AdminClient")
+    assert props("AdminClient")["WriteAttributes"] == ["email"]
+    assert props("AdminClient")["ReadAttributes"] == ["email", "email_verified", "name"]
     assert "identities" not in props("AdminClient")["WriteAttributes"]
 
 
@@ -110,7 +112,7 @@ def test_privileged_iam_actions_are_scoped_only_to_admin_pool():
 
 
 def test_secrets_are_dynamic_references_and_never_outputs():
-    for provider in ("GoogleProvider", "AdminGoogleProvider"):
+    for provider in ("GoogleProvider",):
         details = props(provider)["ProviderDetails"]
         for field in ("client_id", "client_secret"):
             assert details[field]["Fn::Sub"] == "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:" + field + "}}"

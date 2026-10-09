@@ -27,7 +27,7 @@ backend private files. The MySQL root password belongs only to Compose.
 | `MYSQL_ROOT_PASSWORD` | Local Compose; Isaac | Required for initialization only; never passed to Flask |
 | `AUTH_ENABLED` | Flask authentication; Shourya | Explicit true/false. Local default false; hosted authentication must be enabled. Never permits a fallback identity. |
 | `AUTH_TRUSTED_PROXY_HOPS` | Flask proxy middleware; Shourya | Default zero ignores forwarded IPs. Set to the exact trusted proxy count (0–3) only after blocking direct backend access. |
-| `AUTH_TOKEN_ENCRYPTION_KEY` | Flask authentication; Shourya | Private Fernet key encrypts provider tokens, OAuth transactions and persistent Google-admin TOTP seeds in MySQL; no default. Rotation requires ciphertext migration or controlled factor recovery. |
+| `AUTH_TOKEN_ENCRYPTION_KEY` | Flask authentication; Shourya | Private Fernet key encrypts provider tokens and OAuth transactions in MySQL; no default. Retain encrypted legacy records and plan ciphertext migration before replacing the key. |
 | `COGNITO_CUSTOMER_ISSUER`, `COGNITO_ADMIN_ISSUER` | Flask OIDC; Shourya | Exact distinct Cognito pool issuers; immutable issuer/subject identify accounts. |
 | `COGNITO_CUSTOMER_CLIENT_ID`, `COGNITO_ADMIN_CLIENT_ID` | Flask OIDC; Shourya | Confidential client identifiers; must match exact callback and logout URLs. |
 | `COGNITO_CUSTOMER_CLIENT_SECRET`, `COGNITO_ADMIN_CLIENT_SECRET` | Flask OIDC; Shourya | Backend-only client secrets, never Vite settings or template outputs. |

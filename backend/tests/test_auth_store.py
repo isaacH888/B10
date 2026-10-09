@@ -15,7 +15,7 @@ from app.migrations import MIGRATIONS, MigrationError, apply_migrations, stateme
 
 
 NOW = 1800000000
-TABLES = ("auth_admin_google_challenges", "auth_admin_totp", "auth_admin_google_links", "auth_sessions", "auth_flows", "auth_flow_cancellations", "auth_admin_access", "auth_audit_events", "auth_rate_limits", "auth_identities")
+TABLES = ("auth_admin_native_flows", "auth_admin_google_challenges", "auth_admin_totp", "auth_admin_google_links", "auth_sessions", "auth_flows", "auth_flow_cancellations", "auth_admin_access", "auth_audit_events", "auth_rate_limits", "auth_identities")
 
 
 def digest(value):
@@ -455,7 +455,7 @@ def test_cleanup_removes_expired_secrets_but_retains_audits(store):
     store.put_flow({"state_hash": digest("state"), "binding_hash": digest("browser"), "area": "customer",
                     "created_at": NOW, "expires_at": NOW + 300, "encrypted_payload": "ciphertext"})
     store.rate_limit("test-rate", 2, 60, NOW)
-    assert store.cleanup(NOW + 3600) == {"auth_flows": 1, "auth_flow_cancellations": 0, "auth_admin_google_challenges": 0, "auth_rate_limits": 1, "auth_sessions": 1}
+    assert store.cleanup(NOW + 3600) == {"auth_flows": 1, "auth_flow_cancellations": 0, "auth_admin_google_challenges": 0, "auth_admin_native_flows": 0, "auth_rate_limits": 1, "auth_sessions": 1}
     assert store.get_session(row["token_hash"], "customer") is None
     with database.connect(store.settings) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) AS total FROM auth_audit_events")

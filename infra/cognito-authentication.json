@@ -345,20 +345,6 @@
         }
       }
     },
-    "AdminGoogleProvider": {
-      "Type": "AWS::Cognito::UserPoolIdentityProvider",
-      "Properties": {
-        "UserPoolId": {"Ref": "AdminPool"},
-        "ProviderName": "Google",
-        "ProviderType": "Google",
-        "ProviderDetails": {
-          "client_id": {"Fn::Sub": "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:client_id}}"},
-          "client_secret": {"Fn::Sub": "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:client_secret}}"},
-          "authorize_scopes": "openid email profile"
-        },
-        "AttributeMapping": {"email": "email", "email_verified": "email_verified", "name": "name"}
-      }
-    },
     "CustomerClient": {
       "Type": "AWS::Cognito::UserPoolClient",
       "DependsOn": "GoogleProvider",
@@ -424,7 +410,6 @@
     },
     "AdminClient": {
       "Type": "AWS::Cognito::UserPoolClient",
-      "DependsOn": "AdminGoogleProvider",
       "Properties": {
         "UserPoolId": {
           "Ref": "AdminPool"
@@ -444,8 +429,7 @@
           "aws.cognito.signin.user.admin"
         ],
         "SupportedIdentityProviders": [
-          "COGNITO",
-          "Google"
+          "COGNITO"
         ],
         "CallbackURLs": [
           {
@@ -474,7 +458,8 @@
           "IdToken": "minutes",
           "RefreshToken": "hours"
         },
-        "WriteAttributes": ["email", "name"]
+        "ReadAttributes": ["email", "email_verified", "name"],
+        "WriteAttributes": ["email"]
       }
     },
     "CustomerDomain": {

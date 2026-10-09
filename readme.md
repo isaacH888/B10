@@ -6,9 +6,9 @@ Digital Modernization & Catering Management System. Lead Developer: Isaac Hernan
 
 Updated October 9, 2026. Branch `feat/authentication-macha` adds customer and admin
 authentication to the approved React/Vite + Flask + MySQL foundation. Customers use
-Cognito email/password or Google; invited Owners/Staff use password plus Cognito
-TOTP or explicitly approved Google plus application TOTP. Both admin methods share
-the canonical role and access status; matching emails never grant or link access.
+Cognito email/password or Google; invited Owners/Staff use password plus required
+Cognito TOTP. Administrator Google sign-in is disabled. A protected sample admin
+dashboard displays clearly labeled synthetic bookings after successful sign-in.
 The backend implements server-side sessions, CSRF, role guards, revocation checks,
 audits, migrations, and private provisioning/recovery commands. React has basic
 login and protected session pages for testing; frontend design remains undecided.
@@ -48,7 +48,9 @@ git diff --check
 
 Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
 DB settings. Local validation used isolated MariaDB 11.8; MySQL 8.4 remains the CI target.
-Compose was not run because Docker daemon access is unavailable.
+The existing local MySQL 8.4 Compose container was restarted and is healthy;
+its persistent data volume was preserved. Disposable database tests were not
+run against that development database.
 [CI](.github/workflows/foundation-checks.yml) includes MySQL migrations/persistence tests,
 frontend build/browser tests and offline Cognito template lint. Review remote results in GitHub Actions; local evidence is in
 [authentication validation](docs/authentication-validation.md) and

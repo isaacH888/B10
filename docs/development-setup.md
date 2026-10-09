@@ -9,7 +9,7 @@ pricing/orders/payment/email/calendar features remain unimplemented.
 Use Node 22 (at least 22.12) and Python 3.12 for the team/CI baseline. Local checks
 used available Node 25.9.0 and Python 3.9.6; that does not verify the target CI runtimes.
 Docker with Compose, or an independently installed MySQL 8.4, is needed for the DB
-probe. Neither Docker nor MySQL is available on the current machine. Source:
+probe. The application requires its database server to remain running. Source:
 [Vite requirements](https://vite.dev/guide/) and [Flask installation](https://flask.palletsprojects.com/en/stable/installation/).
 
 The following commands are for macOS/Linux. Windows users use their Python launcher
@@ -50,7 +50,7 @@ npm run dev
 
 Open `http://localhost:5173`. Customer login is `/login`; team login is `/admin/login`.
 The frontend is a minimal authentication test interface; its appearance is not a
-final website design. The backend connection control checks Flask/MySQL.
+final website design. The backend connection control checks Flask/MySQL and authentication storage readiness separately.
 Authentication shows unavailable until its private configuration is supplied;
 account screens contain no business orders. `/api/v1/live` is process liveness;
 `/api/v1/health` checks MySQL connectivity and returns 503 while unconfigured/unavailable.
@@ -85,8 +85,30 @@ Do not delete a volume to repair credentials without agreeing on data preservati
 
 Compose creates the server and empty development database/user. The shared authentication
 migration runner creates auth tables; domain migrations/models/seeds remain Bryson's work.
-No real customer data or default accounts are included. Docker commands were not executable
-on the current host and are not recorded as passed.
+No real customer data or default accounts are included.
+
+## Troubleshoot a stopped development database
+
+If the site says the backend is reachable but the database is unavailable, check
+the existing container before changing credentials or creating another database:
+
+```sh
+docker compose ps --all
+docker compose start mysql
+docker compose ps
+curl -i http://localhost:5173/api/v1/health
+```
+
+Allow MySQL to finish starting until its health is `healthy`, then repeat the
+website's connection check. `start mysql` starts the existing container with its
+current data volume; it does not replace that volume or initialize new credentials.
+For a new installation without a container, use the setup steps above instead.
+Do not delete the volume or reset database credentials to repair a stopped server.
+
+The homepage distinguishes an unreachable backend, database failure, unavailable
+authentication storage and disabled sign-in. A response with `database: ok` and
+`authentication: ready` confirms local configuration/schema readiness; live Cognito
+login still requires separate provider verification.
 
 ## Checks available now
 

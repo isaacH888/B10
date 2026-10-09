@@ -38,7 +38,8 @@ def login(area):
         raise AuthError("validation_error", "Send a JSON login request.", 422)
     expected = {"provider"}
     provider = payload.get("provider", "password")
-    if set(payload) - expected or not isinstance(provider, str) or provider not in {"password", "google"}:
+    methods = {"password"} if area == "admin" else {"password", "google"}
+    if set(payload) - expected or not isinstance(provider, str) or provider not in methods:
         raise AuthError("validation_error", "Choose a supported login method.", 422)
     try:
         url, binding = manager.start_login(area, provider, request.remote_addr,
@@ -67,21 +68,31 @@ def callback(area):
                                        request.cookies.get(cookie_name(current_app.config, area, flow=True)),
                                        request.args.get("code"), request.remote_addr,
                                        request.cookies.get(cookie_name(current_app.config, area)))
-        if isinstance(token, dict):
-            result = redirect(current_app.config["AUTH_ORIGIN"] + "/admin/mfa", code=303)
-            result.set_cookie(mfa_cookie_name(current_app.config), token["challenge"],
-                              max_age=max(1, token["expires_at"] - service().now()), **cookie_options())
-            result.delete_cookie(cookie_name(current_app.config, "admin"), **cookie_options())
-        else:
-            result = redirect(current_app.config["AUTH_ORIGIN"] + ("/admin" if area == "admin" else "/account"), code=303)
-            result.set_cookie(cookie_name(current_app.config, area), token,
-                              max_age=current_app.config[f"{area.upper()}_SESSION_SECONDS"], **cookie_options())
-            if area == "admin":
-                result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+        result = redirect(current_app.config["AUTH_ORIGIN"] + ("/admin" if area == "admin" else "/account"), code=303)
+        result.set_cookie(cookie_name(current_app.config, area), token,
+                          max_age=current_app.config[f"{area.upper()}_SESSION_SECONDS"], **cookie_options())
+        if area == "admin":
+            result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
     except (AuthError, StoreUnavailable) as error:
         code = error.code if isinstance(error, AuthError) else "authentication_unavailable"
+        reason = getattr(error, "reason", None)
+        detail = {"area": area, "error_code": code}
+        if reason:
+            detail["reason"] = reason
+        diagnostics = getattr(error, "diagnostics", None)
+        if isinstance(diagnostics, dict):
+            # Keep only boolean claim-presence facts; never retain token claims.
+            for field in ("id_acr_present", "id_amr_present", "access_acr_present",
+                          "access_amr_present", "access_totp_assured"):
+                if type(diagnostics.get(field)) is bool:
+                    detail[field] = diagnostics[field]
+        try:
+            current_app.extensions["auth_store"].audit(
+                "login_denied", request_id=g.request_id, detail=detail)
+        except StoreUnavailable:
+            current_app.logger.warning("Authentication denial audit unavailable; request_id=%s", g.request_id)
         result = redirect(current_app.config["AUTH_ORIGIN"] + landing + "?" + urlencode({"error": code}), code=303)
-        current_app.logger.info("Authentication callback denied; code=%s; request_id=%s", code, g.request_id)
+        current_app.logger.info("Authentication callback denied; code=%s; reason=%s; request_id=%s", code, reason, g.request_id)
     # Retain the private binding until its TTL so overlapping callbacks share
     # one logout cancellation context. State and codes remain single-use.
     return result
@@ -104,46 +115,4 @@ def logout(area):
     result.delete_cookie(cookie_name(current_app.config, area, flow=True), **cookie_options())
     if area == "admin":
         result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
-    return result
-
-
-def mfa_payload(expected):
-    if not request.is_json or (request.content_length or 0) > 2048:
-        raise AuthError("validation_error", "Send a small JSON authenticator request.", 422)
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or set(payload) != expected:
-        raise AuthError("validation_error", "Send a valid authenticator request.", 422)
-    return payload
-
-
-@auth.get("/admin/mfa")
-def read_google_mfa():
-    return response(service().read_google_mfa(request))
-
-
-@auth.post("/admin/mfa/enroll")
-def enroll_google_mfa():
-    mfa_payload(set())
-    return response(service().enroll_google_mfa(request))
-
-
-@auth.post("/admin/mfa/verify")
-def verify_google_mfa():
-    payload = mfa_payload({"code"})
-    data = service().verify_google_mfa(request, payload["code"])
-    token = data.pop("token")
-    result = response(data)
-    if token:
-        result.set_cookie(cookie_name(current_app.config, "admin"), token,
-                          max_age=current_app.config["ADMIN_SESSION_SECONDS"], **cookie_options())
-    result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
-    return result
-
-
-@auth.delete("/admin/mfa")
-def cancel_google_mfa():
-    result = response({"logout_url": service().cancel_google_mfa(request)})
-    result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
-    result.delete_cookie(cookie_name(current_app.config, "admin", flow=True), **cookie_options())
-    result.delete_cookie(cookie_name(current_app.config, "admin"), **cookie_options())
     return result

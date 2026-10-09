@@ -1,8 +1,6 @@
 """Private lifecycle commands use mocked AWS and storage, never a live pool."""
 
 import logging
-import hashlib
-import json
 
 import pytest
 from flask import Flask
@@ -21,7 +19,6 @@ class FakeStore:
         self.records = []
         self.owner_count = 0
         self.policy_error = False
-        self.proof = None
 
     def audit(self, event, **data):
         self.events.append(("audit", event, data))
@@ -58,19 +55,6 @@ class FakeStore:
         return [record for record in self.records
                 if record.get("canonical_identity_id", record["id"]) == canonical_id]
 
-    def get_google_proof(self, proof_hash, issuer, now):
-        self.events.append(("proof_lookup", proof_hash, issuer))
-        return self.proof
-
-    def approve_google_link(self, proof_hash, target_id, issuer, now, actor_id=None):
-        if self.policy_error:
-            raise ValueError("linked Google policy mismatch")
-        self.events.append(("link_google", proof_hash, target_id, issuer, actor_id))
-
-    def recover_google_factor(self, proof_hash, target_id, issuer, now, actor_id=None):
-        if self.policy_error:
-            raise ValueError("Google recovery target mismatch")
-        self.events.append(("recover_google", proof_hash, target_id, issuer, actor_id))
 
 
 class FakeProvider:
@@ -78,7 +62,6 @@ class FakeProvider:
         self.events = events
         self.failure = None
         self.response_email = EMAIL
-        self.google_response = None
 
     def _call(self, name, arguments):
         self.events.append((name, arguments))
@@ -102,9 +85,6 @@ class FakeProvider:
     def admin_set_user_password(self, **arguments):
         self._call("password", arguments)
 
-    def admin_get_user(self, **arguments):
-        self._call("get_google", arguments)
-        return self.google_response
 
 
 @pytest.fixture
@@ -179,7 +159,7 @@ def test_existing_owner_prevents_bootstrap_before_invitation(operator_app):
 
 
 @pytest.mark.parametrize("command", ["bootstrap-owner", "invite-admin"])
-def test_google_first_email_collision_requires_separate_verified_native_address(operator_app, command):
+def test_historical_google_email_collision_requires_private_operator_review(operator_app, command):
     source = operator_app[1].upsert_identity(ISSUER, "google-cognito-subject", "admin", EMAIL,
                                            "Unapproved Google", 1)
     source.update(canonical_identity_id=source["id"], is_google_alias=False,
@@ -188,7 +168,7 @@ def test_google_first_email_collision_requires_separate_verified_native_address(
     result = run(operator_app, command, "--email", EMAIL, "--name", "Approved Person",
                  "--verified-out-of-band")
     assert result.exit_code != 0
-    assert "distinct privately verified native-admin email" in result.output
+    assert "private operator review" in result.output
     assert "do not delete or merge" in result.output
     assert event_names(operator_app) == ["caller"]
     assert source["admin_role"] is None and source["admin_active"] is False
@@ -410,23 +390,7 @@ def test_sdk_logging_suppression_is_restored_on_failure(operator_app):
     assert logging.root.manager.disable == previous
 
 
-PROOF_CODE = "one-time-random-google-proof-never-an-argument-9821"
 GOOGLE_UID = "108012345678901234567"
-
-
-def google_proof(fixture, username=None):
-    username = username or "google_" + GOOGLE_UID
-    proof = {"issuer": ISSUER, "subject": "google-cognito-subject", "google_subject": GOOGLE_UID,
-             "provider_username": username, "email": "google-person@example.invalid", "identity_id": 2,
-             "challenge_hash": "challenge-hash", "binding_hash": "browser-binding-hash"}
-    fixture[1].proof = proof
-    fixture[2].google_response = {"Enabled": True, "UserStatus": "EXTERNAL_PROVIDER", "Username": username,
-        "UserAttributes": [{"Name": "sub", "Value": proof["subject"]},
-                           {"Name": "email_verified", "Value": "true"},
-                           {"Name": "email", "Value": proof["email"]},
-                           {"Name": "identities", "Value": json.dumps([{"providerName": "Google",
-                               "providerType": "Google", "userId": GOOGLE_UID}])}]}
-    return proof
 
 
 def linked_alias(fixture, issuer=ISSUER, username=None):
@@ -438,114 +402,12 @@ def linked_alias(fixture, issuer=ISSUER, username=None):
 
 
 @pytest.mark.parametrize("command", ["link-admin-google", "recover-google-mfa"])
-def test_google_operator_actions_require_private_verification(operator_app, command):
+def test_removed_google_operator_commands_cannot_approve_access(operator_app, command):
     existing(operator_app)
-    result = run(operator_app, command, "--email", EMAIL, input=PROOF_CODE + "\n")
+    result = run(operator_app, command, "--email", EMAIL, "--verified-out-of-band")
     assert result.exit_code != 0
-    assert "--verified-out-of-band" in result.output
+    assert "No such command" in result.output
     assert not operator_app[3]
-
-
-@pytest.mark.parametrize("command,event", [("link-admin-google", "link_google"), ("recover-google-mfa", "recover_google")])
-@pytest.mark.parametrize("prefix", ["google_", "Google_"])
-def test_google_proof_is_live_verified_before_atomic_approval(operator_app, command, event, prefix):
-    existing(operator_app)
-    google_proof(operator_app, prefix + GOOGLE_UID)
-    result = run(operator_app, command, "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code == 0, result.output
-    proof_hash = hashlib.sha256(PROOF_CODE.encode()).hexdigest()
-    assert event_names(operator_app) == ["caller", "proof_lookup", "get_google", event]
-    assert (event, proof_hash, 1, ISSUER, ARN) in operator_app[3]
-    assert PROOF_CODE not in result.output
-    assert PROOF_CODE not in str(operator_app[3])
-    assert ("get_google", {"UserPoolId": "us-east-1_Admin123", "Username": prefix + GOOGLE_UID}) in operator_app[3]
-    # Global signout would invalidate the exact still-pending approval challenge.
-    assert "global_signout" not in event_names(operator_app)
-
-
-@pytest.mark.parametrize("mutation", ["disabled", "native_status", "sub", "username", "unverified_email", "identities_invalid",
-                                       "identities_empty", "identities_multiple", "wrong_provider", "wrong_type", "wrong_uid"])
-def test_google_live_provider_mismatch_cannot_grant_or_recover(operator_app, mutation):
-    existing(operator_app)
-    google_proof(operator_app)
-    response = operator_app[2].google_response
-    attributes = {item["Name"]: item for item in response["UserAttributes"]}
-    if mutation == "disabled":
-        response["Enabled"] = False
-    elif mutation == "native_status":
-        response["UserStatus"] = "CONFIRMED"
-    elif mutation == "sub":
-        attributes["sub"]["Value"] = "unrelated-subject"
-    elif mutation == "username":
-        response["Username"] = "native-linked-destination"
-    elif mutation == "unverified_email":
-        attributes["email_verified"]["Value"] = "false"
-    elif mutation == "identities_invalid":
-        attributes["identities"]["Value"] = "invalid-json"
-    elif mutation == "identities_empty":
-        attributes["identities"]["Value"] = "[]"
-    else:
-        identities = json.loads(attributes["identities"]["Value"])
-        if mutation == "identities_multiple":
-            identities.append(identities[0])
-        elif mutation == "wrong_provider":
-            identities[0]["providerName"] = "OtherGoogle"
-        elif mutation == "wrong_type":
-            identities[0]["providerType"] = "OIDC"
-        else:
-            identities[0]["userId"] = "unrelated-stable-google-uid"
-        attributes["identities"]["Value"] = json.dumps(identities)
-    result = run(operator_app, "link-admin-google", "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code != 0
-    assert "No approval was granted" in result.output
-    assert event_names(operator_app) == ["caller", "proof_lookup", "get_google"]
-
-
-@pytest.mark.parametrize("mutation", ["missing", "issuer", "source_sub", "google_uid", "username"])
-def test_invalid_or_expired_google_proof_stops_before_provider(operator_app, mutation):
-    existing(operator_app)
-    proof = google_proof(operator_app)
-    if mutation == "missing":
-        operator_app[1].proof = None
-    elif mutation == "issuer":
-        proof["issuer"] = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Other"
-    elif mutation == "source_sub":
-        proof["subject"] = ""
-    elif mutation == "google_uid":
-        proof["google_subject"] = ""
-    else:
-        proof["provider_username"] = "native-linked-destination"
-    result = run(operator_app, "recover-google-mfa", "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code != 0
-    assert event_names(operator_app) == ["caller", "proof_lookup"]
-
-
-def test_google_proof_policy_rejection_is_private(operator_app):
-    existing(operator_app)
-    google_proof(operator_app)
-    operator_app[1].policy_error = True
-    result = run(operator_app, "recover-google-mfa", "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code != 0
-    assert "target mismatch" not in result.output
-    assert PROOF_CODE not in result.output
-    assert event_names(operator_app) == ["caller", "proof_lookup", "get_google"]
-
-
-@pytest.mark.parametrize("command", ["link-admin-google", "recover-google-mfa"])
-def test_google_proof_is_never_a_command_argument(operator_app, command):
-    result = run(operator_app, command, "--email", EMAIL, "--verified-out-of-band", "--approval-code", PROOF_CODE)
-    assert result.exit_code != 0
-    assert "No such option" in result.output
-    assert not operator_app[3]
-
-
-@pytest.mark.parametrize("command", ["link-admin-google", "recover-google-mfa"])
-def test_disabled_canonical_admin_cannot_approve_google(operator_app, command):
-    existing(operator_app, active=False)
-    google_proof(operator_app)
-    result = run(operator_app, command, "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code != 0
-    assert event_names(operator_app) == ["caller"]
 
 
 @pytest.mark.parametrize("command,options,expected", [
@@ -581,29 +443,11 @@ def test_linked_profile_cannot_cross_pools_on_lifecycle(operator_app):
     assert event_names(operator_app) == ["caller", "local_revoke"]
 
 
-def test_verbose_sdk_cannot_log_google_approval_material(operator_app, caplog):
+def test_historical_unapproved_google_profile_does_not_shadow_canonical_admin(operator_app):
     existing(operator_app)
-    google_proof(operator_app)
-    original = operator_app[2].admin_get_user
-
-    def verbose_provider(**arguments):
-        logging.getLogger("botocore.endpoint").debug("proof=%s profile=%s", PROOF_CODE, operator_app[2].google_response)
-        return original(**arguments)
-
-    operator_app[2].admin_get_user = verbose_provider
-    with caplog.at_level(logging.DEBUG):
-        result = run(operator_app, "link-admin-google", "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
-    assert result.exit_code == 0, result.output
-    assert PROOF_CODE not in result.output and PROOF_CODE not in caplog.text
-    assert "google-person@example.invalid" not in caplog.text
-
-
-def test_unapproved_google_profile_with_same_email_does_not_shadow_canonical_admin(operator_app):
-    existing(operator_app)
-    source = operator_app[1].upsert_identity(ISSUER, "google-cognito-subject", "admin", EMAIL, "Unapproved Google", 1)
+    source = operator_app[1].upsert_identity(ISSUER, "google-cognito-subject", "admin", EMAIL, "Historical Google", 1)
     source.update(canonical_identity_id=source["id"], is_google_alias=False, admin_active=False, admin_role=None)
-    google_proof(operator_app)
     operator_app[3].clear()
-    result = run(operator_app, "link-admin-google", "--email", EMAIL, "--verified-out-of-band", input=PROOF_CODE + "\n")
+    result = run(operator_app, "change-role", "--email", EMAIL, "--role", "owner")
     assert result.exit_code == 0, result.output
-    assert next(event for event in operator_app[3] if event[0] == "link_google")[2] == 1
+    assert next(event for event in operator_app[3] if event[0] == "local_access")[1] == 1

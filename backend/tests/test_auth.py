@@ -220,10 +220,12 @@ def test_customer_flow_cookie_and_session_do_not_expose_tokens(auth_app):
     assert flow is None
 
 
-def test_both_realms_offer_google_and_raw_credentials_are_rejected(auth_app):
+def test_google_is_customer_only_and_raw_credentials_are_rejected(auth_app):
     client = auth_app.test_client()
     assert "method=google" in client.post("/api/v1/customer/login", json={"provider": "google"}, headers={"Origin": ORIGIN}).json["data"]["authorization_url"]
-    assert "method=google" in client.post("/api/v1/admin/login", json={"provider": "google"}, headers={"Origin": ORIGIN}).json["data"]["authorization_url"]
+    denied = client.post("/api/v1/admin/login", json={"provider": "google"}, headers={"Origin": ORIGIN})
+    assert denied.status_code == 422
+    assert denied.json["error"]["code"] == "validation_error"
     assert client.post("/api/v1/admin/login", json={"email": "owner@example.invalid", "password": "private"}, headers={"Origin": ORIGIN}).status_code == 422
 
 
@@ -268,6 +270,43 @@ def test_admin_requires_invitation_and_mfa(auth_app):
     auth_app.test_providers["admin"].fail = AuthError("mfa_required", "Complete enrollment", 403)
     assert "error=mfa_required" in sign_in(client, "admin").location
     assert not auth_app.test_store.sessions
+
+
+def test_callback_mfa_denial_records_safe_private_reason(auth_app, caplog):
+    invite(auth_app)
+    auth_app.test_providers["admin"].fail = AuthError(
+        "mfa_required", "PRIVATE_PROVIDER_RESPONSE", 403, reason="mfa_assurance_missing",
+        diagnostics={"id_acr_present": False, "access_totp_assured": True,
+                     "access_amr_present": "PRIVATE_CLAIM", "id_token": "PRIVATE_TOKEN"})
+    client = auth_app.test_client()
+    callback = sign_in(client, "admin")
+    assert callback.location == ORIGIN + "/admin/login?error=mfa_required"
+    event, record = auth_app.test_store.events[-1]
+    assert event == "login_denied"
+    assert record["detail"] == {"area": "admin", "error_code": "mfa_required", "reason": "mfa_assurance_missing",
+                                 "id_acr_present": False, "access_totp_assured": True}
+    assert record["request_id"] == callback.headers["X-Request-ID"]
+    assert not auth_app.test_store.sessions
+    assert client.get_cookie(cookie_name(auth_app.config, "admin")) is None
+    assert "mfa_assurance_missing" in caplog.text
+    for private in ("PRIVATE_PROVIDER_RESPONSE", "synthetic-code", "private-access-token", "private-id-token", "PRIVATE_CLAIM", "PRIVATE_TOKEN"):
+        assert private not in caplog.text
+        assert private not in json.dumps(record)
+        assert private not in callback.location
+
+
+def test_callback_denial_stays_closed_when_audit_storage_fails(auth_app, monkeypatch):
+    invite(auth_app)
+    auth_app.test_providers["admin"].fail = AuthError("mfa_required", "Complete enrollment", 403)
+    client = auth_app.test_client()
+    state = begin(client, "admin")
+    def unavailable_audit(*args, **kwargs):
+        raise StoreUnavailable("Private database failure")
+    monkeypatch.setattr(auth_app.test_store, "audit", unavailable_audit)
+    callback = client.get("/api/v1/admin/callback", query_string={"state": state, "code": "synthetic-code"})
+    assert callback.location == ORIGIN + "/admin/login?error=mfa_required"
+    assert not auth_app.test_store.sessions
+    assert client.get_cookie(cookie_name(auth_app.config, "admin")) is None
 
 
 def test_customer_cannot_access_admin_routes(auth_app):
