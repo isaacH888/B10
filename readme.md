@@ -9,11 +9,10 @@ authentication to the approved React/Vite + Flask + MySQL foundation. Customers 
 Cognito email/password or Google; invited Owners/Staff use password plus required
 Cognito TOTP. Administrator Google sign-in is disabled. A protected sample admin
 dashboard displays clearly labeled synthetic bookings after successful sign-in.
-The backend implements server-side sessions, CSRF, role guards, revocation checks,
+The administrator interface verifies native password/TOTP challenges directly, including temporary-password setup and authenticator enrollment. The backend implements server-side sessions, CSRF, role guards, revocation checks,
 audits, migrations, and private provisioning/recovery commands. React has basic
 login and protected session pages for testing; frontend design remains undecided.
-Cognito templates are prepared; no live cloud resources
-or accounts have been created. Business ordering/pricing/payment features remain pending.
+Cognito templates and private operator procedures are prepared. The development pools and approved native owner were inspected read-only; this fix does not deploy resources or mutate live users. Business ordering/pricing/payment features remain pending.
 
 Start with [authentication](docs/authentication.md),
 [deployment/configuration](docs/authentication-deployment.md), and
@@ -47,7 +46,7 @@ git diff --check
 ```
 
 Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
-DB settings. Local validation used isolated MariaDB 11.8; MySQL 8.4 remains the CI target.
+DB settings. The native-login fix was validated against isolated MySQL 8.4, including all database integration tests.
 The existing local MySQL 8.4 Compose container was restarted and is healthy;
 its persistent data volume was preserved. Disposable database tests were not
 run against that development database.

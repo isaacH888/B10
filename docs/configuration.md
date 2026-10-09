@@ -56,7 +56,7 @@ confirmation. See [source alignment](reference-alignment.md).
 Hosted startup rejects missing core application/TLS DB configuration and invalid
 origins or ports. Development permits blank DB credentials so the shell can start;
 `/live` returns 200 while `/health` returns 503 until the DB probe succeeds.
-When authentication is enabled, readiness also requires all authentication migrations/checksums and tables, including additive `0002_admin_google_mfa.sql`. This does not prove domain migrations or live Cognito connectivity.
+When authentication is enabled, readiness also requires all authentication migrations/checksums and tables, including additive `0002_admin_google_mfa.sql`, `0003_admin_native_login.sql` and `0004_admin_login_epochs.sql`. This does not prove domain migrations or live Cognito connectivity.
 
 Reserved flags do not enable a feature by themselves. Feature owners must add
 explicit boolean parsing, enabled-feature credential validation and safe adapters.

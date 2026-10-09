@@ -60,6 +60,16 @@ def test_clients_use_code_and_rotated_short_tokens():
         assert client["TokenValidityUnits"] == {"AccessToken": "minutes", "IdToken": "minutes", "RefreshToken": "hours"}
 
 
+def test_native_admin_challenges_use_public_user_auth_without_iam_or_device_bypass():
+    client = props("AdminClient")
+    assert client["ExplicitAuthFlows"] == ["ALLOW_USER_AUTH"]
+    assert client["AuthSessionValidity"] == 5
+    assert client["SupportedIdentityProviders"] == ["COGNITO"]
+    assert "DeviceConfiguration" not in props("AdminPool")
+    assert not any(action in json.dumps(props("AdminOperatorPolicy"))
+                   for action in ("AdminInitiateAuth", "AdminRespondToAuthChallenge"))
+
+
 def test_production_callback_cannot_use_localhost_or_wildcards():
     parameters = TEMPLATE["Parameters"]
     for origin in ("http://localhost:5173", "http://example.invalid", "https://*.example.invalid", "https://example.invalid/"):

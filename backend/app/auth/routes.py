@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, g, jsonify, redirect, request
 
 from .errors import AuthError
 from .guards import service
-from .settings import cookie_name, mfa_cookie_name
+from .settings import cookie_name, mfa_cookie_name, native_cookie_name
 from .store import StoreUnavailable
 
 
@@ -115,4 +115,53 @@ def logout(area):
     result.delete_cookie(cookie_name(current_app.config, area, flow=True), **cookie_options())
     if area == "admin":
         result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+        result.delete_cookie(native_cookie_name(current_app.config), **dict(cookie_options(), samesite="Strict"))
     return result
+
+
+@auth.route("/admin/password/transaction", methods=["GET", "POST", "DELETE"])
+def native_admin_transaction():
+    manager = service()
+    options = dict(cookie_options(), samesite="Strict")
+    try:
+        if request.method == "GET":
+            data, credential, binding = manager.native_transaction(request, request_id=g.request_id)
+            token = None
+        elif request.method == "DELETE":
+            data = manager.native_cancel(request)
+            credential = binding = token = None
+        else:
+            manager.check_origin(request)
+            if not request.is_json or (request.content_length or 0) > 4096:
+                raise AuthError("validation_error", "Send a small JSON sign-in request.", 422)
+            data, credential, binding, token = manager.native_submit(request, request.get_json(silent=True), request_id=g.request_id)
+        result = response(data)
+        if binding:
+            result.set_cookie(cookie_name(current_app.config, "admin", flow=True), binding, max_age=600, **cookie_options())
+        else:
+            result.delete_cookie(cookie_name(current_app.config, "admin", flow=True), **cookie_options())
+        if credential:
+            result.set_cookie(native_cookie_name(current_app.config), credential, max_age=300, **options)
+        else:
+            result.delete_cookie(native_cookie_name(current_app.config), **options)
+        if token:
+            result.set_cookie(cookie_name(current_app.config, "admin"), token,
+                              max_age=current_app.config["ADMIN_SESSION_SECONDS"], **cookie_options())
+            result.delete_cookie(mfa_cookie_name(current_app.config), **cookie_options())
+        return result
+    except (AuthError, StoreUnavailable) as failure:
+        error = failure if isinstance(failure, AuthError) else AuthError(
+            "authentication_unavailable", "Sign-in is temporarily unavailable.", 503)
+        try:
+            current_app.extensions["auth_store"].audit("admin_native_login_denied", request_id=g.request_id,
+                                                       detail={"area": "admin", "error_code": error.code})
+        except StoreUnavailable:
+            current_app.logger.warning("Authentication denial audit unavailable; request_id=%s", g.request_id)
+        result = jsonify(error={"code": error.code, "message": error.message, "fields": [], "request_id": g.request_id})
+        result.status_code = error.status
+        if error.status == 429:
+            result.headers["Retry-After"] = "60"
+        result.delete_cookie(native_cookie_name(current_app.config), **options)
+        if error.code == "login_expired":
+            result.delete_cookie(cookie_name(current_app.config, "admin", flow=True), **cookie_options())
+        return result

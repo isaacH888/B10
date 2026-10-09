@@ -1,6 +1,10 @@
 """Maintained OAuth/JOSE clients with Cognito-specific assurance validation."""
 
+import base64
+import hashlib
 import hmac
+import json
+import re
 import threading
 import time
 from urllib.parse import urlencode
@@ -203,6 +207,178 @@ class CognitoProvider:
             if "SOFTWARE_TOKEN" not in configured:
                 raise AuthError("mfa_required", "Complete authenticator setup, then sign in again.", 403,
                                 reason="mfa_enrollment_missing")
+
+    def _native_operation(self, operation, payload, *, refresh=False):
+        """Public Cognito operations use app-client proof, never operator IAM credentials."""
+        if self.area != "admin":
+            raise AuthError("authentication_failed", "Invalid authentication response.")
+        try:
+            response = requests.post(f"https://cognito-idp.{self.region}.amazonaws.com/",
+                                     headers={"Content-Type": "application/x-amz-json-1.1",
+                                              "X-Amz-Target": "AWSCognitoIdentityProviderService." + operation},
+                                     json=payload, timeout=(3, 8))
+            body = response.json()
+        except (requests.RequestException, ValueError):
+            raise unavailable() from None
+        if not isinstance(body, dict):
+            raise unavailable()
+        if response.status_code != 200:
+            code = str(body.get("__type", "")).split("#")[-1]
+            if code in {"TooManyRequestsException", "LimitExceededException"}:
+                raise AuthError("rate_limited", "Too many sign-in attempts. Please wait a minute and try again.", 429)
+            if code == "UserNotConfirmedException":
+                raise AuthError("email_verification_required", "Verify your email address before signing in.", 403)
+            if code == "PasswordResetRequiredException":
+                raise AuthError("password_reset_required", "Contact the administrator operator to recover your account.", 403)
+            if code in {"InvalidPasswordException", "PasswordHistoryPolicyViolationException"}:
+                raise AuthError("validation_error", "Choose a password that meets the administrator password policy.", 422)
+            if code in {"NotAuthorizedException", "UserNotFoundException", "CodeMismatchException",
+                        "ExpiredCodeException", "EnableSoftwareTokenMFAException"}:
+                if refresh:
+                    raise AuthError("session_expired", "Your session has expired. Please sign in again.")
+                raise AuthError("authentication_failed", "Sign-in could not be completed. Please start again.")
+            raise unavailable()
+        return body
+
+    def _secret_hash(self, username):
+        return base64.b64encode(hmac.new(self.client_secret.encode(),
+                                        (username + self.client_id).encode(), hashlib.sha256).digest()).decode("ascii")
+
+    @staticmethod
+    def _native_failure():
+        return AuthError("authentication_failed", "Sign-in could not be completed. Please start again.")
+
+    def _native_challenge(self, body, username, allowed):
+        # Only the expected native challenge sequence may advance. In particular,
+        # a direct token result cannot stand in for an observed TOTP response.
+        name, session = body.get("ChallengeName"), body.get("Session")
+        parameters = body.get("ChallengeParameters", {})
+        if ("AuthenticationResult" in body or name not in allowed
+                or not isinstance(session, str) or not 20 <= len(session) <= 4096
+                or not isinstance(parameters, dict)
+                or not all(isinstance(key, str) and isinstance(value, str) for key, value in parameters.items())):
+            raise self._native_failure()
+        for field in ("USERNAME", "USER_ID_FOR_SRP"):
+            if field in parameters and parameters[field] != username:
+                raise self._native_failure()
+        result = {"challenge": name, "session": session, "username": username}
+        try:
+            if name == "NEW_PASSWORD_REQUIRED":
+                required = json.loads(parameters.get("requiredAttributes", "[]"))
+                if (not isinstance(required, list) or len(required) > 2
+                        or not all(attribute in {"userAttributes.email", "userAttributes.name", "email", "name"}
+                                   for attribute in required)):
+                    raise ValueError()
+                result["required_attributes"] = [attribute.removeprefix("userAttributes.") for attribute in required]
+            if name == "MFA_SETUP":
+                methods = json.loads(parameters.get("MFAS_CAN_SETUP", "null"))
+                if (not isinstance(methods, list) or not all(isinstance(method, str) for method in methods)
+                        or "SOFTWARE_TOKEN_MFA" not in methods):
+                    raise ValueError()
+        except (TypeError, ValueError):
+            raise self._native_failure() from None
+        return result
+
+    def _native_respond(self, challenge, session, username, answers):
+        responses = {"USERNAME": username, "SECRET_HASH": self._secret_hash(username), **answers}
+        return self._native_operation("RespondToAuthChallenge", {
+            "ClientId": self.client_id, "ChallengeName": challenge,
+            "Session": session, "ChallengeResponses": responses})
+
+    def native_password(self, username, password):
+        response = self._native_operation("InitiateAuth", {
+            "ClientId": self.client_id, "AuthFlow": "USER_AUTH",
+            "AuthParameters": {"USERNAME": username, "PREFERRED_CHALLENGE": "PASSWORD",
+                               "PASSWORD": password, "SECRET_HASH": self._secret_hash(username)}})
+        return self._native_challenge(response, username, {"NEW_PASSWORD_REQUIRED", "MFA_SETUP", "SOFTWARE_TOKEN_MFA"})
+
+    def native_new_password(self, session, username, password, attributes):
+        answers = {"NEW_PASSWORD": password}
+        answers.update({"userAttributes." + key: value for key, value in attributes.items()})
+        response = self._native_respond("NEW_PASSWORD_REQUIRED", session, username, answers)
+        return self._native_challenge(response, username, {"MFA_SETUP", "SOFTWARE_TOKEN_MFA"})
+
+    def native_associate(self, session):
+        body = self._native_operation("AssociateSoftwareToken", {"Session": session})
+        secret, next_session = body.get("SecretCode"), body.get("Session")
+        if (not isinstance(secret, str) or not re.fullmatch(r"[A-Z2-7]{16,256}", secret)
+                or not isinstance(next_session, str) or not 20 <= len(next_session) <= 4096):
+            raise self._native_failure()
+        return secret, next_session
+
+    @staticmethod
+    def _native_tokens(body, *, require_refresh=True):
+        result = body.get("AuthenticationResult")
+        if ("ChallengeName" in body or not isinstance(result, dict) or result.get("TokenType") != "Bearer"
+                or type(result.get("ExpiresIn")) is not int or not 1 <= result["ExpiresIn"] <= 86400):
+            raise CognitoProvider._native_failure()
+        tokens = {}
+        for source, target in (("AccessToken", "access_token"), ("IdToken", "id_token"), ("RefreshToken", "refresh_token")):
+            value = result.get(source)
+            if source == "RefreshToken" and not require_refresh and value is None:
+                continue
+            if not isinstance(value, str) or not value or len(value) > 20000:
+                raise CognitoProvider._native_failure()
+            tokens[target] = value
+        return tokens
+
+    def native_enroll(self, session, username, code):
+        body = self._native_operation("VerifySoftwareToken", {"Session": session, "UserCode": code})
+        verified_session = body.get("Session")
+        if (body.get("Status") != "SUCCESS" or not isinstance(verified_session, str)
+                or not 20 <= len(verified_session) <= 4096):
+            raise self._native_failure()
+        result = self._native_respond("MFA_SETUP", verified_session, username, {})
+        if "AuthenticationResult" in result:
+            # Setup-issued tokens are never usable by this application. Revoke
+            # them and demand a new password + SOFTWARE_TOKEN_MFA transaction.
+            self.native_revoke(self._native_tokens(result)["refresh_token"])
+        else:
+            self._native_challenge(result, username, {"SOFTWARE_TOKEN_MFA"})
+
+    def native_totp(self, session, username, code):
+        return self._native_tokens(self._native_respond("SOFTWARE_TOKEN_MFA", session, username,
+                                                       {"SOFTWARE_TOKEN_MFA_CODE": code}))
+
+    def native_refresh(self, refresh_token):
+        body = self._native_operation("GetTokensFromRefreshToken", {
+            "ClientId": self.client_id, "ClientSecret": self.client_secret,
+            "RefreshToken": refresh_token}, refresh=True)
+        tokens = self._native_tokens(body, require_refresh=False)
+        tokens.setdefault("refresh_token", refresh_token)
+        return tokens
+
+    def native_revoke(self, refresh_token):
+        self._native_operation("RevokeToken", {"ClientId": self.client_id,
+                                              "ClientSecret": self.client_secret, "Token": refresh_token}, refresh=True)
+
+    def validate_native(self, tokens, now, *, started_at=None):
+        """Verify JWT identity only; the bound BFF challenge supplies native MFA proof.
+
+        Calling this method never establishes assurance. The service may create
+        native proof only after its consumed SOFTWARE_TOKEN_MFA response succeeds.
+        """
+        if self.area != "admin":
+            raise self._native_failure()
+        identity = self._decode(tokens.get("id_token"), "id", now)
+        access = self._decode(tokens.get("access_token"), "access", now)
+        if identity.get("identities") not in (None, []):
+            raise self._native_failure()
+        scope = access.get("scope")
+        if (identity["sub"] != access["sub"] or not isinstance(scope, str)
+                or "aws.cognito.signin.user.admin" not in scope.split()):
+            raise self._native_failure()
+        email = identity.get("email")
+        if identity.get("email_verified") is not True or not isinstance(email, str) or not email or len(email) > 254:
+            raise AuthError("email_verification_required", "Verify your email address before signing in.", 403)
+        authenticated_at = identity.get("auth_time")
+        if (type(authenticated_at) is not int or authenticated_at < 0 or authenticated_at > now + 60
+                or (started_at is not None and (authenticated_at < started_at - 60
+                    or identity["iat"] < started_at - 60 or access["iat"] < started_at - 60))):
+            raise self._native_failure()
+        return {"issuer": self.issuer, "subject": identity["sub"], "email": email,
+                "name": str(identity.get("name") or email)[:150], "auth_time": authenticated_at,
+                "token_expires_at": min(access["exp"], identity["exp"]), "provider": "password"}
 
     def revoke(self, refresh_token):
         try:

@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useSearchParams } from "r
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
+import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 
 function Layout({ children }) {
   return <div className="test-shell">
@@ -190,7 +191,7 @@ export default function App() {
     <Route path="/" element={<HomePage />} />
     <Route path="/login" element={<LoginPage area="customer" />} />
     <Route path="/account" element={<ProtectedPage area="customer" />} />
-    <Route path="/admin/login" element={<LoginPage area="admin" />} />
+    <Route path="/admin/login" element={<AdminPasswordLogin />} />
     <Route path="/admin/mfa" element={<Navigate to="/admin/login?reauth=1" replace />} />
     <Route path="/admin" element={<ProtectedPage area="admin" />} />
     <Route path="*" element={<NotFound />} />

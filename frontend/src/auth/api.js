@@ -20,7 +20,8 @@ function validHealth(data, status) {
 
 export async function apiRequest(path, options = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
+  const timeout = path === "/admin/password/transaction" && options.method === "POST" ? 45000 : 10000;
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(`${configuredBase}${path}`, {
       ...options,
@@ -59,6 +60,11 @@ export function navigateToProvider(value) {
 }
 
 export function errorMessage(error) {
+  if (error?.code === "authentication_failed") return "Sign-in could not be completed. Check your credentials and authenticator code, then start again.";
+  if (error?.code === "login_expired") return "This sign-in has expired. Start again to continue.";
+  if (error?.code === "password_reset_required") return "Contact the account owner to reset your administrator password.";
+  if (error?.code === "email_verification_required") return "Verify your email address before signing in. Contact the account owner for help.";
+  if (error?.code === "validation_error") return "Check the sign-in fields and password requirements, then start again.";
   if (error?.code === "reauthentication_required") return "Sign in with your authenticator again before continuing with this action.";
   if (error?.status === 403) return "This account does not have access. Contact the owner if you need team access.";
   if (error?.status === 429) return "Too many sign-in attempts. Please wait a few minutes and try again.";

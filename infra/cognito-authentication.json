@@ -411,6 +411,7 @@
     "AdminClient": {
       "Type": "AWS::Cognito::UserPoolClient",
       "Properties": {
+        "AuthSessionValidity": 5,
         "UserPoolId": {
           "Ref": "AdminPool"
         },

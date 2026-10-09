@@ -1,88 +1,51 @@
 # Authentication validation
 
-Validated locally on October 9, 2026, on `feat/authentication-macha`, starting from
-commit `f3f5ef9`. This change removes administrator Google sign-in, retains customer
-Google and email/password login, and adds a protected basic sample dashboard.
-No AWS resources or user accounts were modified. A subsequent readiness repair restarted the existing local MySQL container without changing application data or migrations. Administrator callback troubleshooting then added private MFA denial reasons and clearer sign-in guidance without relaxing authentication requirements.
+Validated locally on October 9, 2026, on `feat/authentication-macha`, starting from commit `556ab3a`. The fix adds native administrator password/TOTP challenges, temporary-password replacement and authenticator enrollment. Customer Google/email-password flows and the retained strict administrator OAuth contract remain in place. No AWS resources or live users were modified; protected Cognito configuration/events were inspected read-only. Native choice discovery was probed without entering a password or authenticator code.
 
 | Check | Result |
 | --- | --- |
-| Backend suite | 198 passed; 41 disposable-database tests skipped |
-| Chromium authentication/dashboard/readiness browser suite | 38 passed; both affected callback tests passed again after the final wording change |
+| Full backend suite, disposable MySQL 8.4 | 380 passed; no skipped tests |
+| Backend suite without disposable DB | 319 passed; 61 database cases skipped |
+| Chromium authentication/dashboard/readiness browser suite | 47 passed |
 | Frontend production build | Passed |
-| OpenAPI standards, examples, configuration and foundation checks | Passed: 19 operations, 125 examples |
-| Cognito template security assertions | 10 passed, included in backend suite |
+| OpenAPI standards, examples, configuration and foundation checks | Passed: 22 operations, 149 schema-valid examples |
+| CloudFormation lint | CI-pinned cfn-lint 1.57.2 passed offline |
+| Template security assertions | 11 passed, included in backend suite |
 | Whitespace checks | Passed |
 
-Backend checks cover password-only administrator initiation, native signed Cognito
-ACR/AMR and TOTP requirements, issuer/client/subject/nonce/expiration validation,
-active approval, staff/owner permissions, CSRF and exact Origin, refresh, logout,
-provider failures, customer password/Google regression, and session expiration.
-Retirement tests reject administrator Google at the route, service and provider;
-consume old Google OAuth state without exchanging codes; revoke historical
-Google/app-TOTP sessions before provider I/O; and prove retired MFA endpoints and
-operator approval commands grant no access. Historical aliases cannot obtain a
-native password session by inheriting a canonical role.
-Diagnostic tests distinguish missing/insufficient signed MFA claims, stale native
-authentication and missing TOTP registration; they verify denial audit records
-contain only safe codes/request IDs and that audit-storage failure cannot grant
-a session.
+## What the tests establish
 
-Browser checks use controlled API/provider responses. They cover both customer
-methods and authenticated returns, password-only administrator login, a successful
-admin sign-in return opening the protected dashboard, clearly synthetic booking
-counts/table, permission-based previews, reload, role/disable changes, expiry,
-reauthentication, logout/retry, malformed sessions and a 320px viewport. Readiness tests distinguish unreachable Flask, stopped MySQL, missing authentication storage, disabled sign-in and malformed status data. Only validated `/health` responses can expose degraded data on HTTP 503; failed authentication APIs still deny access. No browser
-token storage or sample login bypass is introduced. This run used installed Chrome
-for Testing 149.0.7827.55 via a temporary executable-path override; CI installs
-Playwright's matching Chromium revision.
+Backend tests cover the required password-to-SOFTWARE_TOKEN_MFA sequence, no session before its successful completion, NEW_PASSWORD_REQUIRED, MFA_SETUP, secure association/verification, discarded/revoked setup-issued tokens and an additional password/TOTP login after enrollment. Signed local RSA JWTs exercise signature, issuer, audience/client, subject, scope, expiration, verified email, freshness and rejection of federated native profiles. Strict OAuth missing-ACR/AMR checks remain enforced; native validation never manufactures those claims.
 
-The Store and both existing migrations are unchanged. Database integration tests
-require a separately configured disposable database and were not run against the
-existing development data. Denial auditing uses the existing audit schema and
-was observed in the running local MySQL database during the user's retry. Static template checks
-verify customers retain COGNITO/Google, administrators use COGNITO only, mandatory
-native MFA remains ON, and customer mapping/redirect configuration stays intact.
-Successful live Cognito/Google/SES login, stack deployment and production
-TLS/proxy behavior remain unverified. The template linter was not rerun for this change.
+Negative cases include unapproved/inactive identities, historical Google aliases, matching-email profiles, foreign issuers, wrong codes, malformed provider challenges/results, unexpected second factors, malformed user input, bad Origin/CSRF, expired/consumed/different-browser transactions, provider/database outages, safe audit denial and accidental-query log redaction. Session tests retain owner/staff permission checks, fixed/idle expiration, provider disable/revocation checks, rotating refresh, original authentication continuity, fresh-action checks and logout. Native refresh cannot renew the recorded MFA proof. Access changes during provider calls and authenticator association deny access; per-identity versions also fence a transaction consumed before an operator revokes access.
 
-Repeat checks after installing the pinned dependencies:
+All persistence tests ran against a new loopback-only MySQL 8.4 container with random temporary credentials and a memory-backed data directory. The container and credential file were removed afterward. Tests establish browser binding, fixed five-minute expiry, five-transition budget, six-way single-consumption concurrency, logout/provider-in-flight cancellation, private access-version fences, audit rollback, customer isolation, pruning, additive migration upgrade/interruption and unchanged earlier checksums. They did not run against development data. Two additional Flask API tests drive the complete password/TOTP/session flow through real MySQL, covering both a legacy grant without an epoch row and a current grant with one. They prevent regression of MySQL returning a DECIMAL for the COALESCE projection: the Store explicitly converts the version to an integer before encrypted JSON serialization.
+
+Browser tests use controlled API/provider responses. They establish the local forms, approved-session-only dashboard, new-password/enrollment flow, no dashboard after enrollment alone, rejected verification, duplicate submission prevention, cancellation, expiry/key removal, private form-data clearing and no secret/token storage. They retain customer password/Google, role/disable, refresh/session polling, logout, fresh-verification, readiness and narrow-viewport regressions. Installed Chrome for Testing 149.0.7827.55 was used through a temporary executable-path override; CI installs its pinned Playwright Chromium.
+
+## What was checked against the running environment
+
+The protected callback record for request `2407f08818ac45318995a085b6e45417` showed `mfa_assurance_missing`; ID/access ACR and AMR presence flags were all false. Read-only Cognito inspection confirmed the newly recreated pool is Plus, mandatory TOTP and password-only; its client is COGNITO-only, enables ALLOW_USER_AUTH, rotating refresh and revocation, and reads email/email_verified/name. The approved owner is enabled, confirmed and bound to the exact local native subject, which also equals its canonical Cognito username. Recent provider events included successful password and MFA challenges. These observations establish the managed-login assurance mismatch, not its undocumented service-side cause.
+
+A credential-free public InitiateAuth probe confirmed native choice discovery returns SELECT_CHALLENGE with PASSWORD available and no tokens. The preferred-password request requires PASSWORD in AuthParameters, as documented by AWS; the provider implementation and tests were corrected to submit it in that operation. This discovery probe did not complete password authentication or MFA and does not establish a successful real native login. The first account-holder retry hit a local serialization error before the TOTP step because the unsigned login-version projection arrived as Decimal; the integer conversion was verified against the real approved row, covered by the complete MySQL/API tests, and loaded into the running backend. The subsequent live retry succeeded: the account holder confirmed the dashboard opens after password and authenticator entry. Protected native completion request `5afb7d22596c40189d9b22c839af8a3f` and one active local admin session corroborated that result.
+
+The new additive local `0004_admin_login_epochs.sql` migration was applied with identity count unchanged; migrations 0001-0003 were not edited. The backend was restarted with operator AWS credential variables excluded. Unmocked local API checks verified HTTP 200 readiness, database/authentication ready, native password bootstrap, HttpOnly/SameSite=Strict cookie, no-store responses, CSRF-protected cancellation, protected admin HTTP 401 when signed out and admin Google HTTP 422. An unmocked Chromium check verifies the actual local admin/customer forms and protected redirect; it submits no credentials and captures no trace or secrets.
+
+## Remaining live verification
+
+Native owner password/TOTP login and dashboard access were verified live after the MySQL conversion fix. Complete live onboarding/setup, refresh rotation, logout, account lifecycle and customer regressions still require the approved account holder/operator to follow [native live verification](authentication-native-admin.md#live-verification-still-required). Mocked browser success and cryptographic fixtures alone do not prove completed Cognito authentication; the reported live success is specifically the existing owner's password/TOTP/dashboard flow. No live user was reprovisioned, reset, disabled or deleted during this fix. No CloudFormation update was deployed.
+
+The existing client already supports the implemented USER_AUTH flow. A separately authorized CloudFormation change sets its challenge duration from three to five minutes, matching the application deadline; three minutes remains safe but can expire setup sooner. See the [exact configuration/release steps](authentication-native-admin.md#aws-configuration-and-release). Preserve the customer Google provider/redirect and keep admin Google disabled. Hosted TLS/proxy behavior, SES delivery and remote CI remain unverified.
+
+Repeat checks after installing pinned dependencies:
 
 ```bash
 backend/.venv/bin/python scripts/check_foundation.py
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
 npm run build --prefix frontend
 npm run test:browser --prefix frontend
+cfn-lint infra/cognito-authentication.json
 git diff --check
 ```
 
-For database coverage, export `RUN_DATABASE_INTEGRATION=1` and disposable
-`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`; apply migrations from
-`backend/` with `python -m app.migrations` first. These tests mutate the configured
-authentication tables. CI targets MySQL 8.4; no remote CI result is claimed.
-
-Before release, follow [deployment](authentication-deployment.md) and
-[private operator procedures](authentication-operations.md). Verify real customer
-Google/password login, required native admin TOTP and dashboard landing, refresh,
-logout and revocation against the development pools. Updating the local template
-does not remove a provider or redirect in AWS/Google Cloud. Preserve the customer's
-Google redirect and review any retired administrator-provider cleanup separately.
-
-An unmocked Chromium check against the running localhost site confirmed HTTP 200
-readiness with `database: ok` and `authentication: ready`, the password-only admin
-button, HTTP 422 for admin Google requests, both customer login buttons, and no
-browser runtime errors. The local MySQL container was previously stopped and is
-now healthy; its existing data volume was preserved. This check did not complete
-a live Cognito sign-in or create any accounts.
-
-During a subsequent user-initiated native administrator sign-in, the callback
-recorded `mfa_required` with the private reason `mfa_assurance_missing`; no admin
-session was created. The user reported entering an existing authenticator code.
-The live public Cognito authorization redirect retained both the requested
-`urn:cognito:loa:4` level and `max_age=0`, and the local initiation pinned the native
-provider and exact callback. This establishes the missing signed-claim gate,
-not the underlying pool configuration. Read-only configuration inspection could
-not complete because the private AWS operator session had expired. Follow the
-[MFA troubleshooting procedure](authentication-operations.md#diagnosing-an-administrator-mfa-callback-failure)
-to verify feature plan, native ACR settings and managed-login configuration before
-making a separately authorized cloud change.
+For all database cases, export `RUN_DATABASE_INTEGRATION=1` and a genuinely disposable `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`. The database name must end in `_ci`/`_test` or start with `test_`; these tests mutate authentication tables. Apply migrations in that isolated environment before running the suite. Never point it at existing development or production users.

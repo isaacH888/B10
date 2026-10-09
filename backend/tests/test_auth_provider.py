@@ -495,3 +495,167 @@ def test_malformed_current_user_response_fails_safely(provider, monkeypatch, bod
     with pytest.raises(AuthError) as failure:
         provider.current_user("private-access-token", "fixture-subject")
     assert failure.value.status == 503
+
+
+NATIVE_SESSION = 'fixture-cognito-challenge-session-0001'
+NATIVE_USERNAME = 'fixture-subject'
+
+
+def native_response(challenge, **parameters):
+    return {'ChallengeName': challenge, 'Session': NATIVE_SESSION, 'ChallengeParameters': parameters}
+
+
+def test_native_public_password_totp_sequence_uses_secret_hash_without_iam(provider, monkeypatch):
+    observed = []
+    responses = [native_response('SOFTWARE_TOKEN_MFA'),
+                 {'AuthenticationResult': {'AccessToken': 'fixture-access', 'IdToken': 'fixture-id',
+                                          'RefreshToken': 'fixture-refresh', 'TokenType': 'Bearer', 'ExpiresIn': 300}}]
+    class Response:
+        status_code = 200
+        def json(self):
+            return responses.pop(0)
+    def call(url, **kwargs):
+        observed.append((url, kwargs))
+        assert 'Authorization' not in kwargs['headers']
+        return Response()
+    monkeypatch.setattr('app.auth.provider.requests.post', call)
+    challenge = provider.native_password(NATIVE_USERNAME, 'fixture-password')
+    assert challenge['challenge'] == 'SOFTWARE_TOKEN_MFA'
+    result = provider.native_totp(challenge['session'], NATIVE_USERNAME, '123456')
+    assert result['refresh_token'] == 'fixture-refresh'
+    assert [c[1]['headers']['X-Amz-Target'].split('.')[-1] for c in observed] == [
+        'InitiateAuth', 'RespondToAuthChallenge']
+    initial = observed[0][1]['json']
+    assert initial['AuthFlow'] == 'USER_AUTH'
+    assert initial['AuthParameters']['PREFERRED_CHALLENGE'] == 'PASSWORD'
+    assert initial['AuthParameters']['PASSWORD'] == 'fixture-password'
+    for _, request in observed:
+        parameters = request['json'].get('AuthParameters') or request['json']['ChallengeResponses']
+        assert parameters['USERNAME'] == NATIVE_USERNAME
+        expected = base64.b64encode(__import__('hmac').new(provider.client_secret.encode(),
+                     (NATIVE_USERNAME + provider.client_id).encode(), hashlib.sha256).digest()).decode()
+        assert parameters['SECRET_HASH'] == expected
+        assert 'DEVICE_KEY' not in parameters
+    assert observed[1][1]['json']['ChallengeResponses']['SOFTWARE_TOKEN_MFA_CODE'] == '123456'
+
+
+@pytest.mark.parametrize('body', [
+    {'AuthenticationResult': {}}, native_response('SMS_MFA'), native_response('EMAIL_OTP'),
+    native_response('SELECT_CHALLENGE'), native_response('CUSTOM_CHALLENGE'),
+    native_response('SOFTWARE_TOKEN_MFA', USERNAME='other-subject'),
+    native_response('SOFTWARE_TOKEN_MFA', USER_ID_FOR_SRP='other-subject'),
+    {'ChallengeName': 'SOFTWARE_TOKEN_MFA', 'Session': 'short'},
+    native_response('SOFTWARE_TOKEN_MFA', unexpected={}),
+])
+def test_native_unexpected_challenges_or_identity_switch_rejected(provider, body):
+    with pytest.raises(AuthError):
+        provider._native_challenge(body, NATIVE_USERNAME, {'SOFTWARE_TOKEN_MFA'})
+
+
+@pytest.mark.parametrize('setup', ['["SMS_MFA"]', 'null', '{}', '["SOFTWARE_TOKEN_MFA", {}]'])
+def test_native_setup_must_offer_software_token(provider, setup):
+    with pytest.raises(AuthError):
+        provider._native_challenge(native_response('MFA_SETUP', MFAS_CAN_SETUP=setup), NATIVE_USERNAME, {'MFA_SETUP'})
+
+
+def test_native_new_password_and_enrollment_sessions_advance_and_setup_tokens_are_revoked(provider, monkeypatch):
+    observed = []
+    def call(operation, payload, **kwargs):
+        observed.append((operation, payload))
+        if operation == 'RespondToAuthChallenge' and payload['ChallengeName'] == 'NEW_PASSWORD_REQUIRED':
+            return native_response('MFA_SETUP', MFAS_CAN_SETUP='["SOFTWARE_TOKEN_MFA"]')
+        if operation == 'AssociateSoftwareToken':
+            return {'SecretCode': 'JBSWY3DPEHPK3PXP', 'Session': NATIVE_SESSION + '-enrollment'}
+        if operation == 'VerifySoftwareToken':
+            return {'Status': 'SUCCESS', 'Session': NATIVE_SESSION + '-verified'}
+        if operation == 'RespondToAuthChallenge':
+            return {'AuthenticationResult': {'AccessToken': 'setup-access', 'IdToken': 'setup-id',
+                    'RefreshToken': 'setup-refresh', 'TokenType': 'Bearer', 'ExpiresIn': 300}}
+        assert operation == 'RevokeToken'
+        return {}
+    monkeypatch.setattr(provider, '_native_operation', call)
+    challenge = provider.native_new_password(NATIVE_SESSION, NATIVE_USERNAME, 'fixture-new-password', {'email': 'fixture@example.invalid'})
+    secret, session = provider.native_associate(challenge['session'])
+    assert secret == 'JBSWY3DPEHPK3PXP'
+    assert provider.native_enroll(session, NATIVE_USERNAME, '123456') is None
+    assert observed[0][1]['ChallengeResponses']['userAttributes.email'] == 'fixture@example.invalid'
+    assert observed[2][1] == {'Session': session, 'UserCode': '123456'}
+    assert observed[3][1]['Session'] == NATIVE_SESSION + '-verified'
+    assert observed[4][0] == 'RevokeToken' and observed[4][1]['Token'] == 'setup-refresh'
+
+
+@pytest.mark.parametrize('body', [{'Status': 'ERROR', 'Session': NATIVE_SESSION}, {'Status': 'SUCCESS'},
+                                  {'Status': 'SUCCESS', 'Session': 'short'}])
+def test_native_failed_enrollment_never_finishes_setup(provider, monkeypatch, body):
+    calls = []
+    monkeypatch.setattr(provider, '_native_operation', lambda op, payload, **kw: calls.append(op) or body)
+    with pytest.raises(AuthError):
+        provider.native_enroll(NATIVE_SESSION, NATIVE_USERNAME, '123456')
+    assert calls == ['VerifySoftwareToken']
+
+
+def test_native_rotating_refresh_and_revoke_use_only_confidential_client(provider, monkeypatch):
+    calls = []
+    def invoke(op, payload, **kwargs):
+        calls.append((op, payload, kwargs))
+        if op == 'RevokeToken':
+            return {}
+        return {'AuthenticationResult': {'AccessToken': 'new-access', 'IdToken': 'new-id',
+                'RefreshToken': 'new-refresh', 'TokenType': 'Bearer', 'ExpiresIn': 300}}
+    monkeypatch.setattr(provider, '_native_operation', invoke)
+    assert provider.native_refresh('old-refresh')['refresh_token'] == 'new-refresh'
+    provider.native_revoke('new-refresh')
+    assert calls[0] == ('GetTokensFromRefreshToken', {'ClientId': provider.client_id,
+                          'ClientSecret': provider.client_secret, 'RefreshToken': 'old-refresh'}, {'refresh': True})
+    assert calls[1][1]['Token'] == 'new-refresh'
+
+
+def test_native_token_validation_does_not_fabricate_mfa_or_relax_oauth(provider, key):
+    identity, access = claims()
+    identity.pop('acr'); identity.pop('amr'); identity.pop('nonce')
+    result = provider.validate_native(tokens(key, identity, access), NOW, started_at=NOW)
+    assert result['subject'] == NATIVE_USERNAME
+    assert 'assurance' not in result and 'acr' not in result and 'amr' not in result
+    with pytest.raises(AuthError) as failure:
+        provider.validate(tokens(key, identity, access), NOW, started_at=NOW)
+    assert failure.value.reason == 'mfa_assurance_missing'
+
+
+@pytest.mark.parametrize('field,value', [('iss', 'https://evil.example.invalid'), ('aud', 'other-client'),
+    ('sub', 'other-subject'), ('email_verified', False), ('auth_time', NOW - 61), ('iat', NOW - 61),
+    ('exp', NOW), ('identities', [{'providerName': 'Google'}])])
+def test_native_signed_but_wrong_claims_rejected(provider, key, field, value):
+    identity, access = claims(); identity[field] = value
+    with pytest.raises(AuthError):
+        provider.validate_native(tokens(key, identity, access), NOW, started_at=NOW)
+
+
+def test_native_jwt_signature_and_access_audience_still_checked(provider, key):
+    other = RSAKey.generate_key(parameters={'kid': 'fixture-key'})
+    with pytest.raises(AuthError):
+        provider.validate_native(tokens(other), NOW, started_at=NOW)
+    identity, access = claims(); access['client_id'] = 'foreign-client'
+    with pytest.raises(AuthError):
+        provider.validate_native(tokens(key, identity, access), NOW, started_at=NOW)
+
+
+@pytest.mark.parametrize('code,status', [('CodeMismatchException', 401), ('TooManyRequestsException', 429),
+    ('InternalErrorException', 503), ('InvalidPasswordException', 422), ('PasswordResetRequiredException', 403)])
+def test_native_errors_never_expose_private_provider_messages(provider, monkeypatch, code, status):
+    class Response:
+        status_code = 400
+        def json(self):
+            return {'__type': code, 'message': 'PRIVATE_PASSWORD_CODE_TOKEN_SECRET'}
+    monkeypatch.setattr('app.auth.provider.requests.post', lambda *a, **kw: Response())
+    with pytest.raises(AuthError) as failure:
+        provider._native_operation('RespondToAuthChallenge', {'Session': NATIVE_SESSION})
+    assert failure.value.status == status
+    assert 'PRIVATE_' not in str(failure.value)
+
+
+@pytest.mark.parametrize('returned', [{'AuthenticationResult': {}}, native_response('PASSWORD'),
+                                     native_response('SMS_MFA'), native_response('EMAIL_OTP')])
+def test_native_password_never_accepts_tokens_or_an_unexpected_second_factor(provider, monkeypatch, returned):
+    monkeypatch.setattr(provider, '_native_operation', lambda *args, **kwargs: returned)
+    with pytest.raises(AuthError):
+        provider.native_password(NATIVE_USERNAME, 'fixture-password')

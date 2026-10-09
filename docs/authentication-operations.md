@@ -16,7 +16,7 @@ From `backend/`, with the private operator environment loaded:
   --email approved-staff@example.invalid --name "Approved Staff" --role staff --verified-out-of-band
 ```
 
-Bootstrap refuses an existing active owner, including simultaneous bootstrap grants through the database's serialized lifecycle policy. Concurrent bootstrap commands can create an unused provider invitation before one local grant is rejected; only one bootstrap grant succeeds. Run bootstrap once from the approved operator process. The invitation asks Cognito to generate and email a one-day temporary password; the CLI never accepts or prints that secret. The recipient must replace it and enroll TOTP through managed login before gaining dashboard access. Re-invitation of an existing local identity is rejected. [AWS AdminCreateUser](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_AdminCreateUser.html).
+Bootstrap refuses an existing active owner, including simultaneous bootstrap grants through the database's serialized lifecycle policy. Concurrent bootstrap commands can create an unused provider invitation before one local grant is rejected; only one bootstrap grant succeeds. Run bootstrap once from the approved operator process. The invitation asks Cognito to generate and email a one-day temporary password; the CLI never accepts or prints that secret. The recipient enters it at `/admin/login`, replaces it, and enrolls TOTP in the native challenge interface. Enrollment returns to password login; dashboard access requires a subsequent password plus `SOFTWARE_TOKEN_MFA` challenge. See [native setup](authentication-native-admin.md). Re-invitation of an existing local identity is rejected. [AWS AdminCreateUser](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_AdminCreateUser.html).
 
 A historical admin Google profile can already occupy the intended email. The CLI keeps this collision blocked, and an email-as-username Cognito pool can also reject duplicate-email native creation. Privately verify a different address that the same approved person controls and can receive invitations at; use that address for `bootstrap-owner` or `invite-admin`, then complete native password/TOTP setup. A plus-address is suitable only when that mailbox supports it and delivery has been verified. Preserve the historical profile without granting it administrator access. Do not convert its password, force an email alias takeover, or grant access because emails match. [AWS email username constraints](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-attributes.html).
 
@@ -54,9 +54,11 @@ Protect operator AWS access with a separate role, strong operator authentication
 
 ## Diagnosing an administrator MFA callback failure
 
-`/admin/login?error=mfa_required` means the backend denied access after the Cognito callback. It does not identify the failed MFA check. Start a new login after restarting the updated backend, then inspect the private `login_denied` audit entry or the backend's `Authentication callback denied` log line for its static `reason` and request ID. Never copy tokens, callback codes, flow cookies, authenticator secrets, client secrets, or complete Cognito responses into logs or support messages. The browser receives only the existing public error code.
+The retained administrator OAuth callback still rejects missing or insufficient signed ACR/AMR. The approved development owner's request `2407f08818ac45318995a085b6e45417` recorded `mfa_assurance_missing` with all four ID/access claim-presence flags false. Read-only inspection confirmed Plus, required software-token MFA, password-only first factors, COGNITO-only client and a successful password/MFA provider event. These facts show that managed login did not satisfy the implemented signed-claim contract in this environment; they do not justify removing MFA checks or resetting a working account.
 
-Run this read-only query through the private database connection to inspect recent administrator failures without selecting account or token records:
+The primary `/admin/login` interface now uses a native password/TOTP challenge flow. Follow [native administrator setup and live verification](authentication-native-admin.md). The runtime records static native transition and denial events with request IDs; no passwords, codes, tokens, provider sessions or enrollment secrets belong in audit details or application/access logs.
+
+Inspect protected callback failure records without selecting credentials or account attributes:
 
 ```sql
 SELECT created_at, request_id,
@@ -69,71 +71,33 @@ ORDER BY created_at DESC
 LIMIT 10;
 ```
 
-| Private reason | Meaning and next check |
+| Private reason | Meaning |
 | --- | --- |
-| `mfa_assurance_missing` | A signed ACR or AMR claim is absent. Check the live pool's feature plan, ACR configuration, and managed-login settings. |
-| `mfa_assurance_insufficient` | The achieved signed claims do not prove password plus authenticator TOTP. Check which factor completed the login and the live pool's MFA configuration. |
-| `mfa_authentication_stale` | The signed authentication time predates the new login transaction beyond the allowed clock skew. Start from `/admin/login` again; check clock synchronization and any managed-login session reuse. |
-| `mfa_enrollment_missing` | Cognito `GetUser` does not report a registered `SOFTWARE_TOKEN_MFA` factor for this exact subject. Inspect that native account's factor registration privately. |
+| `mfa_assurance_missing` | The managed-login token lacks signed ACR or AMR; native challenge login is the supported alternative. |
+| `mfa_assurance_insufficient` | Signed managed-login claims do not establish password plus TOTP. |
+| `mfa_authentication_stale` | Signed authentication time predates this new transaction beyond allowed clock skew. |
+| `mfa_enrollment_missing` | Token-authorized factor queries cannot confirm registered TOTP for the exact native account. |
 
-The intended admin configuration is Essentials or Plus (the template selects Plus), mandatory MFA `ON`, only `SOFTWARE_TOKEN_MFA`, and managed login version 2. The default level-4 URI must remain `urn:cognito:loa:4`; the signed methods must include `pwd`, `otp`, and `mfa`. Cognito can customize level names, so a renamed level also fails this application's deliberate exact check. On Lite, managed login silently ignores `acr_values`. Cognito does not permit a Lambda trigger to add, replace, or suppress native ACR/AMR claims. Correct the reviewed pool configuration instead of fabricating assurance or relaxing validation. [AWS ACR/AMR and feature-plan requirements](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-step-up-authentication.html).
+A required-TOTP pool can challenge a registered authenticator even when `GetUser.UserMFASettingList` is empty. The runtime falls back to `GetUserAuthFactors`, binds its canonical username to `GetUser`, and requires `SOFTWARE_TOKEN`. This is an ongoing registration/revocation check, never proof that this login completed MFA. [AWS GetUserAuthFactors](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_GetUserAuthFactors.html).
 
-For a manual configuration repair after the operator has verified drift and the
-cloud change is authorized:
-
-1. Open only the administrator pool in Cognito. Under **Settings → Feature plans**,
-   check its current plan. If it is Lite, review switching to Plus to match the
-   repository template (Essentials also supports the requested ACR level). Review
-   the selected plan's price before confirming. [AWS feature-plan setup](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-sign-in-feature-plans.html).
-2. Under **Sign-in → Multi-factor authentication → Edit**, retain **Require MFA**
-   and **Authenticator apps** as the only supported second factor. Verify the
-   domain uses managed login version 2 and the admin app client has branding.
-   Retain the existing pool, approved identities, and customer pool settings.
-   [AWS MFA setup](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-mfa.html).
-3. Verify level 4 uses the default `urn:cognito:loa:4` URI. ACR/AMR are native token
-   claims, not user attributes to add to client read/write permissions. Use the
-   filtered read-only commands below to inspect any remaining differences.
-4. Start a fresh password login from `http://localhost:5173/admin/login` in
-   development, then enter the existing authenticator code. Verify the callback
-   creates a session and lands at `/admin`; verify role and disabled-access
-   checks, refresh and logout before declaring the live configuration validated.
-
-No cloud repair is performed by these repository edits or by the diagnostic queries.
-
-Use the existing private operator profile for read-only inspection. If it returns `ExpiredTokenException`, renew that operator session with its established login procedure. Keep those credentials outside the web runtime. With the backend configuration exported into the private operator shell, these commands print selected configuration fields and omit the client secret:
+Use separately authenticated operator credentials for configuration or provider-event inspection. If the session expires, renew it through the established operator login; never copy credentials into the website process. Read-only configuration commands, with private backend settings already exported:
 
 ```bash
 AUTH_ADMIN_POOL_ID="${COGNITO_ADMIN_ISSUER##*/}"
 AUTH_ADMIN_REGION="${AUTH_ADMIN_POOL_ID%%_*}"
-
 aws cognito-idp describe-user-pool --profile private-operator \
   --region "$AUTH_ADMIN_REGION" --user-pool-id "$AUTH_ADMIN_POOL_ID" \
-  --query 'UserPool.{Tier:UserPoolTier,ACR:AcrConfiguration,FirstFactors:Policies.SignInPolicy.AllowedFirstAuthFactors}'
-
+  --query 'UserPool.{Tier:UserPoolTier,FirstFactors:Policies.SignInPolicy.AllowedFirstAuthFactors}'
 aws cognito-idp get-user-pool-mfa-config --profile private-operator \
   --region "$AUTH_ADMIN_REGION" --user-pool-id "$AUTH_ADMIN_POOL_ID" \
   --query '{Mfa:MfaConfiguration,SoftwareToken:SoftwareTokenMfaConfiguration}'
-
 aws cognito-idp describe-user-pool-client --profile private-operator \
   --region "$AUTH_ADMIN_REGION" --user-pool-id "$AUTH_ADMIN_POOL_ID" \
   --client-id "$COGNITO_ADMIN_CLIENT_ID" \
-  --query 'UserPoolClient.{Flows:AllowedOAuthFlows,Scopes:AllowedOAuthScopes,Providers:SupportedIdentityProviders,ReadAttributes:ReadAttributes,Callbacks:CallbackURLs}'
+  --query 'UserPoolClient.{NativeFlows:ExplicitAuthFlows,ChallengeMinutes:AuthSessionValidity,Providers:SupportedIdentityProviders,ReadAttributes:ReadAttributes,Rotation:RefreshTokenRotation,Revocation:EnableTokenRevocation}'
 ```
 
-Replace `private-operator` with the existing approved profile name. These inspection calls require approved Cognito read permissions; the provisioning-only policy does not by itself authorize every diagnostic call. Verify the managed-login domain version in the pool's domain settings. The client must use its own admin pool, the code flow, `COGNITO`, the four configured scopes, and readable `email`/`email_verified`; its callback must exactly match `${FRONTEND_ORIGIN}/api/v1/admin/callback`.
-
-To inspect the approved native account without printing its attributes, privately obtain its subject from the local canonical grant for the configured issuer and set `AUTH_APPROVED_ADMIN_SUBJECT` in that operator shell. Then run:
-
-```bash
-aws cognito-idp admin-get-user --profile private-operator \
-  --region "$AUTH_ADMIN_REGION" --user-pool-id "$AUTH_ADMIN_POOL_ID" \
-  --username "$AUTH_APPROVED_ADMIN_SUBJECT" \
-  --query '{Enabled:Enabled,Status:UserStatus,MfaMethods:UserMFASettingList}'
-```
-
-Initial managed-login password/TOTP setup can issue a one-time enrollment token. After completing authenticator enrollment, start a fresh password login and complete its authenticator challenge before expecting dashboard access. [AWS TOTP enrollment behavior](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-settings-mfa-totp.html).
-
-For someone who already entered a code from an existing authenticator, determine the private reason and live configuration before resetting anything. Do not create a replacement account, reset a working password/factor, change the local role, or disable MFA to diagnose this error. Any necessary cloud configuration change or verified account recovery remains a separately authorized operator action.
+Replace `private-operator` with the approved profile. The provisioning policy does not authorize every diagnostic read. Never dump entire client responses because they include its secret. Do not add synthetic ACR/AMR with Lambda, delete/recreate pools, reset a working password/authenticator, grant by matching email, or lower mandatory MFA to diagnose the missing claims.
 
 ## Retired administrator Google sign-in
 

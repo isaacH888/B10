@@ -34,6 +34,7 @@ class LoginCancelledError(ValueError):
 
 
 IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active,
+    COALESCE(e.version,0) AS native_login_version,
     COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
     (l.provider_identity_id IS NOT NULL) AS is_google_alias,
     l.google_subject, l.provider_username, f.version AS mfa_version,
@@ -41,8 +42,10 @@ IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active,
     FROM auth_identities i
     LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
     LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_login_epochs e ON e.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
 SESSION_SELECT = """SELECT s.*, i.issuer, i.subject, i.email, i.name,
+    COALESCE(e.version,0) AS native_login_version,
     a.role AS admin_role, a.active AS admin_active,
     COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
     (l.provider_identity_id IS NOT NULL) AS is_google_alias,
@@ -51,6 +54,7 @@ SESSION_SELECT = """SELECT s.*, i.issuer, i.subject, i.email, i.name,
     FROM auth_sessions s JOIN auth_identities i ON i.id=s.identity_id
     LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
     LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_login_epochs e ON e.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
 GOOGLE_CHALLENGE_SELECT = """SELECT c.*, i.issuer, i.subject, i.email, i.name,
     l.admin_identity_id AS canonical_identity_id, a.role AS admin_role, a.active AS admin_active,
@@ -79,6 +83,11 @@ def _decode_identity(row):
         for key in ("issuer", "subject", "google_subject"):
             if isinstance(row.get(key), bytes):
                 row[key] = row[key].decode("utf-8")
+        # MySQL promotes COALESCE(unsigned BIGINT, signed literal) to DECIMAL.
+        # Native state and assurance require the stable integer version, not a
+        # Decimal that cannot be serialized into encrypted JSON.
+        if "native_login_version" in row:
+            row["native_login_version"] = int(row["native_login_version"])
     return row
 
 
@@ -162,6 +171,7 @@ class Store:
                 "SELECT canonical_identity_id,encrypted_secret,version,last_counter FROM auth_admin_totp LIMIT 0",
                 "SELECT challenge_hash,binding_hash,proof_hash,encrypted_payload,attempts FROM auth_admin_google_challenges LIMIT 0",
                 "SELECT token_hash,binding_hash,created_at,expires_at,attempts,encrypted_payload FROM auth_admin_native_flows LIMIT 0",
+                "SELECT identity_id,version,updated_at FROM auth_admin_login_epochs LIMIT 0",
             ):
                 cursor.execute(query)
         return True
@@ -328,6 +338,9 @@ class Store:
         cursor.execute("SELECT admin_identity_id FROM auth_admin_google_links WHERE provider_identity_id=%s", (identity_id,))
         link = cursor.fetchone()
         canonical = link["admin_identity_id"] if link else identity_id
+        cursor.execute("""INSERT INTO auth_admin_login_epochs (identity_id,version,updated_at)
+            VALUES (%s,1,%s) ON DUPLICATE KEY UPDATE version=version+1,updated_at=VALUES(updated_at)""",
+            (canonical, now))
         cursor.execute("""UPDATE auth_sessions SET revoked_at=%s,encrypted_tokens=''
             WHERE revoked_at IS NULL AND (identity_id=%s OR identity_id IN (
                 SELECT provider_identity_id FROM auth_admin_google_links WHERE admin_identity_id=%s))""", (now, canonical, canonical))
@@ -408,6 +421,14 @@ class Store:
                         or identity["is_google_alias"]
                         or (area == "admin" and not identity["admin_active"])):
                     raise AccessDeniedError("Identity has no access to this authentication area")
+                if area == "admin" and session.get("assurance", {}).get("method") == "cognito_native_challenge":
+                    cursor.execute("SELECT version FROM auth_admin_login_epochs WHERE identity_id=%s FOR UPDATE",
+                                   (session["identity_id"],))
+                    epoch = cursor.fetchone()
+                    version = epoch["version"] if epoch else 0
+                    supplied = session["assurance"].get("access_version")
+                    if type(supplied) is not int or supplied != version:
+                        raise AccessDeniedError("Administrator login was revoked")
                 self._insert_session(cursor, session)
                 connection.commit()
 

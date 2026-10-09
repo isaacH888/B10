@@ -12,6 +12,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from .errors import AuthError, unavailable
 from .settings import cookie_name
 from .store import AccessDeniedError, LoginCancelledError
+from .native import NativeAdminFlow
 
 
 PERMISSIONS = {
@@ -29,7 +30,7 @@ def timestamp(value):
     return datetime.fromtimestamp(value, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-class AuthService:
+class AuthService(NativeAdminFlow):
     def __init__(self, settings, store, providers, clock=None):
         self.settings = settings
         self.store = store
@@ -135,6 +136,15 @@ class AuthService:
         if (not isinstance(assurance, dict) or not session.get("admin_active")
                 or session.get("admin_role") not in PERMISSIONS):
             return False
+        if assurance.get("method") == "cognito_native_challenge":
+            completed = assurance.get("completed_at")
+            version = assurance.get("access_version")
+            return (assurance.get("provider") == "password"
+                    and assurance.get("challenge") == "SOFTWARE_TOKEN_MFA"
+                    and type(completed) is int and completed == session["created_at"]
+                    and type(version) is int and version >= 0
+                    and version == session.get("native_login_version", 0)
+                    and not session.get("is_google_alias"))
         return (assurance.get("provider") in (None, "password")
                 and assurance.get("method") != "app_totp"
                 and not session.get("is_google_alias") and assurance.get("acr") == "urn:cognito:loa:4"
@@ -173,7 +183,7 @@ class AuthService:
                 permissions = PERMISSIONS[session["admin_role"]]
                 if permission and permission not in permissions:
                     raise AuthError("forbidden", "You do not have permission for this action.", 403)
-                if fresh and now - session["auth_time"] > 300:
+                if fresh and now - self.authentication_time(session) > 300:
                     raise AuthError("reauthentication_required", "Sign in with your authenticator again before this action.", 403)
             provider = self.providers[area]
             if session["issuer"] != provider.issuer:
@@ -182,9 +192,10 @@ class AuthService:
             tokens = self.decrypt(session["encrypted_tokens"])
             try:
                 if now >= tokens["token_expires_at"] - 30:
-                    tokens = provider.refresh(tokens["refresh_token"])
+                    native = area == "admin" and session["assurance"].get("method") == "cognito_native_challenge"
+                    tokens = (provider.native_refresh if native else provider.refresh)(tokens["refresh_token"])
                     now = self.now()
-                    claims = provider.validate(tokens, now)
+                    claims = provider.validate_native(tokens, now) if native else provider.validate(tokens, now)
                     if claims["subject"] != session["subject"] or claims["auth_time"] != session["auth_time"]:
                         raise AuthError("authentication_failed", "Invalid authentication response.")
                     tokens["token_expires_at"] = claims["token_expires_at"]
@@ -206,7 +217,7 @@ class AuthService:
                     raise AuthError("forbidden", "Administrator access is not available for this account.", 403)
                 if permission and permission not in PERMISSIONS[current["admin_role"]]:
                     raise AuthError("forbidden", "You do not have permission for this action.", 403)
-                if fresh and now - current["auth_time"] > 300:
+                if fresh and now - self.authentication_time(current) > 300:
                     raise AuthError("reauthentication_required", "Sign in with your authenticator again before this action.", 403)
             session = current
             if touch:
@@ -223,6 +234,11 @@ class AuthService:
         return {"administrator" if area == "admin" else "customer": identity,
                 "expires_at": timestamp(session["expires_at"]), "idle_expires_at": timestamp(idle_expires),
                 "csrf_token": session["csrf_token"]}
+
+    @staticmethod
+    def authentication_time(session):
+        assurance = session["assurance"]
+        return assurance["completed_at"] if assurance.get("method") == "cognito_native_challenge" else session["auth_time"]
 
     def logout(self, area, request):
         # Local logout remains available even if the identity provider is down.
@@ -248,7 +264,9 @@ class AuthService:
                 self.store.audit("logout", identity_id=session["identity_id"], detail={"area": area})
                 try:
                     tokens = self.decrypt(session["encrypted_tokens"])
-                    self.providers[area].revoke(tokens["refresh_token"])
+                    provider = self.providers[area]
+                    native = area == "admin" and session["assurance"].get("method") == "cognito_native_challenge"
+                    (provider.native_revoke if native else provider.revoke)(tokens["refresh_token"])
                 except AuthError:
                     self.store.audit("logout_provider_pending", identity_id=session["identity_id"], detail={"area": area})
         return self.providers[area].logout_url()

@@ -76,3 +76,8 @@ def cookie_name(settings, area, flow=False):
 def mfa_cookie_name(settings):
     prefix = "__Host-" if settings["APP_ENV"] != "development" else ""
     return f"{prefix}popssibilities_admin_mfa"
+
+
+def native_cookie_name(settings):
+    prefix = "__Host-" if settings["APP_ENV"] != "development" else ""
+    return f"{prefix}popssibilities_admin_native"

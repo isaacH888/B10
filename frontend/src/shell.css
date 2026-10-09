@@ -20,3 +20,5 @@ table { width: 100%; border-collapse: collapse; text-align: left; }
 caption { margin-bottom: 0.5rem; text-align: left; font-weight: 600; }
 th, td { padding: 0.5rem; border-bottom: 1px solid #ddd; }
 button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2px solid #333; outline-offset: 3px; }
+.admin-password-login input { box-sizing: border-box; width: 100%; max-width: 24rem; padding: 0.4rem; font: inherit; }
+.setup-key { overflow-wrap: anywhere; }

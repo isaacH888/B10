@@ -123,7 +123,10 @@ Planning an interface now does not implement the Week 5/6 features early.
 | `PATCH /orders/{order_id}/deposit` | Record verified deposit status | Admin, CSRF, idempotency | 200 | `UpdateDepositRequest` / `AdminOrderResponse` |
 | `GET /events/upcoming` | Retrieve persisted upcoming events | Admin | 200 | Window/pagination / `UpcomingEventsResponse` |
 | `GET /orders/export` | Export filtered order summaries | Admin | 200 CSV | Query filters / CSV string |
-| `POST /admin/login` | Start native administrator password/TOTP login | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
+| `POST /admin/login` | Retained strict administrator OAuth flow | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
+| `GET /admin/password/transaction` | Start/resume native admin sign-in | Browser-bound HttpOnly cookie | 200 | `AdminNativeTransactionResponse` |
+| `POST /admin/password/transaction` | Native password, new password or TOTP response | Exact Origin, transaction CSRF, single use, rate limit | 200 | `AdminNativeChallengeRequest` / `AdminNativeTransactionResponse` |
+| `DELETE /admin/password/transaction` | Cancel native admin sign-in | Exact Origin, transaction CSRF | 200 | `AdminNativeCancellationResponse` |
 | `POST /customer/login` | Start password or Google login | Exact Origin, shared rate limit | 200 | `CustomerLoginRequest` / `AuthLoginResponse` |
 | `GET /admin/callback`, `GET /customer/callback` | Complete provider login | Browser-bound OAuth transaction | 303 | Validated success sets the matching opaque session cookie |
 | `GET /admin/session`, `GET /customer/session` | Bootstrap session | Matching session | 200 | `AdminSessionResponse` / `CustomerSessionResponse` |
@@ -318,3 +321,5 @@ readiness. Health does not prove live Cognito configuration or business features
 
 This checklist is intentionally unsigned. Foundation syntax/example checks do not
 establish agreement or implementation conformance.
+
+The primary administrator login uses the [native Cognito challenge contract](authentication-native-admin.md). Enrollment and pool settings do not establish MFA proof. Only completed browser-bound `SOFTWARE_TOKEN_MFA` can establish a native session; operator revocation versions fence pending challenges and fresh-authentication time survives refresh. Customer OAuth and strict legacy admin OAuth validation remain unchanged.
