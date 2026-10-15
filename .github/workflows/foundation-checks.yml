@@ -97,4 +97,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install cfn-lint==1.57.2
-      - run: cfn-lint infra/cognito-authentication.json
+      - run: cfn-lint infra/cognito-authentication.json infra/customer-test-email.json

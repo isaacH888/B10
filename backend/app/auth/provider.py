@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import re
 import threading
@@ -29,6 +30,7 @@ class CognitoProvider:
         self.origin = settings["AUTH_ORIGIN"]
         self.callback = f"{self.origin}/api/v1/{area}/callback"
         self.region = ISSUER_PATTERN.fullmatch(self.issuer).group(1)
+        self.propagate_user_context = area == "admin" and settings.get("COGNITO_ADMIN_PROPAGATE_USER_CONTEXT", False)
         self._keys = None
         self._keys_at = 0
         self._key_lock = threading.Lock()
@@ -208,6 +210,23 @@ class CognitoProvider:
                 raise AuthError("mfa_required", "Complete authenticator setup, then sign in again.", 403,
                                 reason="mfa_enrollment_missing")
 
+    def verified_customer_profile(self, access_token, subject):
+        """Resolve the present verified recipient for customer-requested mail."""
+        if self.area != "customer":
+            raise AuthError("forbidden", "This action requires a customer session.", 403)
+        body = self._user_operation(access_token, "GetUser")
+        values = body.get("UserAttributes")
+        if (not isinstance(values, list) or not all(isinstance(value, dict)
+                and isinstance(value.get("Name"), str) and isinstance(value.get("Value"), str)
+                for value in values)):
+            raise unavailable()
+        attributes = {value["Name"]: value["Value"] for value in values}
+        if attributes.get("sub") != subject:
+            raise AuthError("authentication_failed", "Invalid authentication response.")
+        if attributes.get("email_verified") != "true":
+            raise AuthError("email_verification_required", "Verify your customer email before requesting a test email.", 403)
+        return {"email": attributes.get("email"), "name": attributes.get("name", "")}
+
     def _native_operation(self, operation, payload, *, refresh=False):
         """Public Cognito operations use app-client proof, never operator IAM credentials."""
         if self.area != "admin":
@@ -279,23 +298,43 @@ class CognitoProvider:
             raise self._native_failure() from None
         return result
 
-    def _native_respond(self, challenge, session, username, answers):
+    def _native_context(self, client_address):
+        """Use the trusted transport address, never a browser-supplied header.
+
+        Enable only after the confidential app client accepts additional context;
+        Cognito rejects IP propagation on older client configurations.
+        """
+        if not self.propagate_user_context:
+            return {}
+        try:
+            if not isinstance(client_address, str) or "%" in client_address:
+                raise ValueError()
+            address = str(ipaddress.ip_address(client_address))
+        except ValueError:
+            # An invalid proxy configuration must not silently disable risk input.
+            raise unavailable() from None
+        return {"UserContextData": {"IpAddress": address}}
+
+    def _native_respond(self, challenge, session, username, answers, *, client_address=None):
         responses = {"USERNAME": username, "SECRET_HASH": self._secret_hash(username), **answers}
         return self._native_operation("RespondToAuthChallenge", {
             "ClientId": self.client_id, "ChallengeName": challenge,
-            "Session": session, "ChallengeResponses": responses})
+            "Session": session, "ChallengeResponses": responses,
+            **self._native_context(client_address)})
 
-    def native_password(self, username, password):
+    def native_password(self, username, password, *, client_address=None):
         response = self._native_operation("InitiateAuth", {
             "ClientId": self.client_id, "AuthFlow": "USER_AUTH",
             "AuthParameters": {"USERNAME": username, "PREFERRED_CHALLENGE": "PASSWORD",
-                               "PASSWORD": password, "SECRET_HASH": self._secret_hash(username)}})
+                               "PASSWORD": password, "SECRET_HASH": self._secret_hash(username)},
+            **self._native_context(client_address)})
         return self._native_challenge(response, username, {"NEW_PASSWORD_REQUIRED", "MFA_SETUP", "SOFTWARE_TOKEN_MFA"})
 
-    def native_new_password(self, session, username, password, attributes):
+    def native_new_password(self, session, username, password, attributes, *, client_address=None):
         answers = {"NEW_PASSWORD": password}
         answers.update({"userAttributes." + key: value for key, value in attributes.items()})
-        response = self._native_respond("NEW_PASSWORD_REQUIRED", session, username, answers)
+        response = self._native_respond("NEW_PASSWORD_REQUIRED", session, username, answers,
+                                        client_address=client_address)
         return self._native_challenge(response, username, {"MFA_SETUP", "SOFTWARE_TOKEN_MFA"})
 
     def native_associate(self, session):
@@ -322,13 +361,13 @@ class CognitoProvider:
             tokens[target] = value
         return tokens
 
-    def native_enroll(self, session, username, code):
+    def native_enroll(self, session, username, code, *, client_address=None):
         body = self._native_operation("VerifySoftwareToken", {"Session": session, "UserCode": code})
         verified_session = body.get("Session")
         if (body.get("Status") != "SUCCESS" or not isinstance(verified_session, str)
                 or not 20 <= len(verified_session) <= 4096):
             raise self._native_failure()
-        result = self._native_respond("MFA_SETUP", verified_session, username, {})
+        result = self._native_respond("MFA_SETUP", verified_session, username, {}, client_address=client_address)
         if "AuthenticationResult" in result:
             # Setup-issued tokens are never usable by this application. Revoke
             # them and demand a new password + SOFTWARE_TOKEN_MFA transaction.
@@ -336,9 +375,9 @@ class CognitoProvider:
         else:
             self._native_challenge(result, username, {"SOFTWARE_TOKEN_MFA"})
 
-    def native_totp(self, session, username, code):
+    def native_totp(self, session, username, code, *, client_address=None):
         return self._native_tokens(self._native_respond("SOFTWARE_TOKEN_MFA", session, username,
-                                                       {"SOFTWARE_TOKEN_MFA_CODE": code}))
+                                                       {"SOFTWARE_TOKEN_MFA_CODE": code}, client_address=client_address))
 
     def native_refresh(self, refresh_token):
         body = self._native_operation("GetTokensFromRefreshToken", {

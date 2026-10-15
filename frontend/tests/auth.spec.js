@@ -12,15 +12,22 @@ function nativeTransaction(step = "password", overrides = {}) {
 }
 
 async function submitPassword(page) {
+  if (!await page.locator(".admin-password-login").count()) await openAdminSignIn(page);
   await page.getByLabel("Team email").fill("admin@example.com");
   await page.getByLabel("Password", { exact: true }).fill("synthetic-private-password");
   await page.getByRole("button", { name: "Continue with password" }).click();
 }
 
 async function submitCode(page) {
+  if (!await page.locator(".admin-password-login").count()) await openAdminSignIn(page);
   await page.getByLabel("Six-digit authenticator code").fill("123456");
   await page.getByRole("button", { name: "Verify authenticator code" }).click();
 }
+
+async function openAdminSignIn(page) {
+  await page.locator(".actions").getByRole("button", { name: "Continue with password" }).click();
+}
+
 function makeSession(area, overrides = {}) {
   const now = Date.now();
   return {
@@ -114,6 +121,9 @@ test("admin sign-in is invitation-only and submits password with its bound CSRF"
   await page.goto("/admin/login");
   await expect(page.getByText("Your authenticator app is required", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue with Google" })).toHaveCount(0);
+  await expect(page.getByLabel("Team email")).not.toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).not.toBeVisible();
+  expect(requests.filter((request) => request.path === "/api/v1/admin/password/transaction")).toHaveLength(0);
   await submitPassword(page);
   await expect(page.getByRole("heading", { name: "Verify your authenticator" })).toBeVisible();
   const request = requests.find((request) => request.method === "POST");
@@ -295,6 +305,7 @@ test("callback query errors are mapped to safe messages", async ({ page }) => {
 test("native admin sign-in outages are actionable without exposing the account", async ({ page }) => {
   await mockApi(page, { transactionStatus: 503 });
   await page.goto("/admin/login");
+  await openAdminSignIn(page);
   await expect(page.getByRole("alert")).toContainText("temporarily unavailable");
   await expect(page.getByRole("button", { name: "Start again" })).toBeEnabled();
   await expect(page.getByLabel("Password", { exact: true })).not.toBeVisible();
@@ -523,6 +534,7 @@ test("a claimed native completion still requires a valid protected session", asy
 test("native cancellation uses bound CSRF and starts a new password flow", async ({ page }) => {
   const requests = await mockApi(page, { transaction: nativeTransaction("totp") });
   await page.goto("/admin/login");
+  await openAdminSignIn(page);
   await page.getByRole("button", { name: "Start again" }).click();
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   const cancellation = requests.find((r) => r.method === "DELETE");
@@ -535,11 +547,12 @@ test("expired native transactions discard setup keys and require restarting", as
   const now = Date.now();
   await page.clock.install({ time: new Date(now) });
   await mockApi(page, { transaction: nativeTransaction("totp_enrollment", {
-    enrollment_secret: setupSecret, expires_at: new Date(now + 2000).toISOString(),
+    enrollment_secret: setupSecret, expires_at: new Date(now + 10000).toISOString(),
   }) });
   await page.goto("/admin/login");
+  await openAdminSignIn(page);
   await expect(page.getByText(setupSecret, { exact: true })).toBeVisible();
-  await page.clock.fastForward(3000);
+  await page.clock.fastForward(11000);
   await expect(page.getByRole("alert")).toContainText("expired");
   await expect(page.getByText(setupSecret, { exact: true })).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "Admin dashboard" })).not.toBeVisible();

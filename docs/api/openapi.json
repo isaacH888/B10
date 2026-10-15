@@ -5817,6 +5817,225 @@
         ],
         "description": "HttpOnly SameSite=Strict native transaction cookie and shared browser binding. Password/new-password/TOTP fields are accepted only for the server-selected step. POST/DELETE require exact Origin and transaction CSRF. Each transition consumes and rotates the credential, with a fixed five-minute deadline and five-transition budget. Only observed SOFTWARE_TOKEN_MFA completion followed by validated approved native tokens creates a session. Enrollment alone requires a subsequent password/TOTP login; no secret may enter logs or browser storage."
       }
+    },
+    "/customer/test-email": {
+      "post": {
+        "operationId": "sendCustomerTestEmail",
+        "summary": "Send a sample order confirmation to the signed-in customer",
+        "description": "Implemented, disabled until SES is configured. Resolve the current verified Cognito mailbox using the authenticated customer's access token. Browser-supplied recipients/content are rejected. Persist a single-use sending reservation before SES, enforce shared sending limits, and replay an accepted result for the same customer/key without resending. No actual order, booking or payment is created.",
+        "tags": [
+          "Customer email"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "x-implemented": true,
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "description": "One canonical UUIDv4 per intentional test email; reuse on ambiguous network retries."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "maxProperties": 0
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SES accepted the sample email; this does not prove inbox delivery. A repeated key returns the original reference without another send.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerTestEmailResponse"
+                },
+                "example": {
+                  "data": {
+                    "status": "accepted",
+                    "reference": "TEST-SYNTHETIC123",
+                    "duplicate": false
+                  },
+                  "meta": {
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "A current customer session is required.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid origin/CSRF or the current Cognito email is not verified.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Delivery is uncertain, or the verified mailbox changed for an existing request. Never automatically resend an uncertain request.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Send only an empty JSON object and a canonical UUIDv4 idempotency key.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Test email request or send budget is exhausted.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Email is disabled, storage/configuration is unavailable, or SES explicitly rejected the request.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7467,6 +7686,49 @@
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMeta"
+          }
+        }
+      },
+      "CustomerTestEmailResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "reference",
+              "duplicate"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "accepted"
+              },
+              "reference": {
+                "type": "string",
+                "pattern": "^TEST-[A-Za-z0-9-]+$"
+              },
+              "duplicate": {
+                "type": "boolean"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string"
+              }
+            }
           }
         }
       }

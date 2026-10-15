@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 
 from flask import Blueprint, current_app, g, jsonify, redirect, request
 
+from ..traffic import RequestBudget
 from .errors import AuthError
 from .guards import service
 from .settings import cookie_name, mfa_cookie_name, native_cookie_name
@@ -11,6 +12,30 @@ from .store import StoreUnavailable
 
 
 auth = Blueprint("auth", __name__)
+
+
+@auth.record_once
+def configure_admission(state):
+    state.app.extensions["auth_ingress"] = RequestBudget(per_address=60, total=300)
+    state.app.extensions["auth_denial_audits"] = RequestBudget(per_address=4, total=40)
+
+
+def admit_unauthenticated_request():
+    # Reject before parsing, persistent counters, or denial audits. Shared proxy
+    # limits complement this bound when several application workers are running.
+    if not current_app.extensions["auth_ingress"].allow(request.remote_addr):
+        raise AuthError("rate_limited", "Too many sign-in attempts. Please wait a minute.", 429)
+
+
+def audit_denial(event, detail):
+    # Preserve a bounded sample of denied requests, never one DB insert per flood
+    # request. Successful sign-ins and operator changes retain their full audits.
+    if not current_app.extensions["auth_denial_audits"].allow(request.remote_addr):
+        return
+    try:
+        current_app.extensions["auth_store"].audit(event, request_id=g.request_id, detail=detail)
+    except StoreUnavailable:
+        current_app.logger.warning("Authentication denial audit unavailable; request_id=%s", g.request_id)
 
 
 def cookie_options():
@@ -60,6 +85,7 @@ def login(area):
 @auth.get("/<area>/callback")
 def callback(area):
     area_allowed(area)
+    admit_unauthenticated_request()
     landing = "/admin/login" if area == "admin" else "/login"
     try:
         if request.args.get("error") or any(len(request.args.getlist(key)) != 1 for key in ("state", "code")):
@@ -86,11 +112,7 @@ def callback(area):
                           "access_amr_present", "access_totp_assured"):
                 if type(diagnostics.get(field)) is bool:
                     detail[field] = diagnostics[field]
-        try:
-            current_app.extensions["auth_store"].audit(
-                "login_denied", request_id=g.request_id, detail=detail)
-        except StoreUnavailable:
-            current_app.logger.warning("Authentication denial audit unavailable; request_id=%s", g.request_id)
+        audit_denial("login_denied", detail)
         result = redirect(current_app.config["AUTH_ORIGIN"] + landing + "?" + urlencode({"error": code}), code=303)
         current_app.logger.info("Authentication callback denied; code=%s; reason=%s; request_id=%s", code, reason, g.request_id)
     # Retain the private binding until its TTL so overlapping callbacks share
@@ -121,6 +143,7 @@ def logout(area):
 
 @auth.route("/admin/password/transaction", methods=["GET", "POST", "DELETE"])
 def native_admin_transaction():
+    admit_unauthenticated_request()
     manager = service()
     options = dict(cookie_options(), samesite="Strict")
     try:
@@ -152,11 +175,7 @@ def native_admin_transaction():
     except (AuthError, StoreUnavailable) as failure:
         error = failure if isinstance(failure, AuthError) else AuthError(
             "authentication_unavailable", "Sign-in is temporarily unavailable.", 503)
-        try:
-            current_app.extensions["auth_store"].audit("admin_native_login_denied", request_id=g.request_id,
-                                                       detail={"area": "admin", "error_code": error.code})
-        except StoreUnavailable:
-            current_app.logger.warning("Authentication denial audit unavailable; request_id=%s", g.request_id)
+        audit_denial("admin_native_login_denied", {"area": "admin", "error_code": error.code})
         result = jsonify(error={"code": error.code, "message": error.message, "fields": [], "request_id": g.request_id})
         result.status_code = error.status
         if error.status == 429:

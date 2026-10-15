@@ -10,7 +10,7 @@ The requested ACR and freshness parameters reached Cognito, but the returned sig
 
 ## Sign-in and initial setup
 
-1. An approved existing administrator opens `/admin/login`, enters their team email and password, then submits the six-digit authenticator code. The dashboard opens only after the backend accepts the native challenge result and the frontend reads the resulting protected session.
+1. An approved existing administrator opens `/admin/login` and clicks **Continue with password** to open the sign-in form. They enter their team email and password, then submit the six-digit authenticator code. The short-lived native transaction starts after that click. The dashboard opens only after the backend accepts the native challenge result and the frontend reads the resulting protected session.
 2. An invited administrator uses the temporary password received privately from Cognito. `NEW_PASSWORD_REQUIRED` asks them to choose a new password. Existing approved attributes remain fixed; the page cannot change the account's identity or role.
 3. If Cognito returns `MFA_SETUP`, the page shows the account's enrollment key. Add it manually to a trusted authenticator as a time-based, six-digit account, then enter a generated code. The key is shown only to that browser over the authenticated setup transaction; it is not sent to a QR service, URL, browser storage or logs.
 4. Successful enrollment completes Cognito's setup challenge but grants no application session. Enter the new password again and complete a subsequent `SOFTWARE_TOKEN_MFA` challenge. Use a new authenticator code if the preceding one has already been consumed.

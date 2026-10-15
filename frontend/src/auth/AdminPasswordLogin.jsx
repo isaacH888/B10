@@ -38,6 +38,7 @@ function PasswordForm() {
     if (data.step === "complete") {
       setTransaction(null);
       setNotice("Checking verified administrator access…");
+      // Confirm the protected session before displaying the dashboard.
       const session = await refresh("admin", { force: true });
       if (!mounted.current || requestVersion !== version.current) return;
       if (session.status !== "authenticated") throw session.error || new ApiError(401, "session_expired");
@@ -188,6 +189,7 @@ function PasswordForm() {
 
 export function AdminPasswordLogin() {
   const { sessions, refresh, logout } = useAuth();
+  const [started, setStarted] = useState(false);
   const session = sessions.admin;
   const [params] = useSearchParams();
   const message = callbackMessage(params.get("error"));
@@ -200,7 +202,12 @@ export function AdminPasswordLogin() {
     {message && <Alert>{message}</Alert>}
     {session.status === "error" && <Alert><p>{errorMessage(session.error)}</p><button type="button" onClick={() => refresh("admin")}>Check session again</button></Alert>}
     {session.logoutPending && <Alert><p>We couldn’t confirm sign-out. Please retry to end your session.</p><button type="button" onClick={() => logout("admin")}>Retry sign-out</button></Alert>}
-    {session.status === "loading" ? <p role="status">Checking your session…</p> : !session.logoutPending && <PasswordForm />}
+    {session.status === "loading" ? <p role="status">Checking your session…</p> : !session.logoutPending && (
+      started ? <PasswordForm /> : <div className="actions">
+        {/* Start the short-lived MFA transaction only after the user continues. */}
+        <button type="button" onClick={() => setStarted(true)}>Continue with password</button>
+      </div>
+    )}
     <p>Need an invitation or help with your authenticator? Contact the account owner.</p>
   </section>;
 }

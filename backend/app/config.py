@@ -43,4 +43,6 @@ def read_settings():
         if any(not settings[key] for key in required):
             raise ValueError("Hosted environments require application and TLS database configuration")
     settings.update(environment_settings(environment))
+    from .email.settings import environment_settings as email_settings
+    settings.update(email_settings())
     return settings

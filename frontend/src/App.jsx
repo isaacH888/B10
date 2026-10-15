@@ -4,6 +4,7 @@ import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
+import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 
 function Layout({ children }) {
   return <div className="test-shell">
@@ -146,6 +147,7 @@ function ProtectedPage({ area }) {
     <h1>{admin ? "Admin dashboard" : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}</h1>
     <p>{admin ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.` : "Customer session is authenticated."}</p>
     {admin && <AdminDashboard identity={identity} />}
+    {!admin && <CustomerTestEmail key={identity.id} csrfToken={session.data.csrf_token} email={identity.email} />}
     {remaining <= 5 && <Notice>
       Your session expires in {remaining ? `${remaining} minute${remaining === 1 ? "" : "s"}` : "less than a minute"}. Sign in again after it expires to continue.
     </Notice>}

@@ -25,6 +25,8 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
     validate_settings(app.config)
+    from .email.settings import validate_settings as validate_email_settings
+    validate_email_settings(app.config)
     if app.config["AUTH_TRUSTED_PROXY_HOPS"]:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=app.config["AUTH_TRUSTED_PROXY_HOPS"],
                                x_proto=0, x_host=0, x_port=0, x_prefix=0)
@@ -49,6 +51,17 @@ def create_app(test_config=None):
                                                      clock=app.config.get("AUTH_CLOCK"))
     app.register_blueprint(auth, url_prefix="/api/v1")
     register_admin_commands(app)
+    from .email.routes import email
+    from .email.service import CustomerMailService
+    from .email.store import MailStore
+    from .email.provider import SESMailer
+    if app.config["AUTH_ENABLED"]:
+        app.extensions["customer_mail_service"] = CustomerMailService(
+            app.config, app.extensions["auth_service"],
+            app.config.get("EMAIL_STORE") or MailStore(app.config),
+            app.config.get("EMAIL_MAILER") or SESMailer(app.config),
+        )
+    app.register_blueprint(email, url_prefix="/api/v1")
 
     @app.before_request
     def assign_request_id():

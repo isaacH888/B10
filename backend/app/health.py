@@ -1,10 +1,44 @@
 """Infrastructure probes only; this module does not own domain queries or schema."""
 
+from threading import Lock
+from time import monotonic
+
 import pymysql
 from flask import Blueprint, current_app, g, jsonify
 from .auth.store import StoreUnavailable
 
 health = Blueprint("health", __name__)
+
+
+class ReadinessCache:
+    """Allow one probe per worker every five seconds without queuing callers."""
+
+    def __init__(self, *, seconds=5, clock=monotonic):
+        self.seconds, self.clock = seconds, clock
+        self._cached = None
+        self._probing = Lock()
+
+    def read(self, probe):
+        cached = self._cached
+        if cached and self.clock() < cached[0]:
+            return cached[1]
+        if not self._probing.acquire(blocking=False):
+            # Never serve an expired success or tie up workers waiting for SQL.
+            return None
+        try:
+            cached = self._cached
+            if cached and self.clock() < cached[0]:
+                return cached[1]
+            data = probe()
+            self._cached = (self.clock() + self.seconds, data)
+            return data
+        finally:
+            self._probing.release()
+
+
+@health.record_once
+def configure_readiness(state):
+    state.app.extensions["readiness_cache"] = ReadinessCache()
 
 
 def database_available():
@@ -35,8 +69,7 @@ def live():
     return jsonify(data={"status": "ok"}, meta={"request_id": g.request_id})
 
 
-@health.get("/health")
-def readiness():
+def probe_readiness():
     available = database_available()
     authentication_ready = not current_app.config["AUTH_ENABLED"]
     if available and current_app.config["AUTH_ENABLED"]:
@@ -44,7 +77,16 @@ def readiness():
             authentication_ready = current_app.extensions["auth_store"].ready()
         except StoreUnavailable:
             authentication_ready = False
+    return available, authentication_ready
+
+
+@health.get("/health")
+def readiness():
+    cached = current_app.extensions["readiness_cache"].read(probe_readiness)
+    available, authentication_ready = cached or (False, False)
     ready = available and authentication_ready
+    # Cache only probe facts: each response gets its own request identifier and
+    # still carries no-store, including failures and concurrent cold probes.
     return jsonify(
         data={"status": "ok" if ready else "degraded", "database": "ok" if available else "unavailable",
               "authentication": "ready" if current_app.config["AUTH_ENABLED"] and authentication_ready else
