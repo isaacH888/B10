@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import jsQR from "jsqr";
 
 const providerUrl = "https://test.auth.us-east-1.amazoncognito.com/oauth2/authorize";
 const logoutUrl = "https://test.auth.us-east-1.amazoncognito.com/logout";
@@ -9,6 +10,27 @@ const setupSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 
 function nativeTransaction(step = "password", overrides = {}) {
   return { step, csrf_token: nativeCsrf, expires_at: new Date(Date.now() + 300000).toISOString(), ...overrides };
+}
+
+async function readAuthenticatorQr(page) {
+  const pixels = await page.getByRole("img", { name: "Authenticator setup QR code" }).evaluate(async (svg) => {
+    const source = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }));
+    try {
+      const image = new Image();
+      image.src = source;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 480;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, 480, 480);
+      return Array.from(context.getImageData(0, 0, 480, 480).data);
+    } finally {
+      URL.revokeObjectURL(source);
+    }
+  });
+  const decoded = jsQR(new Uint8ClampedArray(pixels), 480, 480);
+  expect(decoded).not.toBeNull();
+  return new URL(decoded.data);
 }
 
 async function submitPassword(page) {
@@ -473,6 +495,7 @@ test("a failed admin authenticator callback gives setup and configuration guidan
 
 
 test("an invited administrator replaces the password and enrolls before a separate MFA login", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
   const requests = await mockApi(page, { nativeResponses: [
     { data: nativeTransaction("new_password") },
     { data: nativeTransaction("totp_enrollment", { enrollment_secret: setupSecret }) },
@@ -488,7 +511,18 @@ test("an invited administrator replaces the password and enrolls before a separa
   await page.getByRole("button", { name: "Save new password" }).click();
   await expect(page.getByRole("heading", { name: "Set up your authenticator" })).toBeVisible();
   await expect(page.getByText(setupSecret, { exact: true })).toBeVisible();
+  const qr = page.getByRole("img", { name: "Authenticator setup QR code" });
+  await expect(qr).toBeVisible();
+  const uri = await readAuthenticatorQr(page);
+  expect(uri.protocol).toBe("otpauth:");
+  expect(uri.hostname).toBe("totp");
+  expect(decodeURIComponent(uri.pathname)).toBe("/Popsibilities Admin:admin@example.com");
+  expect(Object.fromEntries(uri.searchParams)).toEqual({
+    secret: setupSecret, issuer: "Popsibilities Admin", algorithm: "SHA1", digits: "6", period: "30",
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await submitCode(page);
+  await expect(qr).toHaveCount(0);
   await expect(page.getByText("Authenticator enrolled.", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Admin dashboard" })).not.toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
@@ -500,6 +534,8 @@ test("an invited administrator replaces the password and enrolls before a separa
     ["email", "password"], ["new_password"], ["code"], ["email", "password"], ["code"],
   ]);
   expect(await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))).toEqual({ local: {}, session: {} });
+  expect(JSON.stringify(requests)).not.toContain(setupSecret);
+  expect(JSON.stringify(requests)).not.toContain("otpauth:");
 });
 
 for (const [code, status, message] of [["authentication_failed", 401, "Check your credentials"],
@@ -532,10 +568,12 @@ test("a claimed native completion still requires a valid protected session", asy
 });
 
 test("native cancellation uses bound CSRF and starts a new password flow", async ({ page }) => {
-  const requests = await mockApi(page, { transaction: nativeTransaction("totp") });
+  const requests = await mockApi(page, { transaction: nativeTransaction("totp_enrollment", { enrollment_secret: setupSecret }) });
   await page.goto("/admin/login");
   await openAdminSignIn(page);
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toBeVisible();
   await page.getByRole("button", { name: "Start again" }).click();
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toHaveCount(0);
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   const cancellation = requests.find((r) => r.method === "DELETE");
   expect(cancellation.path).toBe("/api/v1/admin/password/transaction");
@@ -552,10 +590,38 @@ test("expired native transactions discard setup keys and require restarting", as
   await page.goto("/admin/login");
   await openAdminSignIn(page);
   await expect(page.getByText(setupSecret, { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toBeVisible();
   await page.clock.fastForward(11000);
   await expect(page.getByRole("alert")).toContainText("expired");
   await expect(page.getByText(setupSecret, { exact: true })).not.toBeVisible();
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Admin dashboard" })).not.toBeVisible();
+});
+
+test("authenticator QR is removed before enrollment verification finishes", async ({ page }) => {
+  await mockApi(page, {
+    transaction: nativeTransaction("totp_enrollment", { enrollment_secret: setupSecret }),
+    nativeResponses: [{ data: nativeTransaction("password", { enrollment_complete: true }), delay: 800 }],
+  });
+  await page.goto("/admin/login");
+  await openAdminSignIn(page);
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toBeVisible();
+  const uri = await readAuthenticatorQr(page);
+  expect(decodeURIComponent(uri.pathname)).toBe("/Popsibilities Admin:Team account");
+  await submitCode(page);
+  await expect(page.getByRole("button", { name: "Verify authenticator code" })).toBeDisabled();
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toHaveCount(0);
+  await expect(page.getByText(setupSecret, { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Authenticator enrolled.", { exact: false })).toBeVisible();
+});
+
+test("an enrollment without a setup key offers restart without a QR code", async ({ page }) => {
+  await mockApi(page, { transaction: nativeTransaction("totp_enrollment") });
+  await page.goto("/admin/login");
+  await openAdminSignIn(page);
+  await expect(page.getByText("The private setup key is no longer shown.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Authenticator setup QR code" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start again" })).toBeEnabled();
 });
 
 test("duplicate TOTP submission is disabled while verification is pending", async ({ page }) => {

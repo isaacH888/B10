@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "./AuthContext.jsx";
 import { ApiError, apiRequest, callbackMessage, errorMessage } from "./api.js";
 
@@ -18,6 +19,22 @@ function Alert({ children }) {
   return <div className="notice" role="alert">{children}</div>;
 }
 
+function AuthenticatorSetup({ secret, account }) {
+  const issuer = "Popsibilities Admin";
+  const label = encodeURIComponent(`${issuer}:${account || "Team account"}`);
+  const parameters = new URLSearchParams({ secret, issuer, algorithm: "SHA1", digits: "6", period: "30" });
+  // Encode in the browser; never send an enrollment secret to a QR service.
+  const uri = `otpauth://totp/${label}?${parameters}`;
+  return <>
+    <p>Scan this QR code with your authenticator app, then enter the six-digit code.</p>
+    <QRCodeSVG value={uri} size={240} level="M" marginSize={4}
+      bgColor="#ffffff" fgColor="#000000" role="img"
+      title="Authenticator setup QR code" aria-label="Authenticator setup QR code"
+      style={{ display: "block", maxWidth: "100%", height: "auto" }} />
+    <p>Can’t scan? Add a time-based account manually using this setup key: <code className="setup-key">{secret}</code></p>
+  </>;
+}
+
 function PasswordForm() {
   const { refresh } = useAuth();
   const navigate = useNavigate();
@@ -30,6 +47,7 @@ function PasswordForm() {
   const pending = useRef(null);
   const inFlight = useRef(false);
   const version = useRef(0);
+  const accountEmail = useRef("");
 
   async function accept(data, requestVersion) {
     if (!validTransaction(data)) throw new ApiError(502, "invalid_response");
@@ -65,6 +83,7 @@ function PasswordForm() {
     return () => {
       active = false;
       mounted.current = false;
+      accountEmail.current = "";
       form.current?.reset();
     };
   }, []);
@@ -74,6 +93,7 @@ function PasswordForm() {
     const expire = () => {
       if (Date.parse(transaction.expires_at) <= Date.now()) {
         version.current += 1;
+        accountEmail.current = "";
         form.current?.reset();
         setTransaction(null);
         setNotice("");
@@ -91,8 +111,10 @@ function PasswordForm() {
     if (inFlight.current || !transaction) return;
     const values = new FormData(event.currentTarget);
     let payload;
-    if (transaction.step === "password") payload = { email: values.get("email"), password: values.get("password") };
-    else if (transaction.step === "new_password") {
+    if (transaction.step === "password") {
+      payload = { email: values.get("email"), password: values.get("password") };
+      accountEmail.current = payload.email.trim().toLowerCase();
+    } else if (transaction.step === "new_password") {
       if (values.get("new_password") !== values.get("confirm_password")) {
         form.current?.reset();
         setError("Enter the same new password in both fields.");
@@ -103,7 +125,7 @@ function PasswordForm() {
     const csrf = transaction.csrf_token;
     const requestVersion = ++version.current;
     form.current?.reset();
-    // Hide the setup key as soon as its confirmation is submitted.
+    // Hide both the QR code and setup key as soon as confirmation is submitted.
     setTransaction((current) => ({ ...current, enrollment_secret: undefined }));
     inFlight.current = true;
     setBusy(true);
@@ -132,6 +154,7 @@ function PasswordForm() {
     const requestVersion = ++version.current;
     form.current?.reset();
     setTransaction(null);
+    accountEmail.current = "";
     setNotice("");
     setError("");
     setBusy(true);
@@ -156,10 +179,8 @@ function PasswordForm() {
     {transaction && <>
       {step === "new_password" && <><h2>Choose a new password</h2><p>Replace your temporary password with a password of at least 16 characters.</p></>}
       {step === "totp_enrollment" && <><h2>Set up your authenticator</h2>
-        {transaction.enrollment_secret ? <>
-          <p>Add a time-based account to your authenticator app using this private setup key, then enter the six-digit code.</p>
-          <p>Setup key: <code className="setup-key">{transaction.enrollment_secret}</code></p>
-        </> : missingSetupKey && <p>The private setup key is no longer shown. Start again to set up your authenticator.</p>}
+        {transaction.enrollment_secret ? <AuthenticatorSetup secret={transaction.enrollment_secret} account={accountEmail.current} />
+          : missingSetupKey && <p>The private setup key is no longer shown. Start again to set up your authenticator.</p>}
       </>}
       {step === "totp" && <><h2>Verify your authenticator</h2><p>Enter a new six-digit code from your authenticator app.</p></>}
       {!missingSetupKey && <form key={step} ref={form} onSubmit={submit}>
