@@ -193,7 +193,7 @@ async function startTestSuite() {
     const res = await runRequest(tc);
 
     if (res.error) {
-      console.log(`❌ [FAIL] ${tc.id}: ${tc.name} -> Connection Error: ${res.error}`);
+      console.log(`[FAIL] ${tc.id}: ${tc.name} -> Connection Error: ${res.error}`);
       continue;
     }
 
@@ -228,9 +228,9 @@ async function startTestSuite() {
 
     if (isPassed) {
       passedCount++;
-      console.log(`✅ [PASS] ${tc.id}: ${tc.name} -> (${detailMsg})`);
+      console.log(`[PASS] ${tc.id}: ${tc.name} -> (${detailMsg})`);
     } else {
-      console.log(`❌ [FAIL] ${tc.id}: ${tc.name} -> (${detailMsg})`);
+      console.log(`[FAIL] ${tc.id}: ${tc.name} -> (${detailMsg})`);
     }
   }
 
