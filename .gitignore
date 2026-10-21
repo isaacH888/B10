@@ -1,0 +1,37 @@
+# Local credentials belong in ignored files or the hosting secret store.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+.aws/
+credentials/
+secrets/
+*.pem
+*.key
+
+# Preserve dependency manifests and lock files for reproducible installs.
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+coverage/
+.coverage
+htmlcov/
+*.log
+
+# Database migrations stay tracked; local backups and exports do not.
+backups/
+exports/
+*.dump
+.DS_Store
+.idea/
+.vscode/

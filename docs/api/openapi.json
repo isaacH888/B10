@@ -1,0 +1,5803 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Popssibilities - Proposed API Contract",
+    "version": "0.2.0-draft",
+    "description": "Week 4 shared contract aligned to the October 5 reference review. Only the shared /live and /health routes are implemented. Business endpoints remain proposals owned by assigned developers. All examples are synthetic and numeric totals are not real pricing. React/Vite, Flask and MySQL scaffolding was approved by Isaac; AWS research and full-payment replacement were not adopted."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Local shared shell URL; only /live and /health currently implemented."
+    },
+    {
+      "url": "/api/v1",
+      "description": "Proposed same-origin hosted proxy."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Public"
+    },
+    {
+      "name": "Admin"
+    }
+  ],
+  "paths": {
+    "/quotes": {
+      "post": {
+        "operationId": "calculateQuote",
+        "summary": "Calculate quote",
+        "description": "Validate event and catering details; return server-owned pricing or requires_review with null pricing. No final pricing tier, heart price, delivery formula, service fee, or dry-ice allocation is established. Quantity must be at least 50. Technical limits and 15-minute expiry are proposed. Never accept client totals. Recorded Q&A identifies Wingman Kitchens Houston at 4783 Lexington Blvd, Missouri City, TX as origin; postal code and distance method remain open. Beyond 30 miles return requires_review/null pricing with next_action contact_inquiry. Do not silently calculate a normal delivery fee or submit an out-of-area order.",
+        "tags": [
+          "Public"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Calculate quote succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "quote_example_001",
+                        "status": "requires_review",
+                        "expires_at": "2026-10-03T20:15:00Z",
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "pricing": null,
+                        "pricing_revision": null,
+                        "unresolved_decisions": [
+                          "D01",
+                          "D04",
+                          "D06",
+                          "D07"
+                        ],
+                        "next_action": null
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  },
+                  "priced_fixture": {
+                    "summary": "Synthetic priced fixture - 20000 cents is arbitrary, not a real business rate.",
+                    "value": {
+                      "data": {
+                        "id": "quote_example_001",
+                        "status": "priced",
+                        "expires_at": "2026-10-03T20:15:00Z",
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "unresolved_decisions": [],
+                        "next_action": null
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  },
+                  "outside_radius": {
+                    "summary": "Synthetic out-of-area assessment; no real distance lookup or working inquiry URL.",
+                    "value": {
+                      "data": {
+                        "id": "quote_example_001",
+                        "status": "requires_review",
+                        "expires_at": "2026-10-03T20:15:00Z",
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "pricing": null,
+                        "pricing_revision": null,
+                        "unresolved_decisions": [
+                          "D04"
+                        ],
+                        "next_action": {
+                          "type": "contact_inquiry",
+                          "reason_code": "outside_delivery_radius",
+                          "message": "Delivery beyond 30 miles requires a custom event inquiry.",
+                          "inquiry_url": "https://example.invalid/contact"
+                        }
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "Quantity must be at least 50.",
+                    "fields": [
+                      {
+                        "field": "catering_request.quantity",
+                        "message": "Minimum quantity is 50."
+                      }
+                    ],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Too many requests. Try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "catering_request": {
+                      "quantity": 50,
+                      "popsicle_shape": "standard",
+                      "flavor_requests": "",
+                      "add_ons": [],
+                      "service_type": "delivery",
+                      "dry_ice_blocks": null
+                    },
+                    "event": {
+                      "type": "Example celebration",
+                      "location": {
+                        "line1": "100 Example Street",
+                        "city": "Houston",
+                        "region": "TX",
+                        "postal_code": "77000",
+                        "country_code": "US"
+                      },
+                      "starts_at": "2026-11-07T15:00:00-06:00",
+                      "ends_at": "2026-11-07T17:00:00-06:00",
+                      "timezone": "America/Chicago",
+                      "notes": "Synthetic fixture - not a real event."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 3,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/orders": {
+      "post": {
+        "operationId": "submitOrder",
+        "summary": "Submit order",
+        "description": "Persist one order from an unexpired priced quote matching all event and catering fields. Reject requires_review quotes (proposed policy pending D08). Recompute or verify the accepted server snapshot, then commit the order and durable integration work before returning 201. Provider outages do not undo the order. Replay the original result for the same key and payload; different payload returns idempotency_conflict.",
+        "tags": [
+          "Public"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Submit order succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "/api/v1/orders/{order_id}; administrative access required."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "order_example_001",
+                        "version": 1,
+                        "status": "pending_review",
+                        "customer": {
+                          "name": "Example Customer",
+                          "email": "customer@example.invalid",
+                          "phone": "+1-202-555-0100"
+                        },
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "quote_id": "quote_example_001",
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "deposit": {
+                          "status": "pending",
+                          "amount_due_cents": 10000,
+                          "amount_confirmed_cents": 0
+                        },
+                        "payment_links": [],
+                        "workflow": {
+                          "customer_email": "pending",
+                          "business_email": "pending",
+                          "calendar": "not_scheduled",
+                          "contract_email": "waiting_for_deposit"
+                        },
+                        "created_at": "2026-10-03T20:05:00Z",
+                        "updated_at": "2026-10-03T20:05:00Z"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "quote_not_finalized",
+                    "message": "A final server-priced quote is required.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "One or more fields are invalid.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Too many requests. Try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitOrderRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "customer": {
+                      "name": "Example Customer",
+                      "email": "customer@example.invalid",
+                      "phone": "+1-202-555-0100"
+                    },
+                    "catering_request": {
+                      "quantity": 50,
+                      "popsicle_shape": "standard",
+                      "flavor_requests": "",
+                      "add_ons": [],
+                      "service_type": "delivery",
+                      "dry_ice_blocks": null
+                    },
+                    "event": {
+                      "type": "Example celebration",
+                      "location": {
+                        "line1": "100 Example Street",
+                        "city": "Houston",
+                        "region": "TX",
+                        "postal_code": "77000",
+                        "country_code": "US"
+                      },
+                      "starts_at": "2026-11-07T15:00:00-06:00",
+                      "ends_at": "2026-11-07T17:00:00-06:00",
+                      "timezone": "America/Chicago",
+                      "notes": "Synthetic fixture - not a real event."
+                    },
+                    "quote_id": "quote_example_001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 4,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      },
+      "get": {
+        "operationId": "listOrders",
+        "summary": "List orders",
+        "description": "Return administrative results sorted by created_at descending then id ascending. Date ranges use event starts_at and a half-open interval; event_to must exceed event_from when both are given. Offset pagination may shift during concurrent changes; export uses a stable snapshot.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List orders succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOrdersResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "items": [
+                          {
+                            "id": "order_example_001",
+                            "version": 1,
+                            "status": "pending_review",
+                            "customer": {
+                              "name": "Example Customer",
+                              "email": "customer@example.invalid",
+                              "phone": "+1-202-555-0100"
+                            },
+                            "catering_request": {
+                              "quantity": 50,
+                              "popsicle_shape": "standard",
+                              "flavor_requests": "",
+                              "add_ons": [],
+                              "service_type": "delivery",
+                              "dry_ice_blocks": null
+                            },
+                            "event": {
+                              "type": "Example celebration",
+                              "location": {
+                                "line1": "100 Example Street",
+                                "city": "Houston",
+                                "region": "TX",
+                                "postal_code": "77000",
+                                "country_code": "US"
+                              },
+                              "starts_at": "2026-11-07T15:00:00-06:00",
+                              "ends_at": "2026-11-07T17:00:00-06:00",
+                              "timezone": "America/Chicago",
+                              "notes": "Synthetic fixture - not a real event."
+                            },
+                            "quote_id": "quote_example_001",
+                            "pricing_revision": "synthetic_fixture_v1",
+                            "pricing": {
+                              "currency": "USD",
+                              "line_items": [
+                                {
+                                  "code": "synthetic_fixture",
+                                  "description": "Synthetic total only - not a client rate or pricing tier.",
+                                  "amount_cents": 20000
+                                }
+                              ],
+                              "total_cents": 20000,
+                              "deposit_due_cents": 10000
+                            },
+                            "deposit": {
+                              "status": "pending",
+                              "amount_due_cents": 10000,
+                              "amount_confirmed_cents": 0
+                            },
+                            "payment_links": [],
+                            "workflow": {
+                              "customer_email": "pending",
+                              "business_email": "pending",
+                              "calendar": "not_scheduled",
+                              "contract_email": "waiting_for_deposit"
+                            },
+                            "created_at": "2026-10-03T20:05:00Z",
+                            "updated_at": "2026-10-03T20:05:00Z",
+                            "admin_notes": ""
+                          }
+                        ],
+                        "page": 1,
+                        "page_size": 25,
+                        "total": 1
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "Invalid page size.",
+                    "fields": [
+                      {
+                        "field": "page_size",
+                        "message": "Use an integer between 1 and 100."
+                      }
+                    ],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "Proposed one-based page."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": "Proposed maximum 100."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending_review",
+                "confirmed",
+                "fulfilled",
+                "cancelled"
+              ]
+            },
+            "description": "Optional exact order status."
+          },
+          {
+            "name": "event_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Inclusive event start lower bound."
+          },
+          {
+            "name": "event_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Exclusive event start upper bound."
+          }
+        ],
+        "x-target-week": 4,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/orders/{order_id}": {
+      "get": {
+        "operationId": "retrieveOrder",
+        "summary": "Retrieve order",
+        "description": "Administrative retrieval only. An order identifier is not a public lookup credential. Return the historical pricing snapshot and current version; no card data or provider secrets.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieve order succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "order_example_001",
+                        "version": 1,
+                        "status": "pending_review",
+                        "customer": {
+                          "name": "Example Customer",
+                          "email": "customer@example.invalid",
+                          "phone": "+1-202-555-0100"
+                        },
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "quote_id": "quote_example_001",
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "deposit": {
+                          "status": "pending",
+                          "amount_due_cents": 10000,
+                          "amount_confirmed_cents": 0
+                        },
+                        "payment_links": [],
+                        "workflow": {
+                          "customer_email": "pending",
+                          "business_email": "pending",
+                          "calendar": "not_scheduled",
+                          "contract_email": "waiting_for_deposit"
+                        },
+                        "created_at": "2026-10-03T20:05:00Z",
+                        "updated_at": "2026-10-03T20:05:00Z",
+                        "admin_notes": ""
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "The requested order was not found.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Opaque order identifier; never authorization by itself."
+          }
+        ],
+        "x-target-week": 4,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      },
+      "patch": {
+        "operationId": "updateOrder",
+        "summary": "Update order information",
+        "description": "Compare version atomically before changing data. Customer/event/catering objects replace their complete object, not a recursive partial merge. Event or catering changes require a matching new priced quote and quote_id. For already confirmed deposits, return 409 until the client approves a price-adjustment policy (D09). Preserve previous pricing in audit history. No status/deposit updates through this route.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Update order information succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "order_example_001",
+                        "version": 2,
+                        "status": "pending_review",
+                        "customer": {
+                          "name": "Example Customer",
+                          "email": "customer@example.invalid",
+                          "phone": "+1-202-555-0100"
+                        },
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "quote_id": "quote_example_001",
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "deposit": {
+                          "status": "pending",
+                          "amount_due_cents": 10000,
+                          "amount_confirmed_cents": 0
+                        },
+                        "payment_links": [],
+                        "workflow": {
+                          "customer_email": "pending",
+                          "business_email": "pending",
+                          "calendar": "not_scheduled",
+                          "contract_email": "waiting_for_deposit"
+                        },
+                        "created_at": "2026-10-03T20:05:00Z",
+                        "updated_at": "2026-10-03T20:06:00Z",
+                        "admin_notes": "Synthetic review note."
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "The requested resource was not found.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "stale_version",
+                    "message": "Refresh the order before applying this change.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "One or more fields are invalid.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Opaque order identifier; never authorization by itself."
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "version": 1,
+                    "admin_notes": "Synthetic review note."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 5,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/orders/{order_id}/status": {
+      "patch": {
+        "operationId": "updateOrderStatus",
+        "summary": "Update order status",
+        "description": "Compare version atomically and validate the proposed state transitions documented in the guide. confirmed means business acceptance, not verified payment. Same-state requests are no-ops after a valid version check. Cancellation and fulfillment policies require D10 signoff; the endpoint never triggers a refund.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Update order status succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "order_example_001",
+                        "version": 2,
+                        "status": "confirmed",
+                        "customer": {
+                          "name": "Example Customer",
+                          "email": "customer@example.invalid",
+                          "phone": "+1-202-555-0100"
+                        },
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "quote_id": "quote_example_001",
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "deposit": {
+                          "status": "pending",
+                          "amount_due_cents": 10000,
+                          "amount_confirmed_cents": 0
+                        },
+                        "payment_links": [],
+                        "workflow": {
+                          "customer_email": "pending",
+                          "business_email": "pending",
+                          "calendar": "not_scheduled",
+                          "contract_email": "waiting_for_deposit"
+                        },
+                        "created_at": "2026-10-03T20:05:00Z",
+                        "updated_at": "2026-10-03T20:06:00Z",
+                        "admin_notes": ""
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "The requested resource was not found.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "invalid_transition",
+                    "message": "The requested status transition is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "One or more fields are invalid.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Opaque order identifier; never authorization by itself."
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "version": 1,
+                    "status": "confirmed",
+                    "reason": "Synthetic business acceptance."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 5,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/orders/{order_id}/deposit": {
+      "patch": {
+        "operationId": "updateDepositStatus",
+        "summary": "Update deposit status",
+        "description": "Administrator records verified external payment evidence, not a customer claim or link redirect. For confirmed, require provider, unique external_reference, confirmed_at and amount_cents equal to the stored deposit due. Require a reason for reversed; reversal does not process a refund. Check idempotency replay before version checks. Only the first valid pending-to-confirmed transition schedules the deduplicated contract email. Confirmed deposit evidence stays in the private audit record.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Update deposit status succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrderResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "id": "order_example_001",
+                        "version": 2,
+                        "status": "pending_review",
+                        "customer": {
+                          "name": "Example Customer",
+                          "email": "customer@example.invalid",
+                          "phone": "+1-202-555-0100"
+                        },
+                        "catering_request": {
+                          "quantity": 50,
+                          "popsicle_shape": "standard",
+                          "flavor_requests": "",
+                          "add_ons": [],
+                          "service_type": "delivery",
+                          "dry_ice_blocks": null
+                        },
+                        "event": {
+                          "type": "Example celebration",
+                          "location": {
+                            "line1": "100 Example Street",
+                            "city": "Houston",
+                            "region": "TX",
+                            "postal_code": "77000",
+                            "country_code": "US"
+                          },
+                          "starts_at": "2026-11-07T15:00:00-06:00",
+                          "ends_at": "2026-11-07T17:00:00-06:00",
+                          "timezone": "America/Chicago",
+                          "notes": "Synthetic fixture - not a real event."
+                        },
+                        "quote_id": "quote_example_001",
+                        "pricing_revision": "synthetic_fixture_v1",
+                        "pricing": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "synthetic_fixture",
+                              "description": "Synthetic total only - not a client rate or pricing tier.",
+                              "amount_cents": 20000
+                            }
+                          ],
+                          "total_cents": 20000,
+                          "deposit_due_cents": 10000
+                        },
+                        "deposit": {
+                          "status": "confirmed",
+                          "amount_due_cents": 10000,
+                          "amount_confirmed_cents": 10000
+                        },
+                        "payment_links": [],
+                        "workflow": {
+                          "customer_email": "pending",
+                          "business_email": "pending",
+                          "calendar": "not_scheduled",
+                          "contract_email": "pending"
+                        },
+                        "created_at": "2026-10-03T20:05:00Z",
+                        "updated_at": "2026-10-03T20:06:00Z",
+                        "admin_notes": ""
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "not_found",
+                    "message": "The requested resource was not found.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "payment_reference_conflict",
+                    "message": "This external reference is already recorded.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "One or more fields are invalid.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Opaque order identifier; never authorization by itself."
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepositRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "version": 1,
+                    "status": "confirmed",
+                    "amount_cents": 10000,
+                    "provider": "square",
+                    "external_reference": "SYNTHETIC_REFERENCE_NOT_A_PAYMENT",
+                    "confirmed_at": "2026-10-03T20:06:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 5,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/events/upcoming": {
+      "get": {
+        "operationId": "retrieveUpcomingEvents",
+        "summary": "Retrieve upcoming events",
+        "description": "Return persisted order events, independent of Google Calendar availability. Use explicit half-open from/to timestamps, order by starts_at then order_id ascending, and exclude cancelled orders. This route does not fetch or create provider events.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieve upcoming events succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpcomingEventsResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "items": [
+                          {
+                            "order_id": "order_example_001",
+                            "order_status": "pending_review",
+                            "event": {
+                              "type": "Example celebration",
+                              "location": {
+                                "line1": "100 Example Street",
+                                "city": "Houston",
+                                "region": "TX",
+                                "postal_code": "77000",
+                                "country_code": "US"
+                              },
+                              "starts_at": "2026-11-07T15:00:00-06:00",
+                              "ends_at": "2026-11-07T17:00:00-06:00",
+                              "timezone": "America/Chicago",
+                              "notes": "Synthetic fixture - not a real event."
+                            },
+                            "quantity": 50,
+                            "service_type": "delivery"
+                          }
+                        ],
+                        "page": 1,
+                        "page_size": 25,
+                        "total": 1
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "The event window is invalid.",
+                    "fields": [
+                      {
+                        "field": "to",
+                        "message": "Must be later than from."
+                      }
+                    ],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Inclusive start; timezone offset required."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Exclusive end; must exceed from."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "description": "Proposed one-based page."
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": "Proposed maximum 100."
+          }
+        ],
+        "x-target-week": 5,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/orders/export": {
+      "get": {
+        "operationId": "exportOrders",
+        "summary": "Export orders",
+        "description": "Return an authorized UTF-8 CSV snapshot filtered by status and event window. Quote and escape cells and neutralize spreadsheet formula prefixes. Include no secrets, provider references, internal notes, or card data. No pagination on exports; proposed cap 10000 rows, with 422 export_too_large instead of silent truncation. JSON error envelopes still apply.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Anh Hyunh",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "export_too_large",
+                    "message": "Narrow the filters before exporting.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "200": {
+            "description": "Synthetic CSV snapshot; amounts do not define business prices.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "attachment; filename=\"orders-example.csv\""
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "order_id,status,customer_name,event_starts_at,quantity,service_type,currency,total_cents,deposit_due_cents,deposit_status\norder_example_001,pending_review,Example Customer,2026-11-07T15:00:00-06:00,50,delivery,USD,20000,10000,pending\n"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "CSV only; default csv."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending_review",
+                "confirmed",
+                "fulfilled",
+                "cancelled"
+              ]
+            },
+            "description": "Optional exact order status."
+          },
+          {
+            "name": "event_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Inclusive event start lower bound."
+          },
+          {
+            "name": "event_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "format": "date-time"
+            },
+            "description": "Exclusive event start upper bound."
+          }
+        ],
+        "x-target-week": 5,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/admin/login": {
+      "post": {
+        "operationId": "adminLogin",
+        "summary": "Admin login",
+        "description": "Proposed server session contract, not implemented. Validate credentials, rate-limit failures, return a generic 401, and require an allowed browser Origin before creating a session. Set a server-owned HttpOnly cookie; never return the session token in JSON. Require Secure in HTTPS environments and protect authenticated mutations with X-CSRF-Token.",
+        "tags": [
+          "Public"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Admin login succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "popssibilities_admin=<opaque>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1. No Domain attribute. Local HTTP policy requires backend review."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "administrator": {
+                          "id": "admin_example_001",
+                          "display_name": "Example Administrator",
+                          "role": "admin"
+                        },
+                        "expires_at": "2026-10-03T21:00:00Z",
+                        "csrf_token": "EXAMPLE_CSRF_TOKEN_NOT_VALID"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "bad_request",
+                    "message": "The request could not be parsed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unsupported_media_type",
+                    "message": "Use application/json for this request.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "One or more fields are invalid.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "rate_limited",
+                    "message": "Too many requests. Try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "summary": "Synthetic request; identifiers, dates, and credentials are not usable.",
+                  "value": {
+                    "email": "admin@example.invalid",
+                    "password": "EXAMPLE_PASSWORD_NOT_VALID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 2,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health and database readiness",
+        "description": "Minimal public readiness response. Use 200 only when the application and required DB are available; 503 with the HealthResponse shape when DB readiness fails. Mail and calendar outages do not make a durable-order backend unready. Do not expose hostnames, credentials, table names, or provider detail. Implemented probe verifies SELECT 1 connectivity only; it does not prove domain migrations or order persistence.",
+        "tags": [
+          "Public"
+        ],
+        "x-owner": "Isaac Hernandez",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Health and database readiness succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "status": "ok",
+                        "database": "ok"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "Required database is unavailable; readiness failure.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "status": "degraded",
+                        "database": "unavailable"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 2,
+        "x-runtime-status": "implemented shared shell",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/admin/session": {
+      "get": {
+        "operationId": "readAdminSession",
+        "summary": "Read administrator session",
+        "description": "Supporting proposed auth interface: bootstrap the current administrator and CSRF token after a reload. Do not expose the cookie value. Session lifetime and account provisioning require team/client signoff.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read administrator session succeeded.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "administrator": {
+                          "id": "admin_example_001",
+                          "display_name": "Example Administrator",
+                          "role": "admin"
+                        },
+                        "expires_at": "2026-10-03T21:00:00Z",
+                        "csrf_token": "EXAMPLE_CSRF_TOKEN_NOT_VALID"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "x-target-week": 2,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      },
+      "delete": {
+        "operationId": "logoutAdmin",
+        "summary": "Admin logout",
+        "description": "Supporting proposed auth interface: invalidate the server session and expire the cookie. Require CSRF validation; no response body on success. Do not implement auth in shared scaffolding.",
+        "tags": [
+          "Admin"
+        ],
+        "x-owner": "Shourya Sai Macha",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Session invalidated. No response body.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Expire the same session cookie path and attributes."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Authentication is required or credentials were not accepted.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "The request is not authorized.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "internal_error",
+                    "message": "The request could not be completed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ],
+        "x-target-week": 2,
+        "x-runtime-status": "not implemented",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    },
+    "/live": {
+      "get": {
+        "operationId": "livenessCheck",
+        "summary": "Application liveness",
+        "description": "Shared process liveness only. Does not assert database connectivity or business feature readiness.",
+        "tags": [
+          "Public"
+        ],
+        "x-owner": "Isaac Hernandez",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Application process is reachable; database readiness is not asserted.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "summary": "Synthetic example only; no implementation or real pricing.",
+                    "value": {
+                      "data": {
+                        "status": "ok"
+                      },
+                      "meta": {
+                        "request_id": "req_example_001"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-target-week": 2,
+        "x-runtime-status": "implemented shared shell",
+        "x-integration-owner": "Isaac Hernandez"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ResponseMeta": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "FieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "field",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                }
+              },
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "fields",
+              "request_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "line2": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "region": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "postal_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20
+          },
+          "country_code": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "required": [
+          "line1",
+          "city",
+          "region",
+          "postal_code",
+          "country_code"
+        ],
+        "additionalProperties": false
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "location": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "starts_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "type",
+          "location",
+          "starts_at",
+          "timezone"
+        ],
+        "additionalProperties": false
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email"
+          },
+          "phone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "phone"
+        ],
+        "additionalProperties": false
+      },
+      "CateringRequest": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 100000
+          },
+          "popsicle_shape": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "heart"
+            ]
+          },
+          "flavor_requests": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "add_ons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 20,
+            "uniqueItems": true
+          },
+          "service_type": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "full_service"
+            ]
+          },
+          "dry_ice_blocks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quantity",
+          "popsicle_shape",
+          "service_type"
+        ],
+        "additionalProperties": false
+      },
+      "QuoteRequest": {
+        "type": "object",
+        "properties": {
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          }
+        },
+        "required": [
+          "catering_request",
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "LineItem": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "amount_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "code",
+          "description",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Pricing": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineItem"
+            },
+            "minItems": 1
+          },
+          "total_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deposit_due_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "currency",
+          "line_items",
+          "total_cents",
+          "deposit_due_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "priced",
+              "requires_review"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "pricing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pricing_revision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unresolved_decisions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InquiryAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "expires_at",
+          "catering_request",
+          "event",
+          "pricing",
+          "pricing_revision",
+          "unresolved_decisions",
+          "next_action"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "priced"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "pricing": {
+                  "$ref": "#/components/schemas/Pricing"
+                },
+                "pricing_revision": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "unresolved_decisions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "requires_review"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "pricing": {
+                  "type": "null"
+                },
+                "pricing_revision": {
+                  "type": "null"
+                },
+                "unresolved_decisions": {
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "next_action": {
+                  "type": "object"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "requires_review"
+                },
+                "pricing": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DepositSummary": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "reversed"
+            ]
+          },
+          "amount_due_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "amount_confirmed_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "status",
+          "amount_due_cents",
+          "amount_confirmed_cents"
+        ],
+        "additionalProperties": false
+      },
+      "PaymentLink": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "paypal",
+              "square",
+              "venmo"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "provider",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "WorkflowSummary": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "sent",
+              "failed"
+            ]
+          },
+          "business_email": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "sent",
+              "failed"
+            ]
+          },
+          "calendar": {
+            "type": "string",
+            "enum": [
+              "not_scheduled",
+              "pending",
+              "created",
+              "failed"
+            ]
+          },
+          "contract_email": {
+            "type": "string",
+            "enum": [
+              "waiting_for_deposit",
+              "pending",
+              "sent",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "customer_email",
+          "business_email",
+          "calendar",
+          "contract_email"
+        ],
+        "additionalProperties": false
+      },
+      "OrderSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_review",
+              "confirmed",
+              "fulfilled",
+              "cancelled"
+            ]
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "pricing_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/DepositSummary"
+          },
+          "payment_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentLink"
+            }
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "status",
+          "customer",
+          "catering_request",
+          "event",
+          "quote_id",
+          "pricing_revision",
+          "pricing",
+          "deposit",
+          "payment_links",
+          "workflow",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "AdminOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_review",
+              "confirmed",
+              "fulfilled",
+              "cancelled"
+            ]
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "pricing_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/DepositSummary"
+          },
+          "payment_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentLink"
+            }
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "admin_notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "status",
+          "customer",
+          "catering_request",
+          "event",
+          "quote_id",
+          "pricing_revision",
+          "pricing",
+          "deposit",
+          "payment_links",
+          "workflow",
+          "created_at",
+          "updated_at",
+          "admin_notes"
+        ],
+        "additionalProperties": false
+      },
+      "SubmitOrderRequest": {
+        "type": "object",
+        "properties": {
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "customer",
+          "catering_request",
+          "event",
+          "quote_id"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateOrderRequest": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "quote_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "admin_notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "customer"
+            ]
+          },
+          {
+            "required": [
+              "event"
+            ]
+          },
+          {
+            "required": [
+              "catering_request"
+            ]
+          },
+          {
+            "required": [
+              "admin_notes"
+            ]
+          }
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "required": [
+                    "event"
+                  ]
+                },
+                {
+                  "required": [
+                    "catering_request"
+                  ]
+                }
+              ]
+            },
+            "then": {
+              "required": [
+                "quote_id"
+              ]
+            }
+          }
+        ]
+      },
+      "UpdateStatusRequest": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_review",
+              "confirmed",
+              "fulfilled",
+              "cancelled"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateDepositRequest": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "reversed"
+            ]
+          },
+          "amount_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "paypal",
+              "square",
+              "venmo"
+            ]
+          },
+          "external_reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "confirmed_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "status"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "confirmed"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "amount_cents",
+                "provider",
+                "external_reference",
+                "confirmed_at"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "reversed"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "reason"
+              ]
+            }
+          }
+        ]
+      },
+      "ListOrdersData": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminOrder"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "UpcomingEvent": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "order_status": {
+            "type": "string",
+            "enum": [
+              "pending_review",
+              "confirmed",
+              "fulfilled",
+              "cancelled"
+            ]
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 50
+          },
+          "service_type": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "full_service"
+            ]
+          }
+        },
+        "required": [
+          "order_id",
+          "order_status",
+          "event",
+          "quantity",
+          "service_type"
+        ],
+        "additionalProperties": false
+      },
+      "UpcomingEventsData": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpcomingEvent"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "AdminSessionData": {
+        "type": "object",
+        "properties": {
+          "administrator": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "display_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "admin"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "display_name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "expires_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "csrf_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "administrator",
+          "expires_at",
+          "csrf_token"
+        ],
+        "additionalProperties": false
+      },
+      "HealthData": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "database"
+        ],
+        "additionalProperties": false
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "OrderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OrderSummary"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "AdminOrderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminOrder"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "ListOrdersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ListOrdersData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "UpcomingEventsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UpcomingEventsData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "AdminSessionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminSessionData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HealthData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "additionalProperties": false
+      },
+      "InquiryAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "reason_code",
+          "message",
+          "inquiry_url"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "contact_inquiry"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "enum": [
+              "outside_delivery_radius"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "inquiry_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "LivenessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok"
+                ]
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "adminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "popssibilities_admin",
+        "description": "Proposed server-owned HttpOnly session cookie. Not implemented."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "description": "Client-generated stable key for a logical action. Proposed replay retention >=24 hours. Scope by endpoint and principal/order. Same key/payload replays original result; changed payload returns 409."
+      },
+      "CsrfToken": {
+        "name": "X-CSRF-Token",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "description": "Validate against the authenticated server session and browser Origin."
+      }
+    }
+  },
+  "x-contract-status": "proposed feature contract; shared liveness/readiness implemented locally",
+  "x-example-policy": "Synthetic fixtures only. No usable credentials, real customers, real events, or approved rates."
+}
