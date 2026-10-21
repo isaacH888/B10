@@ -10,6 +10,7 @@ from werkzeug.exceptions import HTTPException
 
 from .config import read_settings
 from .health import health
+from .quotes import quotes_bp
 
 
 def create_app(test_config=None):
@@ -26,6 +27,7 @@ def create_app(test_config=None):
          allow_headers=["Content-Type", "Idempotency-Key", "X-CSRF-Token"],
          methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"])
     app.register_blueprint(health, url_prefix="/api/v1")
+    app.register_blueprint(quotes_bp, url_prefix="/api/v1")
 
     @app.before_request
     def assign_request_id():
