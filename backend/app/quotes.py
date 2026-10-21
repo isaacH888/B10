@@ -19,6 +19,11 @@ Contract adaptations (docs/api-contract.md), the only intentional differences:
     to the Custom Event Inquiry / Contact Us page. Controlled by the config's
     ``exceeded_radius_action``. Missing, non-numeric or negative distances are
     still 422.
+  - Two request formats are accepted. A payload with ``catering_request`` is the
+    OpenAPI ``QuoteRequest`` and gets an OpenAPI ``Quote`` response; any other
+    payload is the legacy flat format and keeps the flat response envelope.
+    ``normalize_quote_payload`` adapts the first format to the second so both
+    share one validator and one pricing engine.
 
 Business rules live in ``pricing.config.json`` and are never hard-coded here
 beyond the legacy fallback defaults.
@@ -28,7 +33,9 @@ import copy
 import json
 import math
 import os
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -145,6 +152,7 @@ class PricingRules:
     exceeded_radius_action: str
     full_service_flat_cents: int
     deposit_rate: Fraction
+    revision: str = "pricing_config"
 
 
 def _merge(defaults, override):
@@ -157,7 +165,7 @@ def _merge(defaults, override):
     return merged
 
 
-def parse_business_rules(business_rules):
+def parse_business_rules(business_rules, version=None):
     """Turn the ``business_rules`` JSON object (dollars) into cents-based rules."""
     rules = _merge(_DEFAULT_BUSINESS_RULES, business_rules)
     tiers = tuple(sorted(
@@ -189,6 +197,7 @@ def parse_business_rules(business_rules):
         full_service_flat_cents=_dollars_to_cents(
             rules["logistics"]["full_service"]["flat_fee"], "full_service.flat_fee"),
         deposit_rate=_fraction(deposit_rate),
+        revision=f"pricing_config_{version}" if isinstance(version, str) and version else "pricing_config",
     )
 
 
@@ -203,7 +212,7 @@ def load_business_rules(path=None):
         parsed = json.load(handle)
     if not isinstance(parsed, dict) or not isinstance(parsed.get("business_rules"), dict):
         raise ValueError(f"{config_path.name} must contain a 'business_rules' object")
-    return parse_business_rules(parsed["business_rules"])
+    return parse_business_rules(parsed["business_rules"], parsed.get("version"))
 
 
 @quotes_bp.record_once
@@ -405,8 +414,135 @@ def calculate_order_quote(rules, payload):
     }
 
 
-def quote_from_payload(rules, payload):
-    return calculate_order_quote(rules, validate_quote_payload(rules, payload))
+# --------------------------------------------------------------------------- #
+# Input adapter: OpenAPI QuoteRequest -> legacy flat payload
+# --------------------------------------------------------------------------- #
+
+# Validator field name -> dotted path in the OpenAPI QuoteRequest, for error ``fields``.
+_CONTRACT_FIELD_PATHS = {
+    "total_quantity": "catering_request.quantity",
+    "heart_shaped_quantity": "catering_request.popsicle_shape",
+    "popsicle_shape": "catering_request.popsicle_shape",
+    "dry_ice_blocks": "catering_request.dry_ice_blocks",
+    "service_type": "catering_request.service_type",
+    "delivery_distance_miles": "event.delivery_distance_miles",
+}
+QUOTE_VALIDITY = timedelta(minutes=15)  # proposed technical limit in the contract
+
+
+def is_contract_payload(raw_payload):
+    """True when the body is an OpenAPI QuoteRequest (it carries ``catering_request``)."""
+    return isinstance(raw_payload, dict) and "catering_request" in raw_payload
+
+
+def normalize_quote_payload(raw_payload):
+    """Adapt an OpenAPI ``QuoteRequest`` to the flat payload the validator expects.
+
+    A payload without ``catering_request`` is already flat and is returned
+    unchanged, which preserves the legacy behavior exactly. Values are mapped
+    but not validated here; ``validate_quote_payload`` does that, so a bad
+    value produces the same 422 as in the legacy format.
+    """
+    if not is_contract_payload(raw_payload):
+        return raw_payload
+    catering = raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
+    event = raw_payload.get("event") if isinstance(raw_payload.get("event"), dict) else {}
+
+    flat = {"total_quantity": catering.get("quantity")}
+
+    shape = catering.get("popsicle_shape", "standard")
+    shape = shape.strip().lower() if isinstance(shape, str) else shape
+    if shape == "heart":
+        flat["heart_shaped_quantity"] = catering.get("quantity")  # every unit is heart-shaped
+    elif shape not in (None, "standard"):
+        raise QuoteError("Popsicle shape must be standard or heart.", "ERR_INVALID_DATA_TYPE",
+                         "popsicle_shape", shape)
+
+    if "service_type" in catering:
+        service_type = catering["service_type"]
+        flat["service_type"] = service_type.strip().upper() if isinstance(service_type, str) else service_type
+
+    dry_ice = catering.get("dry_ice_blocks")
+    flat["dry_ice_blocks"] = 0 if dry_ice is None else dry_ice
+
+    distance = raw_payload.get("delivery_distance_miles")
+    if distance is None:
+        distance = event.get("delivery_distance_miles")
+    if distance is None and flat.get("service_type") == "DELIVERY":
+        # Synthetic payloads carry no measured distance; the contract's backend-side
+        # distance lookup (D04) does not exist yet, so this prices at the base fee.
+        distance = 0.0
+    if distance is not None:
+        flat["delivery_distance_miles"] = distance
+    return flat
+
+
+# --------------------------------------------------------------------------- #
+# OpenAPI Quote response
+# --------------------------------------------------------------------------- #
+
+def _money(cents):
+    return f"${cents // 100}.{cents % 100:02d}"
+
+
+def _line_items(rules, payload, calculation):
+    breakdown = calculation["breakdown"]
+    tier = calculation["tier_applied"]
+    items = [{
+        "code": "popsicles",
+        "description": f"{payload['total_quantity']} popsicles, {tier['name']}, {_money(tier['unit_price_cents'])} each",
+        "amount_cents": breakdown["base_popsicles_cents"],
+    }]
+    optional = [
+        ("heart_shaped_surcharge", f"Heart-shaped surcharge, {_fmt(payload['heart_shaped_quantity'])} units at "
+                                   f"{_money(rules.heart_surcharge_cents)}", breakdown["heart_shaped_surcharge_cents"]),
+        ("dry_ice", f"Dry ice, {_fmt(payload['dry_ice_blocks'])} blocks at {_money(rules.dry_ice_block_cents)}",
+         breakdown["dry_ice_cents"]),
+        ("delivery_fee", f"Delivery, {_fmt(payload['delivery_distance_miles'])} miles",
+         breakdown["delivery_fee_cents"]),
+        ("full_service_fee", "Full service flat fee", breakdown["full_service_fee_cents"]),
+    ]
+    items.extend({"code": code, "description": text, "amount_cents": cents}
+                 for code, text, cents in optional if cents)
+    return items
+
+
+def _contract_quote(raw_payload, status, pricing, rules, unresolved_decisions, next_action):
+    expires_at = datetime.now(timezone.utc) + QUOTE_VALIDITY
+    event = raw_payload.get("event")
+    # delivery_distance_miles is accepted as input but is not part of the schema's Event, so do not echo it.
+    event = {key: value for key, value in event.items() if key != "delivery_distance_miles"} \
+        if isinstance(event, dict) else {}
+    return {
+        "id": f"quote_{uuid.uuid4().hex}",  # not persisted yet; order creation will bind a stored quote
+        "status": status,
+        "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "catering_request": raw_payload["catering_request"],
+        "event": event,
+        "pricing": pricing,
+        "pricing_revision": rules.revision if pricing is not None else None,
+        "unresolved_decisions": unresolved_decisions,
+        "next_action": next_action,
+    }
+
+
+def contract_priced_quote(rules, raw_payload, payload, calculation):
+    """OpenAPI ``Quote`` for a priced request. ``deposit_due_cents`` is the schema's deposit field."""
+    summary = calculation["pricing_summary"]
+    pricing = {
+        "currency": calculation["currency"],
+        "line_items": _line_items(rules, payload, calculation),
+        "total_cents": summary["total_cents"],
+        "deposit_due_cents": summary["deposit_due_cents"],
+    }
+    return _contract_quote(raw_payload, "priced", pricing, rules, [], None)
+
+
+def contract_review_quote(rules, raw_payload, message):
+    """OpenAPI ``Quote`` for an out-of-area delivery: null pricing plus the inquiry action."""
+    review = requires_review_quote(message)
+    return _contract_quote(raw_payload, "requires_review", None, rules,
+                           review["unresolved_decisions"], review["next_action"])
 
 
 # --------------------------------------------------------------------------- #
@@ -454,10 +590,19 @@ def create_quote():
         payload = json.loads(request.get_data(), parse_constant=_reject_json_constant)
     except ValueError:
         return _validation_error("Malformed JSON payload")
+    rules = current_app.extensions["pricing_rules"]
+    contract = is_contract_payload(payload)
     try:
-        quote = quote_from_payload(current_app.extensions["pricing_rules"], payload)
+        flat = normalize_quote_payload(payload)
+        validated = validate_quote_payload(rules, flat)
+        calculation = calculate_order_quote(rules, validated)
+        quote = contract_priced_quote(rules, payload, validated, calculation) if contract else calculation
     except OutsideDeliveryRadius as error:
-        quote = requires_review_quote(error.message)
+        quote = contract_review_quote(rules, payload, error.message) if contract else requires_review_quote(error.message)
     except QuoteError as error:
-        return _validation_error(error.message, error.field)
+        field, message = error.field, error.message
+        if contract and field in _CONTRACT_FIELD_PATHS:
+            field = _CONTRACT_FIELD_PATHS[field]
+            message = message.replace('"total_quantity"', '"catering_request.quantity"')
+        return _validation_error(message, field)
     return jsonify(data=quote, meta={"request_id": g.request_id})

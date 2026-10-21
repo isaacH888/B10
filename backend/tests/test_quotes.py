@@ -498,3 +498,173 @@ def test_unreadable_config_fails_at_startup(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PASSWORD", "")
     with pytest.raises(FileNotFoundError):
         create_app({"TESTING": True, "PRICING_CONFIG_PATH": str(tmp_path / "missing.json")})
+
+
+# --------------------------------------------------------------------------- #
+# OpenAPI QuoteRequest / Quote format (catering_request + event)
+# --------------------------------------------------------------------------- #
+
+OPENAPI_PATH = Path(__file__).resolve().parents[2] / "docs/api/openapi.json"
+
+
+def contract_payload(**catering):
+    """Synthetic OpenAPI QuoteRequest, shaped like docs/api/examples.json quote_request."""
+    request = {"quantity": 50, "popsicle_shape": "standard", "flavor_requests": "", "add_ons": [],
+               "service_type": "delivery", "dry_ice_blocks": None}
+    request.update(catering)
+    return {
+        "catering_request": request,
+        "event": {"type": "Example celebration",
+                  "location": {"line1": "100 Example Street", "city": "Houston", "region": "TX",
+                               "postal_code": "77000", "country_code": "US"},
+                  "starts_at": "2026-11-07T15:00:00-06:00", "ends_at": "2026-11-07T17:00:00-06:00",
+                  "timezone": "America/Chicago", "notes": "Synthetic fixture - not a real event."},
+    }
+
+
+def assert_matches_openapi_quote_response(body):
+    jsonschema = pytest.importorskip("jsonschema")
+    referencing = pytest.importorskip("referencing")
+    spec = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
+    uri = "urn:popssibilities:contract"
+    registry = referencing.Registry().with_resource(uri, referencing.Resource.from_contents(
+        spec, default_specification=referencing.jsonschema.DRAFT202012))
+    schema = {"$ref": uri + "#/components/schemas/QuoteResponse"}
+    jsonschema.Draft202012Validator(schema, registry=registry,
+                                    format_checker=jsonschema.FormatChecker()).validate(body)
+
+
+def line_item_map(pricing):
+    return {item["code"]: item["amount_cents"] for item in pricing["line_items"]}
+
+
+def test_openapi_quote_request_returns_priced_quote_with_line_items(post_quote):
+    request = contract_payload()
+    response = post_quote(request)
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["status"] == "priced"
+    assert data["catering_request"] == request["catering_request"]
+    assert data["event"] == request["event"]
+    assert data["unresolved_decisions"] == [] and data["next_action"] is None
+    assert data["pricing_revision"] == "pricing_config_1.1.0"
+    pricing = data["pricing"]
+    assert pricing["currency"] == "USD"
+    # 50 popsicles at $3.50, delivery with no supplied distance defaults to 0 miles ($25.00 base fee)
+    assert line_item_map(pricing) == {"popsicles": 17500, "delivery_fee": 2500}
+    assert pricing["total_cents"] == 20000
+    assert pricing["deposit_due_cents"] == 10000
+    assert sum(line_item_map(pricing).values()) == pricing["total_cents"]
+    assert all(type(item["amount_cents"]) is int and item["description"] for item in pricing["line_items"])
+    assert response.json["meta"]["request_id"] == response.headers["X-Request-ID"]
+    assert_matches_openapi_quote_response(response.json)
+
+
+def test_openapi_quote_envelope_fields_and_expiry(post_quote):
+    from datetime import datetime, timedelta, timezone
+    first = post_quote(contract_payload()).json["data"]
+    second = post_quote(contract_payload()).json["data"]
+    assert first["id"] != second["id"] and first["id"].startswith("quote_")
+    expires_at = datetime.strptime(first["expires_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    assert timedelta(minutes=14) < expires_at - datetime.now(timezone.utc) <= timedelta(minutes=15)
+    assert "tier_applied" not in first and "pricing_summary" not in first
+
+
+def test_openapi_heart_shape_maps_every_unit_to_heart_shaped(post_quote):
+    response = post_quote(contract_payload(quantity=100, popsicle_shape="heart", service_type="full_service"))
+    assert response.status_code == 200
+    pricing = response.json["data"]["pricing"]
+    # 100 x $3.25 + 100 x $0.50 heart surcharge + $150.00 full service
+    assert line_item_map(pricing) == {"popsicles": 32500, "heart_shaped_surcharge": 5000, "full_service_fee": 15000}
+    assert (pricing["total_cents"], pricing["deposit_due_cents"]) == (52500, 26250)
+    assert_matches_openapi_quote_response(response.json)
+
+
+def test_openapi_standard_shape_has_no_heart_surcharge(post_quote):
+    pricing = post_quote(contract_payload(popsicle_shape="standard")).json["data"]["pricing"]
+    assert "heart_shaped_surcharge" not in line_item_map(pricing)
+
+
+@pytest.mark.parametrize("service_type", ["delivery", "DELIVERY", "Delivery"])
+def test_openapi_service_type_is_case_insensitive(post_quote, service_type):
+    pricing = post_quote(contract_payload(service_type=service_type)).json["data"]["pricing"]
+    assert line_item_map(pricing)["delivery_fee"] == 2500
+
+
+def test_openapi_dry_ice_null_defaults_to_zero_and_blocks_are_priced(post_quote):
+    assert "dry_ice" not in line_item_map(post_quote(contract_payload(dry_ice_blocks=None)).json["data"]["pricing"])
+    pricing = post_quote(contract_payload(dry_ice_blocks=2)).json["data"]["pricing"]
+    assert line_item_map(pricing)["dry_ice"] == 3000
+    assert pricing["total_cents"] == 23000
+
+
+def test_openapi_distance_comes_from_event_or_top_level_with_top_level_first(post_quote):
+    from_event = contract_payload()
+    from_event["event"]["delivery_distance_miles"] = 15
+    assert line_item_map(post_quote(from_event).json["data"]["pricing"])["delivery_fee"] == 5000
+
+    both = contract_payload()
+    both["event"]["delivery_distance_miles"] = 15
+    both["delivery_distance_miles"] = 30
+    assert line_item_map(post_quote(both).json["data"]["pricing"])["delivery_fee"] == 7500
+
+
+def test_openapi_missing_distance_only_defaults_for_delivery(post_quote):
+    pricing = post_quote(contract_payload(service_type="full_service")).json["data"]["pricing"]
+    assert "delivery_fee" not in line_item_map(pricing)
+
+
+def test_openapi_distance_beyond_radius_is_requires_review_quote(client):
+    request = contract_payload()
+    request["event"]["delivery_distance_miles"] = 45
+    response = client.post("/api/v1/quotes", json=request)
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["status"] == "requires_review"
+    assert data["pricing"] is None and data["pricing_revision"] is None
+    assert data["unresolved_decisions"]
+    assert data["next_action"]["type"] == "contact_inquiry"
+    assert data["next_action"]["reason_code"] == "outside_delivery_radius"
+    assert data["catering_request"] == request["catering_request"]
+    assert "delivery_distance_miles" not in data["event"]  # input-only; not part of the schema's Event
+    assert_matches_openapi_quote_response(response.json)
+
+
+@pytest.mark.parametrize("catering, field", [
+    ({"quantity": 49}, "catering_request.quantity"),
+    ({"quantity": None}, "catering_request.quantity"),
+    ({"quantity": 50.5}, "catering_request.quantity"),
+    ({"popsicle_shape": "star"}, "catering_request.popsicle_shape"),
+    ({"service_type": "teleport"}, "catering_request.service_type"),
+    ({"dry_ice_blocks": -1}, "catering_request.dry_ice_blocks"),
+])
+def test_openapi_validation_errors_use_dotted_contract_field_paths(post_quote, catering, field):
+    assert_validation_error(post_quote(contract_payload(**catering)), field)
+
+
+def test_openapi_distance_out_of_range_error_path(post_quote):
+    request = contract_payload()
+    request["event"]["delivery_distance_miles"] = -1
+    assert_validation_error(post_quote(request), "event.delivery_distance_miles")
+
+
+def test_openapi_payload_without_catering_request_object_is_missing_quantity(post_quote):
+    assert_validation_error(post_quote({"catering_request": None, "event": {}}), "catering_request.quantity")
+
+
+def test_flat_payload_passes_through_normalizer_and_keeps_flat_response(post_quote):
+    from app.quotes import normalize_quote_payload
+    flat = base_payload(total_quantity=60)
+    assert normalize_quote_payload(flat) is flat
+    data = post_quote(flat).json["data"]
+    assert "tier_applied" in data and "pricing_summary" in data and "pricing" not in data
+
+
+def test_normalizer_maps_openapi_fields_to_flat_payload():
+    from app.quotes import normalize_quote_payload
+    request = contract_payload(quantity=120, popsicle_shape="heart", service_type="Full_Service", dry_ice_blocks=3)
+    assert normalize_quote_payload(request) == {
+        "total_quantity": 120, "heart_shaped_quantity": 120, "service_type": "FULL_SERVICE", "dry_ice_blocks": 3}
+    delivery = normalize_quote_payload(contract_payload(dry_ice_blocks=None))
+    assert delivery == {"total_quantity": 50, "service_type": "DELIVERY", "dry_ice_blocks": 0,
+                        "delivery_distance_miles": 0.0}
