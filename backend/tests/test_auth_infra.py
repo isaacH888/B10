@@ -65,6 +65,9 @@ def test_native_admin_challenges_use_public_user_auth_without_iam_or_device_bypa
     assert client["ExplicitAuthFlows"] == ["ALLOW_USER_AUTH"]
     assert client["AuthSessionValidity"] == 5
     assert client["SupportedIdentityProviders"] == ["COGNITO"]
+    assert client["GenerateSecret"] is True
+    assert client["EnablePropagateAdditionalUserContextData"] is True
+    assert "EnablePropagateAdditionalUserContextData" not in props("CustomerClient")
     assert "DeviceConfiguration" not in props("AdminPool")
     assert not any(action in json.dumps(props("AdminOperatorPolicy"))
                    for action in ("AdminInitiateAuth", "AdminRespondToAuthChallenge"))
@@ -91,13 +94,16 @@ def test_managed_login_v2_and_default_branding_are_provisioned():
         assert props(area + "Branding")["UseCognitoProvidedValues"] is True
 
 
-def test_compromised_passwords_block_without_optional_mfa():
+def test_compromised_passwords_and_high_risk_sign_ins_are_blocked():
     risk = props("AdminRiskConfiguration")
     assert props("AdminPool")["UserPoolAddOns"]["AdvancedSecurityMode"] == "ENFORCED"
     assert risk["CompromisedCredentialsRiskConfiguration"]["Actions"]["EventAction"] == "BLOCK"
     assert set(risk["CompromisedCredentialsRiskConfiguration"]["EventFilter"]) == {"SIGN_IN", "PASSWORD_CHANGE", "SIGN_UP"}
-    assert all(action == {"EventAction": "NO_ACTION", "Notify": False}
-               for action in risk["AccountTakeoverRiskConfiguration"]["Actions"].values())
+    assert risk["AccountTakeoverRiskConfiguration"]["Actions"] == {
+        "HighAction": {"EventAction": "BLOCK", "Notify": False},
+        "MediumAction": {"EventAction": "MFA_REQUIRED", "Notify": False},
+        "LowAction": {"EventAction": "NO_ACTION", "Notify": False},
+    }
 
 
 def test_admin_logs_have_retention_and_supported_destination():

@@ -14,6 +14,12 @@ audits, migrations, and private provisioning/recovery commands. React has basic
 login and protected session pages for testing; frontend design remains undecided.
 Cognito templates and private operator procedures are prepared. The development pools and approved native owner were inspected read-only; this fix does not deploy resources or mutate live users. Business ordering/pricing/payment features remain pending.
 
+Signed-in customers can request a sample order confirmation from `/account`.
+The backend sends through SES to their current verified Cognito email, with CSRF,
+rate limits, and durable duplicate protection. Email remains disabled until the
+[customer email setup](docs/customer-test-email.md) is completed. No actual order
+or payment is created; the wider email automation remains pending.
+
 Start with [authentication](docs/authentication.md),
 [deployment/configuration](docs/authentication-deployment.md), and
 [private account operations](docs/authentication-operations.md). Authentication remains
@@ -79,7 +85,8 @@ frontend build/browser tests and offline Cognito template lint. Review remote re
 | Bryson Hawthorne | ERD/schema/migrations/models/queries, integrity and recovery |
 
 Shourya's research and Bryson's entity/attribute draft inform the implementation;
-email and Calendar services remain pending. Docs are shared interface/review guidance,
+business email automation and Calendar remain pending; customer sample email has
+its own setup guide above. Docs are shared interface/review guidance,
 not a substitute for acceptance or an instruction to overwrite teammate designs.
 
 Keep new code free of emojis; use concise comments and standard hyphens. Do not

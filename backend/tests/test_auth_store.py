@@ -15,7 +15,7 @@ from app.migrations import MIGRATIONS, MigrationError, apply_migrations, stateme
 
 
 NOW = 1800000000
-TABLES = ("auth_admin_native_flows", "auth_admin_google_challenges", "auth_admin_totp", "auth_admin_google_links", "auth_sessions", "auth_flows", "auth_flow_cancellations", "auth_admin_access", "auth_audit_events", "auth_rate_limits", "auth_admin_login_epochs", "auth_identities")
+TABLES = ("auth_admin_recoveries", "auth_admin_native_flows", "auth_admin_google_challenges", "auth_admin_totp", "auth_admin_google_links", "auth_sessions", "auth_flows", "auth_flow_cancellations", "auth_admin_access", "auth_audit_events", "auth_rate_limits", "auth_admin_login_epochs", "auth_identities")
 
 
 def digest(value):

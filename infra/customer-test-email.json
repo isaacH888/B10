@@ -1,0 +1,55 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Optional least-privilege policy for customer-requested sample confirmation emails. Does not create users, sender identities, or attach operator credentials.",
+  "Parameters": {
+    "SenderIdentity": {
+      "Type": "String",
+      "Description": "Existing verified SES domain or email identity in this stack's account and region.",
+      "AllowedPattern": "[A-Za-z0-9._+@-]+"
+    },
+    "FromAddress": {
+      "Type": "String",
+      "Description": "Exact bare EMAIL_FROM_ADDRESS used by the application.",
+      "AllowedPattern": "[A-Za-z0-9._+@-]+"
+    },
+    "ConfigurationSetName": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Existing optional SES configuration set; match EMAIL_SES_CONFIGURATION_SET.",
+      "AllowedPattern": "[A-Za-z0-9_-]{0,64}"
+    }
+  },
+  "Conditions": {
+    "HasConfigurationSet": {"Fn::Not": [{"Fn::Equals": [{"Ref": "ConfigurationSetName"}, ""]}]}
+  },
+  "Resources": {
+    "CustomerTestEmailPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "Description": "SES SendEmail from the configured sender identity only. Attach to the dedicated website mailer workload role, never an operator role.",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow",
+            "Action": ["ses:SendEmail"],
+            "Resource": {
+              "Fn::If": ["HasConfigurationSet", [
+                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"},
+                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${ConfigurationSetName}"}
+              ], [
+                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"}
+              ]]
+            },
+            "Condition": {"StringEquals": {"ses:FromAddress": {"Ref": "FromAddress"}}}
+          }]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "CustomerTestEmailPolicyArn": {
+      "Description": "Attach manually to a dedicated mailer runtime role after review; this stack does not attach it.",
+      "Value": {"Ref": "CustomerTestEmailPolicy"}
+    }
+  }
+}

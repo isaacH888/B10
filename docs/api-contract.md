@@ -302,6 +302,25 @@ Cognito logout_url for browser navigation. Provider-revocation failure is audite
 local logout still succeeds, with manual provider reconciliation documented in
 [operations](authentication-operations.md). No background revocation retry is claimed.
 
+## Customer sample confirmation email
+
+`POST /customer/test-email` is implemented for authenticated customers. It accepts
+only `{}`, requires the customer's session-bound CSRF token and exact origin, and
+requires a canonical UUIDv4 `Idempotency-Key`. The server resolves the recipient
+from the current verified Cognito profile, never browser input. Both customer
+password and Google sign-in use the same endpoint; admin sessions alone do not
+authorize it.
+
+Success returns `{data: {status: "accepted", reference: "TEST-...", duplicate: false},
+meta: {request_id: "..."}}`. Replaying an accepted request returns the same reference
+and `duplicate: true` without another send. SES acceptance does not prove inbox
+delivery. An uncertain attempt returns `409 email_delivery_uncertain`; do not
+automatically send another. Validation is 422, shared limits 429, and disabled or
+unavailable email configuration/storage 503. No order/payment is created.
+
+See [customer test email](customer-test-email.md) for migrations, permissions,
+SES sandbox restrictions, configured limits, and live verification steps.
+
 ## Supporting health interfaces
 
 GET `/live` proves process liveness only. GET `/health` checks MySQL and, when auth

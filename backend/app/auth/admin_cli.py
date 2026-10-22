@@ -8,6 +8,7 @@ import time
 from urllib.parse import urlsplit
 
 import click
+from botocore.exceptions import ClientError
 from flask import current_app
 from flask.cli import with_appcontext
 
@@ -129,6 +130,21 @@ def _revoke_provider(operator, identity, profiles=None):
                                                     Username=profile.get("provider_username") or profile["subject"])
 
 
+def _delete_lost_factor(operator, identity):
+    try:
+        operator.provider.admin_delete_software_token(UserPoolId=operator.pool_id, Username=identity["subject"])
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
+            raise
+        # AWS also returns ResourceNotFound when a prior recovery already
+        # removed TOTP. Confirm the exact user still exists before resuming.
+        user = operator.provider.admin_get_user(UserPoolId=operator.pool_id, Username=identity["subject"])
+        attributes = {item["Name"]: item["Value"] for item in user.get("UserAttributes", [])}
+        if (attributes.get("sub") != identity["subject"] or not user.get("Enabled")
+                or "SOFTWARE_TOKEN_MFA" in user.get("UserMFASettingList", [])):
+            raise click.ClickException("Recovery state could not be verified. Access remains blocked.") from None
+
+
 def _provision(operator, email, name, role, bootstrap=False):
     email = _email(email)
     name = name.strip()
@@ -237,7 +253,7 @@ def revoke_admin_sessions(email):
 @auth_commands.command("recover-admin")
 @click.option("--email", required=True)
 @click.option("--verified-out-of-band", is_flag=True, help="Confirm the documented private identity verification was completed.")
-@click.option("--lost-mfa", is_flag=True, help="Delete the lost TOTP registration and require enrollment of a new one.")
+@click.option("--lost-mfa", is_flag=True, help="Replace the password and lost TOTP registration through verified private recovery.")
 @click.option("--reset-password", is_flag=True, help="Prompt privately for a temporary password; never supply it as an argument.")
 @with_appcontext
 def recover_admin(email, verified_out_of_band, lost_mfa, reset_password):
@@ -246,6 +262,9 @@ def recover_admin(email, verified_out_of_band, lost_mfa, reset_password):
         raise click.ClickException("Complete private identity verification and supply --verified-out-of-band.")
     if not lost_mfa and not reset_password:
         raise click.ClickException("Choose --lost-mfa, --reset-password, or both.")
+    # A stolen old password must never authorize enrollment of the replacement
+    # factor. Lost-factor recovery always replaces that credential first.
+    reset_password = reset_password or lost_mfa
     temporary_password = None
     if reset_password:
         temporary_password = click.prompt("Temporary password for verified private delivery", hide_input=True, confirmation_prompt=True)
@@ -257,13 +276,13 @@ def recover_admin(email, verified_out_of_band, lost_mfa, reset_password):
             raise click.ClickException("A disabled admin cannot be recovered by this command.")
         if lost_mfa and not callable(getattr(operator.provider, "admin_delete_software_token", None)):
             raise click.ClickException("Upgrade the AWS SDK: AdminDeleteSoftwareToken is required. Pool MFA remains required.")
-        operator.store.revoke_identity_sessions(identity["id"], int(time.time()))
-        _revoke_provider(operator, identity)
-        if lost_mfa:
-            operator.provider.admin_delete_software_token(UserPoolId=operator.pool_id, Username=identity["subject"])
-        if reset_password:
+        with operator.store.admin_recovery(identity["id"], int(time.time())):
+            _revoke_provider(operator, identity)
             operator.provider.admin_set_user_password(UserPoolId=operator.pool_id, Username=identity["subject"],
                                                       Password=temporary_password, Permanent=False)
+            if lost_mfa:
+                _delete_lost_factor(operator, identity)
+            _revoke_provider(operator, identity)
         operator.audit("admin_recovered_by_operator", identity, lost_mfa=lost_mfa, password_reset=reset_password,
                        verification="out_of_band")
     temporary_password = None

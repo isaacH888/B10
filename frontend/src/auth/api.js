@@ -20,7 +20,8 @@ function validHealth(data, status) {
 
 export async function apiRequest(path, options = {}) {
   const controller = new AbortController();
-  const timeout = path === "/admin/password/transaction" && options.method === "POST" ? 45000 : 10000;
+  const timeout = path === "/admin/password/transaction" && options.method === "POST" ? 45000
+    : path === "/customer/test-email" && options.method === "POST" ? 20000 : 10000;
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(`${configuredBase}${path}`, {
