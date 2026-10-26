@@ -257,7 +257,8 @@ def test_success_envelope_and_integer_cents(post_quote):
 
 
 def test_legacy_route_is_not_served(client):
-    assert client.post("/api/v1/orders/quote", json=base_payload()).status_code == 404
+    # "quote" now reads as an order ID for GET /orders/{order_id}, so a POST is 405 rather than 404.
+    assert client.post("/api/v1/orders/quote", json=base_payload()).status_code in (404, 405)
 
 
 def test_subtotal_equals_sum_of_line_items(post_quote):

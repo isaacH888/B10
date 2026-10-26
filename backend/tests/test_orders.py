@@ -1,4 +1,4 @@
-"""POST /api/v1/orders: contract tests for the OpenAPI ``submitOrder`` operation.
+"""Contract tests for the OpenAPI ``submitOrder``, ``retrieveOrder`` and ``updateOrderStatus`` operations.
 
 Requests are shaped like the synthetic ``SubmitOrderRequest`` example in
 docs/api/openapi.json, with a far-future event date so the "no past events"
@@ -83,14 +83,14 @@ def assert_validation_error(response, field):
     assert field in [item["field"] for item in error["fields"]]
 
 
-def assert_matches_openapi_order_response(body):
+def assert_matches_openapi_order_response(body, schema_name="OrderResponse"):
     jsonschema = pytest.importorskip("jsonschema")
     referencing = pytest.importorskip("referencing")
     spec = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
     uri = "urn:popssibilities:contract"
     registry = referencing.Registry().with_resource(uri, referencing.Resource.from_contents(
         spec, default_specification=referencing.jsonschema.DRAFT202012))
-    schema = {"$ref": uri + "#/components/schemas/OrderResponse"}
+    schema = {"$ref": uri + "#/components/schemas/" + schema_name}
     jsonschema.Draft202012Validator(schema, registry=registry,
                                     format_checker=jsonschema.FormatChecker()).validate(body)
 
@@ -460,3 +460,273 @@ def test_mock_mode_never_opens_a_database_connection(client, monkeypatch):
         raise AssertionError("no database credentials are configured")
     monkeypatch.setattr(pymysql, "connect", forbidden)
     assert post_order(client).status_code == 201
+
+
+# --------------------------------------------------------------------------- #
+# retrieveOrder and updateOrderStatus
+# --------------------------------------------------------------------------- #
+
+def create_order(client, quantity=50):
+    return post_order(client, order_payload(quantity=quantity)).json["data"]
+
+
+def patch_status(client, order_id, body, **options):
+    return client.patch(f"/api/v1/orders/{order_id}/status", json=body, **options)
+
+
+def assert_error(response, status, code):
+    assert response.status_code == status
+    error = response.json["error"]
+    assert error["code"] == code and error["message"]
+    assert error["fields"] == [] or code == "validation_error"
+    assert error["request_id"] == response.headers["X-Request-ID"]
+
+
+def test_retrieve_existing_order_returns_200_with_the_stored_fields(client):
+    created = create_order(client)
+    response = client.get(f"/api/v1/orders/{created['id']}")
+    assert response.status_code == 200
+    assert set(response.json) == {"data", "meta"}
+    assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
+    assert response.headers["Cache-Control"] == "no-store"
+    data = response.json["data"]
+    assert data == {**created, "admin_notes": ""}
+    assert data["id"] == created["id"] and data["status"] == "pending_review" and data["version"] == 1
+    assert data["pricing"]["total_cents"] == 20000 and data["deposit"]["amount_due_cents"] == 10000
+    assert_matches_openapi_order_response(response.json, "AdminOrderResponse")
+
+
+@pytest.mark.parametrize("order_id", ["order_" + "0" * 32, "missing", "bad id!", "x" * 101])
+def test_retrieve_missing_order_returns_404_not_found(client, order_id):
+    create_order(client)
+    assert_error(client.get(f"/api/v1/orders/{order_id}"), 404, "not_found")
+
+
+def test_status_update_returns_the_updated_admin_order(client):
+    created = create_order(client)
+    response = patch_status(client, created["id"], {"version": 1, "status": "confirmed", "reason": "Accepted."})
+    assert response.status_code == 200
+    assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
+    data = response.json["data"]
+    assert data["status"] == "confirmed" and data["version"] == 2
+    assert data["updated_at"] >= created["updated_at"] and data["created_at"] == created["created_at"]
+    assert_matches_openapi_order_response(response.json, "AdminOrderResponse")
+    unchanged = {key: value for key, value in data.items() if key not in ("status", "version", "updated_at")}
+    assert unchanged == {key: value for key, value in created.items()
+                         if key not in ("status", "version", "updated_at")} | {"admin_notes": ""}
+
+
+def test_status_update_is_visible_to_later_retrieval(client):
+    order_id = create_order(client)["id"]
+    patch_status(client, order_id, {"version": 1, "status": "cancelled"})
+    data = client.get(f"/api/v1/orders/{order_id}").json["data"]
+    assert data["status"] == "cancelled" and data["version"] == 2
+
+
+@pytest.mark.parametrize("path", [
+    ["confirmed", "fulfilled"],
+    ["confirmed", "cancelled"],
+    ["cancelled"],
+])
+def test_valid_transition_chains_increment_the_version_each_time(client, path):
+    order_id = create_order(client)["id"]
+    for version, status in enumerate(path, start=1):
+        response = patch_status(client, order_id, {"version": version, "status": status})
+        assert response.status_code == 200
+        assert response.json["data"]["status"] == status
+        assert response.json["data"]["version"] == version + 1
+
+
+def test_status_update_never_changes_money_fields(client):
+    created = create_order(client, quantity=101)
+    data = patch_status(client, created["id"], {"version": 1, "status": "confirmed"}).json["data"]
+    assert data["pricing"] == created["pricing"] and data["deposit"] == created["deposit"]
+    values = list(cents_values(data))
+    assert 35325 in values and all(type(value) is int and value >= 0 for value in values)
+
+
+def test_same_status_is_a_noop_after_a_valid_version_check(client):
+    created = create_order(client)
+    response = patch_status(client, created["id"], {"version": 1, "status": "pending_review"})
+    assert response.status_code == 200
+    assert response.json["data"]["version"] == 1
+    assert response.json["data"]["updated_at"] == created["updated_at"]
+    assert_error(patch_status(client, created["id"], {"version": 2, "status": "pending_review"}), 409, "stale_version")
+
+
+def test_status_update_does_not_alter_the_idempotent_post_replay(client):
+    created = create_order(client)
+    patch_status(client, created["id"], {"version": 1, "status": "confirmed"})
+    assert post_order(client).json["data"] == created
+
+
+@pytest.mark.parametrize("terminal", ["fulfilled", "cancelled"])
+@pytest.mark.parametrize("target", ["pending_review", "confirmed", "fulfilled", "cancelled"])
+def test_terminal_orders_only_accept_their_own_status(client, terminal, target):
+    order_id = create_order(client)["id"]
+    patch_status(client, order_id, {"version": 1, "status": "confirmed"})
+    patch_status(client, order_id, {"version": 2, "status": terminal})
+    response = patch_status(client, order_id, {"version": 3, "status": target})
+    if target == terminal:
+        assert response.status_code == 200 and response.json["data"]["version"] == 3
+    else:
+        assert_error(response, 409, "invalid_transition")
+        assert client.get(f"/api/v1/orders/{order_id}").json["data"]["status"] == terminal
+
+
+@pytest.mark.parametrize("current,target", [
+    ("pending_review", "fulfilled"),
+    ("confirmed", "pending_review"),
+])
+def test_other_illegal_transitions_are_409_invalid_transition(client, current, target):
+    order_id = create_order(client)["id"]
+    if current == "confirmed":
+        patch_status(client, order_id, {"version": 1, "status": "confirmed"})
+    version = 2 if current == "confirmed" else 1
+    assert_error(patch_status(client, order_id, {"version": version, "status": target}), 409, "invalid_transition")
+
+
+def test_stale_version_is_409_stale_version_and_changes_nothing(client):
+    order_id = create_order(client)["id"]
+    for version in (0, 2):
+        response = patch_status(client, order_id, {"version": version, "status": "confirmed"})
+        if version == 0:
+            assert_validation_error(response, "version")
+        else:
+            assert_error(response, 409, "stale_version")
+    assert client.get(f"/api/v1/orders/{order_id}").json["data"]["status"] == "pending_review"
+
+
+def test_stale_version_is_checked_before_the_transition_rule(client):
+    order_id = create_order(client)["id"]
+    assert_error(patch_status(client, order_id, {"version": 5, "status": "fulfilled"}), 409, "stale_version")
+
+
+@pytest.mark.parametrize("status", ["submitted", "in_preparation", "completed", "Confirmed", "", 7, None, ["confirmed"]])
+def test_invalid_status_value_is_422_validation_error(client, status):
+    order_id = create_order(client)["id"]
+    assert_validation_error(patch_status(client, order_id, {"version": 1, "status": status}), "status")
+
+
+@pytest.mark.parametrize("body,field", [
+    ({"status": "confirmed"}, "version"),
+    ({"version": 1}, "status"),
+    ({"version": "1", "status": "confirmed"}, "version"),
+    ({"version": 1.5, "status": "confirmed"}, "version"),
+    ({"version": True, "status": "confirmed"}, "version"),
+    ({"version": 1, "status": "confirmed", "reason": 5}, "reason"),
+    ({"version": 1, "status": "confirmed", "reason": "r" * 501}, "reason"),
+    ({"version": 1, "status": "confirmed", "total_cents": 1}, "total_cents"),
+])
+def test_invalid_status_body_is_422_validation_error(client, body, field):
+    order_id = create_order(client)["id"]
+    assert_validation_error(patch_status(client, order_id, body), field)
+
+
+@pytest.mark.parametrize("body", [[], "text", 7, None])
+def test_non_object_status_body_is_422(client, body):
+    response = client.patch("/api/v1/orders/order_x/status", data=json.dumps(body), content_type="application/json")
+    assert_validation_error(response, "body")
+
+
+def test_status_update_of_a_missing_order_is_404(client):
+    assert_error(patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}), 404, "not_found")
+
+
+def test_status_update_with_malformed_json_is_400(client):
+    response = client.patch("/api/v1/orders/order_x/status", data="{", content_type="application/json")
+    assert_error(response, 400, "bad_request")
+
+
+def test_status_update_with_non_json_content_type_is_415(client):
+    response = client.patch("/api/v1/orders/order_x/status", data="x", content_type="text/plain")
+    assert_error(response, 415, "unsupported_media_type")
+
+
+def test_status_route_rejects_other_methods(client):
+    assert_error(client.post("/api/v1/orders/order_x/status", json={}), 405, "method_not_allowed")
+
+
+# --------------------------------------------------------------------------- #
+# retrieveOrder and updateOrderStatus: database path
+# --------------------------------------------------------------------------- #
+
+def stored_row(client, database):
+    """Create an order in database mode and return the ``(response_json,)`` row it stored."""
+    post_order(client)
+    params = inserts(database.connection)[1][1]
+    return (params[-1],)
+
+
+def test_database_retrieve_reads_the_order_by_public_id(client, database):
+    row = stored_row(client, database)
+    order_id = json.loads(row[0])["id"]
+    database.connection = FakeConnection(existing=row)
+    response = client.get(f"/api/v1/orders/{order_id}")
+    connection = database.connection
+    assert response.status_code == 200
+    assert response.json["data"] == {**json.loads(row[0]), "admin_notes": ""}
+    assert connection.statements == [("SELECT response_json FROM orders WHERE public_id = %s", (order_id,))]
+    assert connection.closed
+
+
+def test_database_retrieve_of_a_missing_order_is_404(client, database):
+    database.connection = FakeConnection(existing=None)
+    assert_error(client.get("/api/v1/orders/order_missing"), 404, "not_found")
+    assert database.connection.closed
+
+
+def test_database_status_update_locks_the_row_then_updates_in_one_transaction(client, database):
+    row = stored_row(client, database)
+    order = json.loads(row[0])
+    database.connection = FakeConnection(existing=row)
+    response = patch_status(client, order["id"], {"version": 1, "status": "confirmed"})
+    connection = database.connection
+    assert response.status_code == 200
+    assert response.json["data"]["status"] == "confirmed" and response.json["data"]["version"] == 2
+    assert connection.committed and connection.closed and not connection.rolled_back
+    (select_sql, select_params), (update_sql, update_params) = connection.statements
+    assert select_sql.endswith("FOR UPDATE") and select_params == (order["id"],)
+    assert update_sql.startswith("UPDATE orders SET") and update_sql.count("%s") == len(update_params) == 4
+    assert update_params[:2] == ("confirmed", 2) and update_params[3] == order["id"]
+    assert json.loads(update_params[2]) == response.json["data"]
+
+
+def test_database_noop_status_update_writes_nothing(client, database):
+    row = stored_row(client, database)
+    database.connection = FakeConnection(existing=row)
+    response = patch_status(client, json.loads(row[0])["id"], {"version": 1, "status": "pending_review"})
+    assert response.status_code == 200 and response.json["data"]["version"] == 1
+    assert len(database.connection.statements) == 1 and database.connection.committed
+
+
+@pytest.mark.parametrize("body,status,code", [
+    ({"version": 2, "status": "confirmed"}, 409, "stale_version"),
+    ({"version": 1, "status": "fulfilled"}, 409, "invalid_transition"),
+])
+def test_database_conflicts_roll_back_without_writing(client, database, body, status, code):
+    row = stored_row(client, database)
+    database.connection = FakeConnection(existing=row)
+    assert_error(patch_status(client, json.loads(row[0])["id"], body), status, code)
+    connection = database.connection
+    assert connection.rolled_back and connection.closed and not connection.committed
+    assert not any(sql.startswith("UPDATE") for sql, _ in connection.statements)
+
+
+def test_database_status_update_of_a_missing_order_is_404(client, database):
+    database.connection = FakeConnection(existing=None)
+    assert_error(patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}), 404, "not_found")
+    assert database.connection.rolled_back and database.connection.closed
+
+
+def test_database_failures_on_new_routes_return_503_without_leaking_details(client, database):
+    row = stored_row(client, database)
+    order_id = json.loads(row[0])["id"]
+    database.connection = FakeConnection(existing=row, fail_on="SELECT")
+    response = client.get(f"/api/v1/orders/{order_id}")
+    assert response.status_code == 503 and "secret-host" not in response.get_data(as_text=True)
+    database.connection = FakeConnection(existing=row, fail_on="UPDATE orders")
+    response = patch_status(client, order_id, {"version": 1, "status": "confirmed"})
+    assert_error(response, 503, "service_unavailable")
+    assert "secret-host" not in response.get_data(as_text=True)
+    assert database.connection.rolled_back and not database.connection.committed

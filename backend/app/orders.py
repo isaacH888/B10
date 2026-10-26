@@ -1,4 +1,4 @@
-"""POST /api/v1/orders: submit one order (OpenAPI ``submitOrder``).
+"""Order endpoints: ``submitOrder``, ``retrieveOrder`` and ``updateOrderStatus``.
 
 Contract (docs/api/openapi.json, docs/api-contract.md "Submit order"):
   - Body is ``SubmitOrderRequest``; the response is ``OrderResponse`` with HTTP 201.
@@ -7,6 +7,18 @@ Contract (docs/api/openapi.json, docs/api-contract.md "Submit order"):
   - Client totals are never accepted (unknown keys are rejected). Pricing is always
     recomputed here with the quote engine, in exact integer cents (Fraction).
 
+Contract for the administrative operations ("Retrieve an order", "Update order status"):
+  - ``GET /orders/{order_id}`` returns ``AdminOrderResponse`` (404 ``not_found``).
+  - ``PATCH /orders/{order_id}/status`` takes ``UpdateStatusRequest`` (``version``,
+    ``status``, optional ``reason``). Statuses are pending_review, confirmed, fulfilled
+    and cancelled. Allowed transitions: pending_review to confirmed or cancelled, and
+    confirmed to fulfilled or cancelled; fulfilled and cancelled are terminal.
+  - A stale ``version`` is 409 ``stale_version``; a disallowed transition is 409
+    ``invalid_transition``; an unknown status or malformed body is 422
+    ``validation_error``. After a valid version check, setting the current status is a
+    no-op (200, version and updated_at unchanged). A real change increments ``version``.
+  - Prices are never touched by a status change, so integer cents are preserved.
+
 Known gaps, tracked in docs/decisions-and-blockers.md (T08):
   - Quotes are not persisted yet, so ``quote_id`` is validated and stored as the
     reference, but expiry/revision/equality lookups (409 ``quote_expired`` and
@@ -14,6 +26,14 @@ Known gaps, tracked in docs/decisions-and-blockers.md (T08):
   - Bryson's schema is not in the repository. ``_save_in_database`` assumes the
     tables and columns it names and must be aligned with the approved migration.
     Without database credentials the order lives in a per-process memory store.
+  - The administrative routes need the ``popssibilities_admin`` session cookie and an
+    ``X-CSRF-Token`` (401/403 in the contract). No session mechanism exists yet (T02,
+    B06), so neither is enforced here; do not expose these routes beyond local
+    development until the auth owner wires them in.
+  - ``reason`` is validated but not stored: the order schema has no field for it and
+    the audit table is not defined yet.
+  - Status changes rewrite ``orders.response_json``, so a later replay of the original
+    POST in database mode returns the current order rather than the first response.
 """
 
 import hashlib
@@ -52,7 +72,7 @@ class IdempotencyConflict(Exception):
 
 @orders_bp.record_once
 def _create_memory_store(state):
-    state.app.extensions["orders_memory"] = {"lock": threading.Lock(), "orders": {}}
+    state.app.extensions["orders_memory"] = {"lock": threading.Lock(), "orders": {}, "by_id": {}}
 
 
 # --------------------------------------------------------------------------- #
@@ -292,6 +312,8 @@ def _save_in_memory(key, digest, order):
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
         saved = store["orders"].setdefault(key, (digest, order))
+        if saved[1] is order:
+            store["by_id"][order["id"]] = _admin_view(order)
     if saved[0] != digest:
         raise IdempotencyConflict
     return saved[1]
@@ -335,12 +357,131 @@ def _save_in_database(key, digest, order):
 
 
 # --------------------------------------------------------------------------- #
+# Retrieval and status changes (AdminOrder, UpdateStatusRequest)
+# --------------------------------------------------------------------------- #
+
+ORDER_STATUSES = ("pending_review", "confirmed", "fulfilled", "cancelled")
+_TRANSITIONS = {
+    "pending_review": ("confirmed", "cancelled"),
+    "confirmed": ("fulfilled", "cancelled"),
+    "fulfilled": (),
+    "cancelled": (),
+}
+
+
+class OrderNotFound(Exception):
+    """No order has the requested identifier."""
+
+
+class StaleVersion(Exception):
+    """The caller's version is not the current order version."""
+
+
+class InvalidTransition(Exception):
+    """The requested status change is not allowed from the current status."""
+
+
+def _admin_view(order):
+    """The administrative representation adds ``admin_notes`` to the stored order."""
+    return {**order, "admin_notes": order.get("admin_notes", "")}
+
+
+def validate_status_request(body):
+    """Return ``(clean_request, errors)`` for an ``UpdateStatusRequest`` body."""
+    errors = []
+    data = _object(errors, body, "", ("version", "status"), ("reason",))
+    if data is None:
+        return None, errors
+    version = _integer(errors, data, "version", "", 1, 2**31 - 1)
+    status = _choice(errors, data, "status", "", ORDER_STATUSES)
+    if "reason" in data:
+        _string(errors, data, "reason", "", 500, blank=True)
+    return {"version": version, "status": status}, errors
+
+
+def _apply_status(current, version, status):
+    """Return the order after a status change; ``current`` itself when nothing changes."""
+    if current is None:
+        raise OrderNotFound
+    if current["version"] != version:
+        raise StaleVersion
+    if current["status"] == status:
+        return current
+    if status not in _TRANSITIONS[current["status"]]:
+        raise InvalidTransition
+    return {**current, "status": status, "version": current["version"] + 1,
+            "updated_at": _utc_text(datetime.now(timezone.utc))}
+
+
+def _find_in_memory(order_id):
+    store = current_app.extensions["orders_memory"]
+    with store["lock"]:
+        return store["by_id"].get(order_id)
+
+
+def _find_in_database(order_id):
+    connection = pymysql.connect(**connection_options(current_app.config))
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT response_json FROM orders WHERE public_id = %s", (order_id,))
+            row = cursor.fetchone()
+        return _admin_view(json.loads(row[0])) if row else None
+    finally:
+        connection.close()
+
+
+def _update_status_in_memory(order_id, version, status):
+    store = current_app.extensions["orders_memory"]
+    with store["lock"]:
+        updated = _apply_status(store["by_id"].get(order_id), version, status)
+        store["by_id"][order_id] = updated
+    return updated
+
+
+def _update_status_in_database(order_id, version, status):
+    """Lock the row, check the version and write the change in one transaction."""
+    connection = pymysql.connect(**connection_options(current_app.config))
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT response_json FROM orders WHERE public_id = %s FOR UPDATE", (order_id,))
+            row = cursor.fetchone()
+            current = _admin_view(json.loads(row[0])) if row else None
+            updated = _apply_status(current, version, status)
+            if updated is not current:
+                cursor.execute(
+                    "UPDATE orders SET status = %s, version = %s, response_json = %s WHERE public_id = %s",
+                    (updated["status"], updated["version"], json.dumps(updated, separators=(",", ":")),
+                     order_id))
+        connection.commit()
+        return updated
+    except BaseException:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+# --------------------------------------------------------------------------- #
 # HTTP layer
 # --------------------------------------------------------------------------- #
 
 def _error(status, code, message, fields=()):
     return jsonify(error={"code": code, "message": message, "fields": list(fields),
                           "request_id": g.request_id}), status
+
+
+def _not_found():
+    return _error(404, "not_found", "The requested resource was not found.")
+
+
+def _service_unavailable():
+    # Driver messages can include private connection details.
+    current_app.logger.error("Order persistence failed; request_id=%s", g.request_id)
+    return _error(503, "service_unavailable", "A required service is temporarily unavailable.")
+
+
+def _valid_order_id(order_id):
+    return len(order_id) <= 100 and bool(_IDENTIFIER.match(order_id))
 
 
 @orders_bp.post("/orders")
@@ -373,11 +514,52 @@ def submit_order():
     except IdempotencyConflict:
         return _error(409, "idempotency_conflict", "The Idempotency-Key was already used with a different request.")
     except (pymysql.MySQLError, OSError):
-        # Driver messages can include private connection details.
-        current_app.logger.error("Order persistence failed; request_id=%s", g.request_id)
-        return _error(503, "service_unavailable", "A required service is temporarily unavailable.")
+        return _service_unavailable()
 
     response = jsonify(data=saved, meta={"request_id": g.request_id})
     response.status_code = 201
     response.headers["Location"] = f"/api/v1/orders/{saved['id']}"
     return response
+
+
+@orders_bp.get("/orders/<order_id>")
+def retrieve_order(order_id):
+    if not _valid_order_id(order_id):
+        return _not_found()
+    find = _find_in_database if database_configured(current_app.config) else _find_in_memory
+    try:
+        order = find(order_id)
+    except (pymysql.MySQLError, OSError):
+        return _service_unavailable()
+    if order is None:
+        return _not_found()
+    return jsonify(data=order, meta={"request_id": g.request_id})
+
+
+@orders_bp.patch("/orders/<order_id>/status")
+def update_order_status(order_id):
+    if not request.is_json:
+        return _error(415, "unsupported_media_type", "Use application/json for this request.")
+    try:
+        body = json.loads(request.get_data())
+    except ValueError:
+        return _error(400, "bad_request", "The request could not be parsed.")
+
+    clean, errors = validate_status_request(body)
+    if errors:
+        return _error(422, "validation_error", "One or more fields are invalid.", errors)
+    if not _valid_order_id(order_id):
+        return _not_found()
+
+    update = _update_status_in_database if database_configured(current_app.config) else _update_status_in_memory
+    try:
+        order = update(order_id, clean["version"], clean["status"])
+    except OrderNotFound:
+        return _not_found()
+    except StaleVersion:
+        return _error(409, "stale_version", "Refresh the order before applying this change.")
+    except InvalidTransition:
+        return _error(409, "invalid_transition", "The requested status transition is not allowed.")
+    except (pymysql.MySQLError, OSError):
+        return _service_unavailable()
+    return jsonify(data=order, meta={"request_id": g.request_id})
