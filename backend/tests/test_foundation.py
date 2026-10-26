@@ -43,7 +43,7 @@ def test_only_allowed_origin_receives_credentialed_cors(app):
 
 
 def test_unimplemented_feature_routes_are_not_mock_services(app):
-    response = app.test_client().post("/api/v1/orders", json={})
+    response = app.test_client().post("/api/v1/admin/login", json={})
     assert response.status_code == 404
     assert response.json["error"]["code"] == "not_found"
 
