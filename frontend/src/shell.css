@@ -1,24 +1,110 @@
-body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.5; }
-.test-shell { max-width: 52rem; margin: 0 auto; padding: 1rem; }
-header { padding-bottom: 1rem; border-bottom: 1px solid #ccc; }
-nav, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
-main { margin: 2rem 0; }
-button { font: inherit; cursor: pointer; }
-button:disabled { cursor: default; }
-.notice { margin: 1rem 0; padding-left: 1rem; border-left: 3px solid #666; }
-.notice p { margin-top: 0; }
-dt { margin-top: 0.75rem; font-weight: 600; }
-dd { margin-left: 0; overflow-wrap: anywhere; }
-footer { margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem; }
-.sample-dashboard { margin: 1.5rem 0; padding: 1rem; border: 1px solid #ccc; }
-.summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.75rem; margin: 1rem 0; }
-.summary-cards section { padding: 0.75rem; border: 1px solid #ddd; }
-.summary-cards h3 { margin: 0; font-size: 1rem; }
-.summary-cards p { margin: 0.5rem 0 0; font-size: 1.5rem; }
-.table-scroll { max-width: 100%; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; text-align: left; }
-caption { margin-bottom: 0.5rem; text-align: left; font-weight: 600; }
-th, td { padding: 0.5rem; border-bottom: 1px solid #ddd; }
-button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2px solid #333; outline-offset: 3px; }
-.admin-password-login input { box-sizing: border-box; width: 100%; max-width: 24rem; padding: 0.4rem; font: inherit; }
-.setup-key { overflow-wrap: anywhere; }
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+.test-shell {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #ccc;
+}
+nav,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+main {
+  margin: 2rem 0;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+.notice {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid #666;
+}
+.notice p {
+  margin-top: 0;
+}
+dt {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+dd {
+  margin-left: 0;
+  overflow-wrap: anywhere;
+}
+footer {
+  margin-top: 2rem;
+  border-top: 1px solid #ccc;
+  padding-top: 1rem;
+}
+.sample-dashboard {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid #ccc;
+}
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.summary-cards section {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+}
+.summary-cards h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.summary-cards p {
+  margin: 0.5rem 0 0;
+  font-size: 1.5rem;
+}
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+caption {
+  margin-bottom: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+}
+th,
+td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #ddd;
+}
+button:focus-visible,
+a:focus-visible,
+.table-scroll:focus-visible {
+  outline: 2px solid #333;
+  outline-offset: 3px;
+}
+.admin-password-login input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 24rem;
+  padding: 0.4rem;
+  font: inherit;
+}
+.setup-key {
+  overflow-wrap: anywhere;
+}

@@ -17,18 +17,27 @@ def require_admin(permission="bookings:read", fresh=False):
     def decorate(view):
         @wraps(view)
         def protected(*args, **kwargs):
-            g.principal = service().authenticate("admin", request, touch=True,
-                                                 csrf=request.method not in {"GET", "HEAD", "OPTIONS"},
-                                                 permission=permission, fresh=fresh)
+            g.principal = service().authenticate(
+                "admin",
+                request,
+                touch=True,
+                csrf=request.method not in {"GET", "HEAD", "OPTIONS"},
+                permission=permission,
+                fresh=fresh,
+            )
             return view(*args, **kwargs)
+
         return protected
+
     return decorate
 
 
 def require_customer(view):
     @wraps(view)
     def protected(*args, **kwargs):
-        g.principal = service().authenticate("customer", request, touch=True,
-                                             csrf=request.method not in {"GET", "HEAD", "OPTIONS"})
+        g.principal = service().authenticate(
+            "customer", request, touch=True, csrf=request.method not in {"GET", "HEAD", "OPTIONS"}
+        )
         return view(*args, **kwargs)
+
     return protected

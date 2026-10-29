@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
 
-
 ISSUER_PATTERN = re.compile(r"https://cognito-idp\.([a-z0-9-]+)\.amazonaws\.com/([A-Za-z0-9_-]+)\Z")
 
 
@@ -16,7 +15,9 @@ def environment_settings(environment):
         raise ValueError("AUTH_ENABLED must be true or false")
     settings = {
         "AUTH_ENABLED": enabled == "true",
-        "AUTH_ORIGIN": os.getenv("FRONTEND_ORIGIN", "http://localhost:5173" if environment == "development" else ""),
+        "AUTH_ORIGIN": os.getenv(
+            "FRONTEND_ORIGIN", "http://localhost:5173" if environment == "development" else ""
+        ),
         "AUTH_TOKEN_ENCRYPTION_KEY": os.getenv("AUTH_TOKEN_ENCRYPTION_KEY", ""),
         "AUTH_TRUSTED_PROXY_HOPS": int(os.getenv("AUTH_TRUSTED_PROXY_HOPS", "0")),
         "ADMIN_IDLE_SECONDS": 900,
@@ -40,9 +41,19 @@ def validate_settings(settings):
         return
     origin = urlsplit(settings["AUTH_ORIGIN"])
     allowed_schemes = {"http", "https"} if settings["APP_ENV"] == "development" else {"https"}
-    if (origin.scheme not in allowed_schemes or not origin.hostname or origin.username or origin.password
-            or origin.path or origin.query or origin.fragment or settings["CORS_ORIGINS"] != [settings["AUTH_ORIGIN"]]):
-        raise ValueError("Authentication requires one exact frontend origin and same-origin API proxy")
+    if (
+        origin.scheme not in allowed_schemes
+        or not origin.hostname
+        or origin.username
+        or origin.password
+        or origin.path
+        or origin.query
+        or origin.fragment
+        or settings["CORS_ORIGINS"] != [settings["AUTH_ORIGIN"]]
+    ):
+        raise ValueError(
+            "Authentication requires one exact frontend origin and same-origin API proxy"
+        )
     if origin.scheme == "http" and origin.hostname not in {"localhost", "127.0.0.1"}:
         raise ValueError("HTTP authentication is restricted to loopback development")
     if len(settings["SECRET_KEY"]) < 32:
@@ -60,8 +71,16 @@ def validate_settings(settings):
         if not settings[prefix + "CLIENT_ID"] or not settings[prefix + "CLIENT_SECRET"]:
             raise ValueError(f"{prefix}CLIENT_ID and CLIENT_SECRET are required")
         domain = urlsplit(settings[prefix + "DOMAIN"])
-        if (domain.scheme != "https" or not domain.hostname or domain.username or domain.password
-                or domain.path or domain.query or domain.fragment or domain.port not in (None, 443)):
+        if (
+            domain.scheme != "https"
+            or not domain.hostname
+            or domain.username
+            or domain.password
+            or domain.path
+            or domain.query
+            or domain.fragment
+            or domain.port not in (None, 443)
+        ):
             raise ValueError(f"{prefix}DOMAIN must be an exact HTTPS origin")
     if settings["COGNITO_CUSTOMER_ISSUER"] == settings["COGNITO_ADMIN_ISSUER"]:
         raise ValueError("Customer and admin authentication require separate user pools")

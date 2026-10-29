@@ -1,0 +1,7 @@
+node_modules/
+.venv/
+dist/
+test-results/
+playwright-report/
+docs/reference/
+backend/migrations/

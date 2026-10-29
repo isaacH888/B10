@@ -28,8 +28,11 @@ class RequestBudget:
             if now >= self._started + self.seconds:
                 self._started, self._counts, self._accepted = now, {}, 0
             count = self._counts.get(key, 0)
-            if (self._accepted >= self.total or count >= self.per_address
-                    or (not count and len(self._counts) >= self.max_addresses)):
+            if (
+                self._accepted >= self.total
+                or count >= self.per_address
+                or (not count and len(self._counts) >= self.max_addresses)
+            ):
                 return False
             self._counts[key] = count + 1
             self._accepted += 1

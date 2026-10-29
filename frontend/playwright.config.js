@@ -11,7 +11,12 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:5190",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: "chromium" } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], channel: "chromium" },
+    },
+  ],
   webServer: {
     command: "npm run dev -- --host 127.0.0.1 --port 5190",
     url: "http://127.0.0.1:5190",

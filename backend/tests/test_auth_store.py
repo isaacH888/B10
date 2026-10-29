@@ -1,21 +1,40 @@
 """Authentication persistence contracts, exercised against disposable MySQL."""
 
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
 import shutil
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 from app import database
-from app.auth.store import AccessDeniedError, BootstrapRejectedError, LastOwnerError, LoginCancelledError, Store, StoreUnavailable
+from app.auth.store import (
+    AccessDeniedError,
+    BootstrapRejectedError,
+    LastOwnerError,
+    LoginCancelledError,
+    Store,
+    StoreUnavailable,
+)
 from app.migrations import MIGRATIONS, MigrationError, apply_migrations, statements
 
-
 NOW = 1800000000
-TABLES = ("auth_admin_recoveries", "auth_admin_native_flows", "auth_admin_google_challenges", "auth_admin_totp", "auth_admin_google_links", "auth_sessions", "auth_flows", "auth_flow_cancellations", "auth_admin_access", "auth_audit_events", "auth_rate_limits", "auth_admin_login_epochs", "auth_identities")
+TABLES = (
+    "auth_admin_recoveries",
+    "auth_admin_native_flows",
+    "auth_admin_google_challenges",
+    "auth_admin_totp",
+    "auth_admin_google_links",
+    "auth_sessions",
+    "auth_flows",
+    "auth_flow_cancellations",
+    "auth_admin_access",
+    "auth_audit_events",
+    "auth_rate_limits",
+    "auth_admin_login_epochs",
+    "auth_identities",
+)
 
 
 def digest(value):
@@ -37,7 +56,9 @@ def db_settings():
     }
     name = settings["DB_NAME"].lower()
     if not (name.endswith(("_ci", "_test")) or name.startswith("test_")):
-        pytest.fail("Auth persistence tests require a disposable database named *_ci, *_test, or test_*")
+        pytest.fail(
+            "Auth persistence tests require a disposable database named *_ci, *_test, or test_*"
+        )
     return settings
 
 
@@ -52,15 +73,27 @@ def store(db_settings):
 
 
 def identity(store, area="customer", subject="test-subject", issuer=None):
-    return store.upsert_identity(issuer or "https://issuer.example/" + area, subject, area,
-                                 "test@example.invalid", "Test Person", NOW)
+    return store.upsert_identity(
+        issuer or "https://issuer.example/" + area,
+        subject,
+        area,
+        "test@example.invalid",
+        "Test Person",
+        NOW,
+    )
 
 
 def session(store, person, token="opaque-test-session", binding=None):
     row = {
-        "token_hash": digest(token), "identity_id": person["id"], "area": person["area"],
-        "created_at": NOW, "last_seen": NOW, "expires_at": NOW + 3600, "auth_time": NOW,
-        "assurance": {"mfa": person["area"] == "admin"}, "encrypted_tokens": "test-ciphertext",
+        "token_hash": digest(token),
+        "identity_id": person["id"],
+        "area": person["area"],
+        "created_at": NOW,
+        "last_seen": NOW,
+        "expires_at": NOW + 3600,
+        "auth_time": NOW,
+        "assurance": {"mfa": person["area"] == "admin"},
+        "encrypted_tokens": "test-ciphertext",
         "login_binding_hash": binding,
     }
     store.create_session(row)
@@ -75,15 +108,31 @@ def test_credentials_missing_fail_closed():
 def test_connection_verifies_tls_and_hostname(monkeypatch):
     observed = {}
     monkeypatch.setattr(database.pymysql, "connect", lambda **options: observed.update(options))
-    database.connect({"APP_ENV": "production", "DB_HOST": "db.example.invalid", "DB_PORT": 3306,
-                      "DB_NAME": "test_db", "DB_USER": "test_user", "DB_PASSWORD": "test_only",
-                      "DB_TLS_CA_FILE": "/test/ca.pem"})
+    database.connect(
+        {
+            "APP_ENV": "production",
+            "DB_HOST": "db.example.invalid",
+            "DB_PORT": 3306,
+            "DB_NAME": "test_db",
+            "DB_USER": "test_user",
+            "DB_PASSWORD": "test_only",
+            "DB_TLS_CA_FILE": "/test/ca.pem",
+        }
+    )
     assert observed["ssl_verify_cert"] is True
     assert observed["ssl_verify_identity"] is True
     assert observed["ssl_ca"] == "/test/ca.pem"
     with pytest.raises(database.pymysql.OperationalError, match="verified TLS"):
-        database.connect({"APP_ENV": "production", "DB_HOST": "db.example.invalid", "DB_PORT": 3306,
-                          "DB_NAME": "test_db", "DB_USER": "test_user", "DB_PASSWORD": "test_only"})
+        database.connect(
+            {
+                "APP_ENV": "production",
+                "DB_HOST": "db.example.invalid",
+                "DB_PORT": 3306,
+                "DB_NAME": "test_db",
+                "DB_USER": "test_user",
+                "DB_PASSWORD": "test_only",
+            }
+        )
 
 
 def test_migration_runner_rejects_nonresumable_ddl(tmp_path):
@@ -126,11 +175,22 @@ def test_identity_uses_case_sensitive_subject_not_email(store):
     padded = identity(store, subject="SubjectA ")
     another_pool = identity(store, subject="SubjectA", issuer="https://issuer.example/another")
     assert len({first["id"], other["id"], padded["id"], another_pool["id"]}) == 4
-    assert store.upsert_identity(first["issuer"], first["subject"], "customer",
-                                 "changed@example.invalid", "Changed Name", NOW + 1)["id"] == first["id"]
+    assert (
+        store.upsert_identity(
+            first["issuer"],
+            first["subject"],
+            "customer",
+            "changed@example.invalid",
+            "Changed Name",
+            NOW + 1,
+        )["id"]
+        == first["id"]
+    )
     assert len(store.find_identity_by_email("test@example.invalid", "customer")) == 3
     with pytest.raises(ValueError, match="area cannot change"):
-        store.upsert_identity(first["issuer"], first["subject"], "admin", first["email"], first["name"], NOW)
+        store.upsert_identity(
+            first["issuer"], first["subject"], "admin", first["email"], first["name"], NOW
+        )
 
 
 @pytest.mark.database
@@ -147,8 +207,14 @@ def test_customer_identity_never_receives_admin_access(store):
 
 @pytest.mark.database
 def test_flows_bind_browser_area_expiry_and_single_use(store):
-    flow = {"state_hash": digest("state"), "binding_hash": digest("browser"), "area": "admin",
-            "created_at": NOW, "expires_at": NOW + 300, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("state"),
+        "binding_hash": digest("browser"),
+        "area": "admin",
+        "created_at": NOW,
+        "expires_at": NOW + 300,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     store.put_flow(flow)
     assert store.consume_flow(flow["state_hash"], digest("wrong"), "admin", NOW) is None
     assert store.consume_flow(flow["state_hash"], flow["binding_hash"], "customer", NOW) is None
@@ -159,8 +225,14 @@ def test_flows_bind_browser_area_expiry_and_single_use(store):
 
 @pytest.mark.database
 def test_simultaneous_callback_consumption_accepts_once(store):
-    flow = {"state_hash": digest("state"), "binding_hash": digest("browser"), "area": "customer",
-            "created_at": NOW, "expires_at": NOW + 300, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("state"),
+        "binding_hash": digest("browser"),
+        "area": "customer",
+        "created_at": NOW,
+        "expires_at": NOW + 300,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     store.put_flow(flow)
     barrier = threading.Barrier(6)
 
@@ -177,8 +249,14 @@ def test_simultaneous_callback_consumption_accepts_once(store):
 def test_logout_cancels_pending_and_already_consumed_login_flows(store):
     person = identity(store)
     binding = digest("pending-login-browser")
-    flow = {"state_hash": digest("consumed-state"), "binding_hash": binding, "area": "customer",
-            "created_at": NOW, "expires_at": NOW + 600, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("consumed-state"),
+        "binding_hash": binding,
+        "area": "customer",
+        "created_at": NOW,
+        "expires_at": NOW + 600,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     store.put_flow(flow)
     consumed = store.consume_flow(flow["state_hash"], binding, "customer", NOW)
     assert consumed == flow
@@ -231,12 +309,20 @@ def test_concurrent_callback_session_creation_and_logout_cannot_leave_session_ac
 
 
 @pytest.mark.database
-def test_cancel_login_audit_failure_rolls_back_tombstone_flow_delete_and_revocation(store, monkeypatch):
+def test_cancel_login_audit_failure_rolls_back_tombstone_flow_delete_and_revocation(
+    store, monkeypatch
+):
     person = identity(store)
     binding = digest("pending-login-browser")
     row = session(store, person, binding=binding)
-    flow = {"state_hash": digest("pending-state"), "binding_hash": binding, "area": "customer",
-            "created_at": NOW, "expires_at": NOW + 600, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("pending-state"),
+        "binding_hash": binding,
+        "area": "customer",
+        "created_at": NOW,
+        "expires_at": NOW + 600,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     store.put_flow(flow)
 
     def failed_audit(*args):
@@ -258,7 +344,9 @@ def test_cancellation_retention_is_idempotent_and_cleanup_preserves_audit(store)
     assert store.cleanup(NOW + 599)["auth_flow_cancellations"] == 0
     assert store.cleanup(NOW + 600)["auth_flow_cancellations"] == 1
     with database.connect(store.settings) as connection, connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) AS total FROM auth_audit_events WHERE event='login.cancelled'")
+        cursor.execute(
+            "SELECT COUNT(*) AS total FROM auth_audit_events WHERE event='login.cancelled'"
+        )
         assert cursor.fetchone()["total"] == 2
 
 
@@ -266,8 +354,14 @@ def test_cancellation_retention_is_idempotent_and_cleanup_preserves_audit(store)
 def test_cancelled_browser_binding_cannot_start_another_flow(store):
     binding = digest("cancelled-login-browser")
     store.cancel_login(binding, "customer", NOW)
-    flow = {"state_hash": digest("new-state"), "binding_hash": binding, "area": "customer",
-            "created_at": NOW + 1, "expires_at": NOW + 601, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("new-state"),
+        "binding_hash": binding,
+        "area": "customer",
+        "created_at": NOW + 1,
+        "expires_at": NOW + 601,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     with pytest.raises(LoginCancelledError):
         store.put_flow(flow)
     assert store.consume_flow(flow["state_hash"], binding, "customer", NOW + 2) is None
@@ -276,8 +370,14 @@ def test_cancelled_browser_binding_cannot_start_another_flow(store):
 @pytest.mark.database
 def test_new_browser_generation_can_start_after_previous_generation_cancelled(store):
     store.cancel_login(digest("cancelled-login-browser"), "customer", NOW)
-    flow = {"state_hash": digest("fresh-state"), "binding_hash": digest("fresh-login-browser"), "area": "customer",
-            "created_at": NOW + 1, "expires_at": NOW + 601, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("fresh-state"),
+        "binding_hash": digest("fresh-login-browser"),
+        "area": "customer",
+        "created_at": NOW + 1,
+        "expires_at": NOW + 601,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     store.put_flow(flow)
     assert store.consume_flow(flow["state_hash"], flow["binding_hash"], "customer", NOW + 2) == flow
 
@@ -285,8 +385,14 @@ def test_new_browser_generation_can_start_after_previous_generation_cancelled(st
 @pytest.mark.database
 def test_concurrent_new_flow_and_logout_cannot_leave_usable_flow(store):
     binding = digest("cancelled-login-browser")
-    flow = {"state_hash": digest("racing-state"), "binding_hash": binding, "area": "customer",
-            "created_at": NOW, "expires_at": NOW + 600, "encrypted_payload": "encrypted-oauth-secrets"}
+    flow = {
+        "state_hash": digest("racing-state"),
+        "binding_hash": binding,
+        "area": "customer",
+        "created_at": NOW,
+        "expires_at": NOW + 600,
+        "encrypted_payload": "encrypted-oauth-secrets",
+    }
     barrier = threading.Barrier(2)
 
     def start():
@@ -385,7 +491,10 @@ def test_admin_access_changes_revoke_sessions_and_preserve_final_owner(store, db
     assert store.get_session(row["token_hash"], "admin") is None
     assert store.find_identity(owner["issuer"], "owner")["admin_role"] == "staff"
     with database.connect(db_settings) as connection, connection.cursor() as cursor:
-        cursor.execute("SELECT event,detail FROM auth_audit_events WHERE identity_id=%s ORDER BY id", (owner["id"],))
+        cursor.execute(
+            "SELECT event,detail FROM auth_audit_events WHERE identity_id=%s ORDER BY id",
+            (owner["id"],),
+        )
         events = cursor.fetchall()
     assert [event["event"] for event in events] == ["admin.access_granted", "admin.access_changed"]
 
@@ -452,10 +561,25 @@ def test_cleanup_removes_expired_secrets_but_retains_audits(store):
     person = identity(store)
     row = session(store, person)
     store.audit("test.security_event", person["id"], detail={"area": "customer"}, now=NOW)
-    store.put_flow({"state_hash": digest("state"), "binding_hash": digest("browser"), "area": "customer",
-                    "created_at": NOW, "expires_at": NOW + 300, "encrypted_payload": "ciphertext"})
+    store.put_flow(
+        {
+            "state_hash": digest("state"),
+            "binding_hash": digest("browser"),
+            "area": "customer",
+            "created_at": NOW,
+            "expires_at": NOW + 300,
+            "encrypted_payload": "ciphertext",
+        }
+    )
     store.rate_limit("test-rate", 2, 60, NOW)
-    assert store.cleanup(NOW + 3600) == {"auth_flows": 1, "auth_flow_cancellations": 0, "auth_admin_google_challenges": 0, "auth_admin_native_flows": 0, "auth_rate_limits": 1, "auth_sessions": 1}
+    assert store.cleanup(NOW + 3600) == {
+        "auth_flows": 1,
+        "auth_flow_cancellations": 0,
+        "auth_admin_google_challenges": 0,
+        "auth_admin_native_flows": 0,
+        "auth_rate_limits": 1,
+        "auth_sessions": 1,
+    }
     assert store.get_session(row["token_hash"], "customer") is None
     with database.connect(store.settings) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) AS total FROM auth_audit_events")

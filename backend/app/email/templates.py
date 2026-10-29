@@ -1,8 +1,7 @@
 """A fixed sample order; callers cannot supply recipients, subjects, or HTML content."""
 
-from html import escape
 import re
-
+from html import escape
 
 REFERENCE = re.compile(r"[A-Za-z0-9-]{1,80}\Z")
 
@@ -26,7 +25,7 @@ def render_confirmation(name, reference):
     )
     html = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<title>Sample order confirmation</title></head><body>'
+        "<title>Sample order confirmation</title></head><body>"
         f"<p>Hi {escape(name)},</p>"
         "<h1>Sample order confirmation</h1>"
         "<p>Thank you for trying Popssibilities.</p>"

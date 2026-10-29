@@ -1,13 +1,14 @@
 # Development setup and command status
 
-Updated October 8, 2026. React/Vite + Flask + MySQL scaffolding is approved.
-Authentication screens, sessions, migrations and Cognito adapters are implemented;
-pricing/orders/payment/email/calendar features remain unimplemented.
+Updated October 29, 2026. React/Vite + Flask + MySQL scaffolding, authentication,
+pricing/quote/order APIs and customer sample email are combined locally. Real order
+persistence, catering UI and order-triggered integrations remain incomplete. See
+[integration validation](integration-validation.md) before testing business flows.
 
 ## Prerequisites
 
 Use Node 22 (at least 22.12) and Python 3.12 for the team/CI baseline. Local checks
-used available Node 25.9.0 and Python 3.9.6; that does not verify the target CI runtimes.
+used Node 25.9.0 and Python 3.12.16; Node 22 CI results must be checked in GitHub Actions.
 Docker with Compose, or an independently installed MySQL 8.4, is needed for the DB
 probe. The application requires its database server to remain running. Source:
 [Vite requirements](https://vite.dev/guide/) and [Flask installation](https://flask.palletsprojects.com/en/stable/installation/).
@@ -18,8 +19,8 @@ and `backend\.venv\Scripts\python.exe` for the equivalent virtual-environment co
 ## Install from the repository root
 
 ```sh
-python3 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
+python3.12 -m venv backend/.venv
+backend/.venv/bin/python -m pip install -r backend/requirements.txt -r requirements-validation.txt
 npm ci --prefix frontend
 
 # Keep existing private settings; templates contain no working credentials.
@@ -114,7 +115,10 @@ login still requires separate provider verification.
 
 ```sh
 backend/.venv/bin/python scripts/check_foundation.py
+backend/.venv/bin/python -m ruff format --check backend scripts
+backend/.venv/bin/python -m ruff check backend scripts
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
+npm run format:check --prefix frontend
 npm run build --prefix frontend
 npx --prefix frontend playwright install chromium
 npm run test:browser --prefix frontend
@@ -134,9 +138,19 @@ That test reads process DB settings, so export the private values in the test te
 rather than assuming the test loads backend/.env. Normal shell startup does load it.
 The default test run skips this check when no disposable DB is provided.
 
-The shared CI workflow runs standards/example/link/template checks, backend tests
-with disposable MySQL and the frontend build. Check actual results in GitHub Actions;
-there is no deployment job. See [foundation-validation.md](foundation-validation.md).
+To apply the shared formatting locally:
+
+```sh
+backend/.venv/bin/python -m ruff check --fix backend scripts
+backend/.venv/bin/python -m ruff format backend scripts
+npm run format --prefix frontend
+```
+
+The shared CI workflow checks Python lint/formatting, frontend/configuration
+formatting, standards/examples/links/templates, backend tests with disposable MySQL,
+frontend build/browser tests and infrastructure templates. Check actual results in
+GitHub Actions; there is no deployment job. Historical Node reference files under
+`docs/reference/legacy-node` remain unchanged.
 
 ## Remaining owner commands
 

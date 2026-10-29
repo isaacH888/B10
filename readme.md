@@ -4,15 +4,29 @@ Digital Modernization & Catering Management System. Lead Developer: Isaac Hernan
 
 ## Current status
 
-Updated October 9, 2026. Branch `feat/authentication-macha` adds customer and admin
-authentication to the approved React/Vite + Flask + MySQL foundation. Customers use
+Updated October 29, 2026. Local branch `dev` combines
+`feature/backend-anh` and `feat/authentication-macha` with the shared foundation.
+The pricing, quote, order submission/retrieval/status APIs now register alongside
+authentication and customer sample email. Administrative order routes enforce
+sessions, CSRF and the existing owner/staff permissions. See the
+[integration validation report](docs/integration-validation.md) for checks and gaps.
+The [DEV/TST/PROD workflow](docs/release-workflow.md) includes owner handoff tickets
+and the proposed release gates.
+The [DEV publication review](docs/dev-review.md) summarizes the pending changes
+for approval before committing or pushing.
+
+Customers use
 Cognito email/password or Google; invited Owners/Staff use password plus required
 Cognito TOTP. Administrator Google sign-in is disabled. A protected sample admin
 dashboard displays clearly labeled synthetic bookings after successful sign-in.
-The administrator interface verifies native password/TOTP challenges directly, including temporary-password setup and authenticator enrollment. The backend implements server-side sessions, CSRF, role guards, revocation checks,
-audits, migrations, and private provisioning/recovery commands. React has basic
-login and protected session pages for testing; frontend design remains undecided.
-Cognito templates and private operator procedures are prepared. The development pools and approved native owner were inspected read-only; this fix does not deploy resources or mutate live users. Business ordering/pricing/payment features remain pending.
+The backend implements server-side sessions, revocation checks, audits, migrations,
+and private provisioning/recovery commands. React has basic login and session pages;
+the catering form and real order dashboard are not implemented.
+
+Order persistence is blocked: existing migrations create auth/email tables but no
+`customers`, `orders` or `order_items` tables. Database-backed submission returns
+503; without DB credentials, orders use temporary process memory. Quote persistence,
+expiry matching and verified delivery-distance pricing also remain unfinished.
 
 Signed-in customers can request a sample order confirmation from `/account`.
 The backend sends through SES to their current verified Cognito email, with CSRF,
@@ -25,11 +39,8 @@ Start with [authentication](docs/authentication.md),
 [private account operations](docs/authentication-operations.md). Authentication remains
 unavailable until MySQL and both Cognito clients are configured; there are no default users.
 
-The supplied dated plan puts Week 4 on October 5-9: form/pricing/DB integration,
-first staging build and team demo. Those runtime milestones remain blocked on owner
-handoffs and decisions. Calendar is Week 5; reminders/deposit-contract automation
-Week 6. Feature freeze October 23, release lock November 6, submission November 9.
-The [original charter](docs/project-charter.md) is preserved verbatim.
+The [original charter](docs/project-charter.md) and dated planning documents are
+preserved; the integration report records the current implementation evidence.
 
 ## Start here
 
@@ -46,16 +57,20 @@ After installing dependencies using the setup guide:
 
 ```sh
 backend/.venv/bin/python scripts/check_foundation.py
+backend/.venv/bin/python -m ruff format --check backend scripts
+backend/.venv/bin/python -m ruff check backend scripts
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
+npm run format:check --prefix frontend
 npm run build --prefix frontend
+npm run test:browser --prefix frontend
 git diff --check
 ```
 
 Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
-DB settings. The native-login fix was validated against isolated MySQL 8.4, including all database integration tests.
-The existing local MySQL 8.4 Compose container was restarted and is healthy;
-its persistent data volume was preserved. Disposable database tests were not
-run against that development database.
+DB settings. October 29 validation passed 786 backend tests with isolated MySQL
+8.4.13 and 63 Chromium browser tests. Order SQL tests use mocks; real auth/email
+persistence tests use MySQL. Docker is unavailable on this machine, so a temporary
+MySQL server was used without changing the development database.
 [CI](.github/workflows/foundation-checks.yml) includes MySQL migrations/persistence tests,
 frontend build/browser tests and offline Cognito template lint. Review remote results in GitHub Actions; local evidence is in
 [authentication validation](docs/authentication-validation.md) and
@@ -91,7 +106,9 @@ not a substitute for acceptance or an instruction to overwrite teammate designs.
 
 Keep new code free of emojis; use concise comments and standard hyphens. Do not
 commit credentials or real customer data. Teammate feature changes require Isaac's
-prior approval. Review this foundation on `feature/shared-foundation` through a PR
-to main. Branch protections remain unconfigured; external deployment and production
-release are separate reviewed and authorized actions. Review authentication changes
-on `feat/authentication-macha`; the original foundation branch is preserved.
+prior approval. Teammates keep their feature branches and review integration changes
+through PRs into `dev`. Accepted release candidates proceed from `dev` to `main`.
+Branch protections remain unconfigured; external deployment and production release
+are separate reviewed and authorized actions. The original feature branches are
+preserved. Ask Isaac before every commit or push. Initial DEV publication was
+approved October 29, 2026.

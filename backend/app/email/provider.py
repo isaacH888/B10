@@ -6,7 +6,12 @@ import threading
 import boto3
 from botocore.config import Config
 from botocore.configprovider import ConstantProvider
-from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, PartialCredentialsError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    NoCredentialsError,
+    PartialCredentialsError,
+)
 from botocore.session import Session
 
 from .settings import valid_address, validate_settings
@@ -19,11 +24,13 @@ class MailFailure(Exception):
     def __init__(self, kind, safe_code):
         self.kind = kind
         self.safe_code = safe_code
-        super().__init__({
-            "rejected": "The email provider could not accept this test email.",
-            "unavailable": "Test email is temporarily unavailable.",
-            "uncertain": "The email delivery result is uncertain. Avoid sending again immediately.",
-        }[kind])
+        super().__init__(
+            {
+                "rejected": "The email provider could not accept this test email.",
+                "unavailable": "Test email is temporarily unavailable.",
+                "uncertain": "The email delivery result is uncertain. Avoid sending again immediately.",
+            }[kind]
+        )
 
 
 def _session(settings):
@@ -42,7 +49,9 @@ def _session(settings):
             "aws_secret_access_key": settings["EMAIL_AWS_SECRET_ACCESS_KEY"],
             "aws_session_token": settings.get("EMAIL_AWS_SESSION_TOKEN") or None,
         }
-    return boto3.Session(botocore_session=core, region_name=settings["EMAIL_AWS_REGION"], **credentials)
+    return boto3.Session(
+        botocore_session=core, region_name=settings["EMAIL_AWS_REGION"], **credentials
+    )
 
 
 class SESMailer:
@@ -55,9 +64,13 @@ class SESMailer:
         with self._client_lock:
             if self._client is None:
                 self._client = _session(self.settings).client(
-                    "sesv2", config=Config(connect_timeout=3, read_timeout=5,
-                                           ignore_configured_endpoint_urls=True,
-                                           retries={"mode": "standard", "total_max_attempts": 1}),
+                    "sesv2",
+                    config=Config(
+                        connect_timeout=3,
+                        read_timeout=5,
+                        ignore_configured_endpoint_urls=True,
+                        retries={"mode": "standard", "total_max_attempts": 1},
+                    ),
                 )
             return self._client
 
@@ -75,11 +88,15 @@ class SESMailer:
             "FromEmailAddress": self.settings["EMAIL_FROM_ADDRESS"],
             "Destination": {"ToAddresses": [recipient]},
             "ReplyToAddresses": [self.settings["EMAIL_REPLY_TO_ADDRESS"]],
-            "Content": {"Simple": {
-                "Subject": {"Charset": "UTF-8", "Data": message["subject"]},
-                "Body": {"Text": {"Charset": "UTF-8", "Data": message["text"]},
-                         "Html": {"Charset": "UTF-8", "Data": message["html"]}},
-            }},
+            "Content": {
+                "Simple": {
+                    "Subject": {"Charset": "UTF-8", "Data": message["subject"]},
+                    "Body": {
+                        "Text": {"Charset": "UTF-8", "Data": message["text"]},
+                        "Html": {"Charset": "UTF-8", "Data": message["html"]},
+                    },
+                }
+            },
             "EmailTags": [{"Name": "kind", "Value": "customer-test-confirmation"}],
         }
         if self.settings.get("EMAIL_SES_CONFIGURATION_SET"):
@@ -95,7 +112,12 @@ class SESMailer:
         except ClientError as error:
             status = error.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
             code = error.response.get("Error", {}).get("Code", "")
-            if code in {"TooManyRequestsException", "Throttling", "ThrottlingException", "LimitExceededException"}:
+            if code in {
+                "TooManyRequestsException",
+                "Throttling",
+                "ThrottlingException",
+                "LimitExceededException",
+            }:
                 raise MailFailure("unavailable", "ses_throttled") from None
             if 400 <= status < 500:
                 raise MailFailure("rejected", "ses_rejected") from None

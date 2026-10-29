@@ -26,12 +26,16 @@ def main():
     spec = json.loads((ROOT / "docs/api/openapi.json").read_text())
     bundle = json.loads((ROOT / "docs/api/examples.json").read_text())
     validate_spec(spec)
-    registry = Registry().with_resource(CONTRACT_URI, Resource.from_contents(spec, default_specification=DRAFT202012))
+    registry = Registry().with_resource(
+        CONTRACT_URI, Resource.from_contents(spec, default_specification=DRAFT202012)
+    )
 
     def check_example(value, schema):
         # References resolve inside the contract rather than through the network.
         target = {"$ref": CONTRACT_URI + schema["$ref"]} if "$ref" in schema else schema
-        Draft202012Validator(target, registry=registry, format_checker=FormatChecker()).validate(value)
+        Draft202012Validator(target, registry=registry, format_checker=FormatChecker()).validate(
+            value
+        )
 
     checked = 0
     operation_ids = set()
@@ -52,10 +56,14 @@ def main():
                     check_example(value, content["schema"])
                     checked += 1
     mappings = {
-        "quote_request": "QuoteRequest", "quote_requires_review_response": "QuoteResponse",
-        "quote_priced_fixture_response": "QuoteResponse", "quote_outside_radius_response": "QuoteResponse",
-        "order_request": "SubmitOrderRequest", "order_response": "OrderResponse",
-        "minimum_quantity_error": "ErrorResponse", "deposit_request": "UpdateDepositRequest",
+        "quote_request": "QuoteRequest",
+        "quote_requires_review_response": "QuoteResponse",
+        "quote_priced_fixture_response": "QuoteResponse",
+        "quote_outside_radius_response": "QuoteResponse",
+        "order_request": "SubmitOrderRequest",
+        "order_response": "OrderResponse",
+        "minimum_quantity_error": "ErrorResponse",
+        "deposit_request": "UpdateDepositRequest",
         "deposit_response": "AdminOrderResponse",
     }
     for key, name in mappings.items():
@@ -63,21 +71,41 @@ def main():
         checked += 1
     for key in ("quote_priced_fixture_response", "order_response", "deposit_response"):
         pricing = bundle[key]["data"]["pricing"]
-        require(sum(item["amount_cents"] for item in pricing["line_items"]) == pricing["total_cents"], "Fixture line-item mismatch")
-        require(pricing["deposit_due_cents"] * 2 == pricing["total_cents"], "Fixture deposit mismatch")
-    csv_data = spec["paths"]["/orders/export"]["get"]["responses"]["200"]["content"]["text/csv"]["example"]
-    require(all(len(row) == 10 for row in csv.reader(io.StringIO(csv_data))), "CSV fixture column mismatch")
+        require(
+            sum(item["amount_cents"] for item in pricing["line_items"]) == pricing["total_cents"],
+            "Fixture line-item mismatch",
+        )
+        require(
+            pricing["deposit_due_cents"] * 2 == pricing["total_cents"], "Fixture deposit mismatch"
+        )
+    csv_data = spec["paths"]["/orders/export"]["get"]["responses"]["200"]["content"]["text/csv"][
+        "example"
+    ]
+    require(
+        all(len(row) == 10 for row in csv.reader(io.StringIO(csv_data))),
+        "CSV fixture column mismatch",
+    )
 
     link_count = 0
-    documents = [ROOT / "readme.md", *ROOT.joinpath("docs").rglob("*.md"), *ROOT.joinpath(".github").rglob("*.md")]
+    documents = [
+        ROOT / "readme.md",
+        *ROOT.joinpath("docs").rglob("*.md"),
+        *ROOT.joinpath(".github").rglob("*.md"),
+    ]
     for document in documents:
         for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", document.read_text()):
             if "://" in target or target.startswith(("mailto:", "#")):
                 continue
-            require((document.parent / target.split("#", 1)[0]).exists(), "Broken file link: " + target)
+            require(
+                (document.parent / target.split("#", 1)[0]).exists(), "Broken file link: " + target
+            )
             link_count += 1
     config_text = (ROOT / "docs/configuration.md").read_text()
-    for template in (ROOT / ".env.example", ROOT / "backend/.env.example", ROOT / "frontend/.env.example"):
+    for template in (
+        ROOT / ".env.example",
+        ROOT / "backend/.env.example",
+        ROOT / "frontend/.env.example",
+    ):
         seen = set()
         for line in template.read_text().splitlines():
             if not line or line.startswith("#"):
@@ -86,7 +114,9 @@ def main():
             require(name not in seen, "Duplicate template key: " + name)
             seen.add(name)
             require(name in config_text, "Undocumented setting: " + name)
-            if any(term in name for term in ("SECRET", "PASSWORD", "API_KEY", "TOKEN", "CREDENTIALS")):
+            if any(
+                term in name for term in ("SECRET", "PASSWORD", "API_KEY", "TOKEN", "CREDENTIALS")
+            ):
                 require(not value, "Credential placeholder must be empty: " + name)
         if template.parent.name == "frontend":
             require(seen == {"VITE_API_BASE_URL"}, "Frontend template contains private settings")
@@ -95,23 +125,55 @@ def main():
     require(workflow["permissions"] == {"contents": "read"}, "Unexpected CI token permissions")
     require("pull_request" in workflow["on"], "PR checks are missing")
     compose = yaml.safe_load((ROOT / "compose.yaml").read_text())
-    require(compose["services"]["mysql"]["ports"] == ["127.0.0.1:3306:3306"], "Development DB must bind locally")
+    require(
+        compose["services"]["mysql"]["ports"] == ["127.0.0.1:3306:3306"],
+        "Development DB must bind locally",
+    )
     require("environment" not in workflow["jobs"]["foundation"], "Foundation CI must not deploy")
 
-    files = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, text=True).splitlines()
-    text_suffixes = {".md", ".py", ".json", ".js", ".jsx", ".css", ".html", ".yml", ".yaml", ".in", ".txt", ".ini"}
+    files = subprocess.check_output(
+        ["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, text=True
+    ).splitlines()
+    text_suffixes = {
+        ".md",
+        ".py",
+        ".json",
+        ".js",
+        ".jsx",
+        ".css",
+        ".html",
+        ".yml",
+        ".yaml",
+        ".in",
+        ".txt",
+        ".ini",
+    }
     for filename in files:
         path = ROOT / filename
-        if not path.is_file() or (path.suffix not in text_suffixes and path.name not in {".gitignore", ".env.example", ".node-version", ".python-version"}):
+        if not path.is_file() or (
+            path.suffix not in text_suffixes
+            and path.name not in {".gitignore", ".env.example", ".node-version", ".python-version"}
+        ):
             continue
         if filename == "docs/project-charter.md":
             continue
         text = path.read_text()
         require(text.endswith("\n"), "Missing final newline: " + filename)
-        require(all(line.rstrip(" \t") == line for line in text.splitlines()), "Trailing whitespace: " + filename)
-        require(not re.search(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]", text), "Emoji in shared file: " + filename)
-    print("PASS: OpenAPI standards validation; %d operations; %d schema-valid examples; %d local file links." % (len(operation_ids), checked, link_count))
-    print("PASS: configuration placeholders, fixture money/CSV, workflow/Compose structure, whitespace and code style.")
+        require(
+            all(line.rstrip(" \t") == line for line in text.splitlines()),
+            "Trailing whitespace: " + filename,
+        )
+        require(
+            not re.search(r"[\U0001F000-\U0001FAFF\u2600-\u27BF]", text),
+            "Emoji in shared file: " + filename,
+        )
+    print(
+        "PASS: OpenAPI standards validation; %d operations; %d schema-valid examples; %d local file links."
+        % (len(operation_ids), checked, link_count)
+    )
+    print(
+        "PASS: configuration placeholders, fixture money/CSV, workflow/Compose structure, whitespace and code style."
+    )
     print("Scope: shared foundation only; no business feature conformance or external deployment.")
 
 

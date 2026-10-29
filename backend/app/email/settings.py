@@ -3,16 +3,22 @@
 import os
 import re
 
-
-ADDRESS = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}\Z")
+ADDRESS = re.compile(
+    r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}\Z"
+)
 REGION = re.compile(r"[a-z]{2}(?:-[a-z]+)+-\d\Z")
 CONFIGURATION_SET = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
 def valid_address(value):
     """Require one bare ASCII mailbox; display names and header controls are rejected."""
-    return (isinstance(value, str) and len(value) <= 254 and ADDRESS.fullmatch(value) is not None
-            and len(value.split("@", 1)[0]) <= 64 and ".." not in value)
+    return (
+        isinstance(value, str)
+        and len(value) <= 254
+        and ADDRESS.fullmatch(value) is not None
+        and len(value.split("@", 1)[0]) <= 64
+        and ".." not in value
+    )
 
 
 def environment_settings():

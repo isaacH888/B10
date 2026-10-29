@@ -2,15 +2,14 @@
 
 import hashlib
 import os
-from pathlib import Path
 import re
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from .config import read_settings
 from .database import connect
-
 
 MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
 
@@ -44,7 +43,9 @@ def statements(path):
     source = Path(path).read_text(encoding="utf-8")
     source = re.sub(r"(?m)^\s*--[^\n]*$", "", source)
     pieces = [piece.strip() for piece in source.split(";") if piece.strip()]
-    if not pieces or any(not re.match(r"^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b", piece, re.I) for piece in pieces):
+    if not pieces or any(
+        not re.match(r"^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b", piece, re.I) for piece in pieces
+    ):
         raise MigrationError("This runner requires resumable CREATE TABLE IF NOT EXISTS migrations")
     return pieces
 
@@ -68,7 +69,9 @@ def apply_migrations(settings, directory=MIGRATIONS):
                     started_at BIGINT UNSIGNED NOT NULL,
                     applied_at BIGINT UNSIGNED NULL
                 ) ENGINE=InnoDB""")
-                cursor.execute("SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version")
+                cursor.execute(
+                    "SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version"
+                )
                 history = {row["version"]: row for row in cursor.fetchall()}
                 versions = {int(path.name[:4]) for path in files}
                 if set(history) - versions:
@@ -77,8 +80,12 @@ def apply_migrations(settings, directory=MIGRATIONS):
                     version = int(path.name[:4])
                     digest = checksum(path)
                     previous = history.get(version)
-                    if previous and (previous["checksum"] != digest or previous["name"] != path.name):
-                        raise MigrationError("An existing migration has changed; restore its original contents")
+                    if previous and (
+                        previous["checksum"] != digest or previous["name"] != path.name
+                    ):
+                        raise MigrationError(
+                            "An existing migration has changed; restore its original contents"
+                        )
                     if previous and previous["applied_at"] is not None:
                         continue
                     commands = statements(path)
@@ -110,7 +117,9 @@ def main():
     if migration_user:
         settings.update(DB_USER=migration_user, DB_PASSWORD=migration_password)
     elif settings["APP_ENV"] != "development":
-        raise MigrationError("Hosted migrations require separate DB_MIGRATION_USER and DB_MIGRATION_PASSWORD")
+        raise MigrationError(
+            "Hosted migrations require separate DB_MIGRATION_USER and DB_MIGRATION_PASSWORD"
+        )
     applied = apply_migrations(settings)
     print("Migrations complete: " + (", ".join(applied) if applied else "already current"))
 

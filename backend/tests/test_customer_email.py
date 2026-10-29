@@ -4,14 +4,13 @@ from copy import deepcopy
 from uuid import uuid4
 
 import pytest
-
 from app.auth.errors import AuthError
 from app.auth.provider import CognitoProvider
 from app.email.provider import MailFailure
 from app.email.service import CustomerMailService
 from app.email.store import MailConflict, MailRateLimited, MailStoreUnavailable
-from test_auth import ORIGIN, auth_app, begin, invite, sign_in
-
+from test_auth import ORIGIN, begin, invite, sign_in
+from test_auth import auth_app as auth_app
 
 URL = "/api/v1/customer/test-email"
 
@@ -29,15 +28,22 @@ class MemoryMailStore:
             if row["recipient_hash"] != recipient_hash or row["identity_id"] != identity_id:
                 raise MailConflict()
             return deepcopy(row), False
-        row = {"identity_id": identity_id, "recipient_hash": recipient_hash, "status": "sending",
-               "reference": "TEST-" + uuid4().hex, "error_code": None}
+        row = {
+            "identity_id": identity_id,
+            "recipient_hash": recipient_hash,
+            "status": "sending",
+            "reference": "TEST-" + uuid4().hex,
+            "error_code": None,
+        }
         self.rows[request_hash] = row
         return deepcopy(row), True
 
     def finish(self, request_hash, status, now, *, message_id=None, error_code=None):
         if self.finish_failure:
             raise self.finish_failure
-        self.rows[request_hash].update(status=status, provider_message_id=message_id, error_code=error_code)
+        self.rows[request_hash].update(
+            status=status, provider_message_id=message_id, error_code=error_code
+        )
 
 
 class RecordingMailer:
@@ -57,7 +63,9 @@ def mail_app(auth_app):
     auth_app.config.update(EMAIL_ENABLED=True)
     store, mailer = MemoryMailStore(), RecordingMailer()
     manager = auth_app.extensions["auth_service"]
-    auth_app.extensions["customer_mail_service"] = CustomerMailService(auth_app.config, manager, store, mailer)
+    auth_app.extensions["customer_mail_service"] = CustomerMailService(
+        auth_app.config, manager, store, mailer
+    )
     auth_app.mail_store, auth_app.mailer = store, mailer
     auth_app.mail_profile = {"email": "fresh-customer@example.invalid", "name": "Current Customer"}
 
@@ -75,7 +83,11 @@ def customer_client(app, provider="password"):
     state = begin(client, provider=provider)
     client.get("/api/v1/customer/callback", query_string={"state": state, "code": "synthetic-code"})
     session = client.get("/api/v1/customer/session").json["data"]
-    return client, {"Origin": ORIGIN, "X-CSRF-Token": session["csrf_token"], "Idempotency-Key": str(uuid4())}
+    return client, {
+        "Origin": ORIGIN,
+        "X-CSRF-Token": session["csrf_token"],
+        "Idempotency-Key": str(uuid4()),
+    }
 
 
 @pytest.mark.parametrize("provider", ["password", "google"])
@@ -83,7 +95,11 @@ def test_customer_password_and_google_send_only_to_current_verified_profile(mail
     client, headers = customer_client(mail_app, provider)
     result = client.post(URL, json={}, headers=headers)
     assert result.status_code == 200
-    assert result.json["data"] == {"status": "accepted", "reference": mail_app.mailer.calls[0][2], "duplicate": False}
+    assert result.json["data"] == {
+        "status": "accepted",
+        "reference": mail_app.mailer.calls[0][2],
+        "duplicate": False,
+    }
     assert mail_app.mailer.calls[0][:2] == ("fresh-customer@example.invalid", "Current Customer")
     assert result.headers["Cache-Control"] == "no-store"
     assert result.json["meta"]["request_id"] == result.headers["X-Request-ID"]
@@ -101,7 +117,15 @@ def test_signed_out_customer_and_admin_only_session_cannot_send(mail_app):
     assert not mail_app.mailer.calls
 
 
-@pytest.mark.parametrize("changes", [{"Origin": "https://evil.example"}, {"X-CSRF-Token": "wrong"}, {"Origin": None}, {"X-CSRF-Token": None}])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"Origin": "https://evil.example"},
+        {"X-CSRF-Token": "wrong"},
+        {"Origin": None},
+        {"X-CSRF-Token": None},
+    ],
+)
 def test_send_requires_exact_origin_and_bound_csrf(mail_app, changes):
     client, headers = customer_client(mail_app)
     headers.update(changes)
@@ -111,15 +135,27 @@ def test_send_requires_exact_origin_and_bound_csrf(mail_app, changes):
     assert not mail_app.mail_store.rows
 
 
-@pytest.mark.parametrize("payload", [{"email": "another@example.invalid"}, {"recipient": "another@example.invalid"},
-                                     {"subject": "arbitrary"}, {"html": "arbitrary"}, [], None, "arbitrary"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"email": "another@example.invalid"},
+        {"recipient": "another@example.invalid"},
+        {"subject": "arbitrary"},
+        {"html": "arbitrary"},
+        [],
+        None,
+        "arbitrary",
+    ],
+)
 def test_browser_cannot_supply_recipient_or_message(mail_app, payload):
     client, headers = customer_client(mail_app)
     assert client.post(URL, json=payload, headers=headers).status_code == 422
     assert not mail_app.mailer.calls
 
 
-@pytest.mark.parametrize("key", [None, "not-a-uuid", "a" * 500, "00000000-0000-0000-0000-000000000000"])
+@pytest.mark.parametrize(
+    "key", [None, "not-a-uuid", "a" * 500, "00000000-0000-0000-0000-000000000000"]
+)
 def test_idempotency_key_is_required_and_validated(mail_app, key):
     client, headers = customer_client(mail_app)
     headers.pop("Idempotency-Key")
@@ -158,8 +194,13 @@ def test_email_disabled_never_touches_mail_storage_or_provider(mail_app):
     assert not mail_app.mailer.calls and not mail_app.mail_store.rows
 
 
-@pytest.mark.parametrize("failure,code,status", [(MailRateLimited(), "email_rate_limited", 429),
-    (MailStoreUnavailable(), "email_unavailable", 503)])
+@pytest.mark.parametrize(
+    "failure,code,status",
+    [
+        (MailRateLimited(), "email_rate_limited", 429),
+        (MailStoreUnavailable(), "email_unavailable", 503),
+    ],
+)
 def test_no_send_without_available_budget_and_durable_reservation(mail_app, failure, code, status):
     client, headers = customer_client(mail_app)
     mail_app.mail_store.reserve_failure = failure
@@ -169,8 +210,14 @@ def test_no_send_without_available_budget_and_durable_reservation(mail_app, fail
     assert not mail_app.mailer.calls
 
 
-@pytest.mark.parametrize("kind,code,status", [("uncertain", "email_delivery_uncertain", 409),
-    ("unavailable", "email_unavailable", 503), ("rejected", "email_rejected", 503)])
+@pytest.mark.parametrize(
+    "kind,code,status",
+    [
+        ("uncertain", "email_delivery_uncertain", 409),
+        ("unavailable", "email_unavailable", 503),
+        ("rejected", "email_rejected", 503),
+    ],
+)
 def test_provider_failures_are_safe_and_same_key_never_resends(mail_app, kind, code, status):
     client, headers = customer_client(mail_app)
     mail_app.mailer.failure = MailFailure(kind, "private-safe-label")
@@ -209,7 +256,9 @@ def test_expired_revoked_or_provider_disabled_customer_cannot_send(mail_app, inv
     elif invalidate == "revoked":
         next(iter(mail_app.test_store.sessions.values()))["revoked_at"] = mail_app.test_clock["now"]
     else:
-        mail_app.test_providers["customer"].fail = AuthError("unauthenticated", "Private provider error")
+        mail_app.test_providers["customer"].fail = AuthError(
+            "unauthenticated", "Private provider error"
+        )
     assert client.post(URL, json={}, headers=headers).status_code == 401
     assert not mail_app.mailer.calls
 
@@ -247,9 +296,14 @@ def test_ingress_limits_reject_before_touching_authentication(mail_app):
 
 
 @pytest.mark.parametrize("verified", ["true", "false", None])
-def test_live_customer_profile_requires_matching_subject_and_current_verified_email(mail_app, monkeypatch, verified):
+def test_live_customer_profile_requires_matching_subject_and_current_verified_email(
+    mail_app, monkeypatch, verified
+):
     provider = CognitoProvider(mail_app.config, "customer")
-    attributes = [{"Name": "sub", "Value": "stable-customer"}, {"Name": "email", "Value": "current@example.invalid"}]
+    attributes = [
+        {"Name": "sub", "Value": "stable-customer"},
+        {"Name": "email", "Value": "current@example.invalid"},
+    ]
     if verified is not None:
         attributes.append({"Name": "email_verified", "Value": verified})
     calls = []
@@ -260,7 +314,10 @@ def test_live_customer_profile_requires_matching_subject_and_current_verified_em
 
     monkeypatch.setattr(provider, "_user_operation", operation)
     if verified == "true":
-        assert provider.verified_customer_profile("private-access", "stable-customer")["email"] == "current@example.invalid"
+        assert (
+            provider.verified_customer_profile("private-access", "stable-customer")["email"]
+            == "current@example.invalid"
+        )
     else:
         with pytest.raises(AuthError) as error:
             provider.verified_customer_profile("private-access", "stable-customer")

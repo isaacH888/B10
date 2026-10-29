@@ -3,13 +3,12 @@
 from unittest.mock import Mock
 
 import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
-from botocore.stub import Stubber
 import pytest
-
 from app.email.provider import MailFailure, SESMailer, _session
 from app.email.settings import environment_settings, valid_address, validate_settings
 from app.email.templates import render_confirmation
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError
+from botocore.stub import Stubber
 
 
 @pytest.fixture
@@ -39,14 +38,18 @@ def test_template_is_a_sample_with_no_charge_or_booking():
 
 
 def test_profile_name_is_escaped_and_cannot_inject_subject_or_headers():
-    message = render_confirmation('<script>alert("x")</script>\r\nBcc: other@example.invalid', "TEST-1234")
+    message = render_confirmation(
+        '<script>alert("x")</script>\r\nBcc: other@example.invalid', "TEST-1234"
+    )
     assert "<script>" not in message["html"]
     assert "&lt;script&gt;" in message["html"]
     assert "\r" not in message["text"]
     assert message["subject"] == "[TEST] Popssibilities order confirmation - TEST-1234"
 
 
-@pytest.mark.parametrize("reference", [None, "", "a" * 81, "id\r\nBcc: other@example.invalid", "<script>"])
+@pytest.mark.parametrize(
+    "reference", [None, "", "a" * 81, "id\r\nBcc: other@example.invalid", "<script>"]
+)
 def test_reference_cannot_inject_headers_or_markup(reference):
     with pytest.raises(ValueError):
         render_confirmation("Customer", reference)
@@ -61,8 +64,18 @@ def test_bare_mailboxes_accepted(address):
     assert valid_address(address)
 
 
-@pytest.mark.parametrize("address", [None, "", "Name <a@example.invalid>", "a@example.invalid,b@example.invalid",
-                                      "a@example.invalid\nBcc: b@example.invalid", "a@localhost", "a@ex..invalid"])
+@pytest.mark.parametrize(
+    "address",
+    [
+        None,
+        "",
+        "Name <a@example.invalid>",
+        "a@example.invalid,b@example.invalid",
+        "a@example.invalid\nBcc: b@example.invalid",
+        "a@localhost",
+        "a@ex..invalid",
+    ],
+)
 def test_unsafe_or_multiple_mailboxes_rejected(address):
     assert not valid_address(address)
 
@@ -79,12 +92,19 @@ def test_environment_boolean_must_be_explicit(monkeypatch):
         environment_settings()
 
 
-@pytest.mark.parametrize("changes", [
-    {"AUTH_ENABLED": False}, {"EMAIL_PROVIDER": "smtp"}, {"EMAIL_FROM_ADDRESS": ""},
-    {"EMAIL_REPLY_TO_ADDRESS": "bad\r\nheader"}, {"EMAIL_AWS_REGION": "https://elsewhere.invalid"},
-    {"EMAIL_SES_CONFIGURATION_SET": "bad/set"}, {"EMAIL_AWS_ACCESS_KEY_ID": "partial"},
-    {"EMAIL_AWS_SESSION_TOKEN": "orphan-token"},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"AUTH_ENABLED": False},
+        {"EMAIL_PROVIDER": "smtp"},
+        {"EMAIL_FROM_ADDRESS": ""},
+        {"EMAIL_REPLY_TO_ADDRESS": "bad\r\nheader"},
+        {"EMAIL_AWS_REGION": "https://elsewhere.invalid"},
+        {"EMAIL_SES_CONFIGURATION_SET": "bad/set"},
+        {"EMAIL_AWS_ACCESS_KEY_ID": "partial"},
+        {"EMAIL_AWS_SESSION_TOKEN": "orphan-token"},
+    ],
+)
 def test_enabled_configuration_fails_closed(settings, changes):
     settings.update(changes)
     with pytest.raises(ValueError):
@@ -102,8 +122,12 @@ def test_disabled_mailer_never_constructs_client_or_sends(settings):
 
 
 def test_ses_payload_has_exactly_one_recipient_fixed_sender_and_both_bodies(settings):
-    client = boto3.client("sesv2", region_name="us-east-1", aws_access_key_id="fixture-access",
-                          aws_secret_access_key="fixture-secret")
+    client = boto3.client(
+        "sesv2",
+        region_name="us-east-1",
+        aws_access_key_id="fixture-access",
+        aws_secret_access_key="fixture-secret",
+    )
     message = render_confirmation("Customer", "TEST-1234")
     expected = {
         "FromEmailAddress": "orders@example.invalid",
@@ -111,15 +135,24 @@ def test_ses_payload_has_exactly_one_recipient_fixed_sender_and_both_bodies(sett
         "ReplyToAddresses": ["support@example.invalid"],
         "ConfigurationSetName": "customer-test",
         "EmailTags": [{"Name": "kind", "Value": "customer-test-confirmation"}],
-        "Content": {"Simple": {
-            "Subject": {"Charset": "UTF-8", "Data": message["subject"]},
-            "Body": {"Text": {"Charset": "UTF-8", "Data": message["text"]},
-                     "Html": {"Charset": "UTF-8", "Data": message["html"]}},
-        }},
+        "Content": {
+            "Simple": {
+                "Subject": {"Charset": "UTF-8", "Data": message["subject"]},
+                "Body": {
+                    "Text": {"Charset": "UTF-8", "Data": message["text"]},
+                    "Html": {"Charset": "UTF-8", "Data": message["html"]},
+                },
+            }
+        },
     }
     with Stubber(client) as stubber:
         stubber.add_response("send_email", {"MessageId": "fixture-ses-id"}, expected)
-        assert SESMailer(settings, client=client).send("customer@example.invalid", "Customer", "TEST-1234") == "fixture-ses-id"
+        assert (
+            SESMailer(settings, client=client).send(
+                "customer@example.invalid", "Customer", "TEST-1234"
+            )
+            == "fixture-ses-id"
+        )
         stubber.assert_no_pending_responses()
 
 
@@ -131,18 +164,29 @@ def test_configuration_set_is_optional(settings):
     assert "ConfigurationSetName" not in client.send_email.call_args.kwargs
 
 
-@pytest.mark.parametrize("status,code,kind,safe_code", [
-    (400, "MessageRejected", "rejected", "ses_rejected"),
-    (403, "AccessDeniedException", "rejected", "ses_rejected"),
-    (429, "TooManyRequestsException", "unavailable", "ses_throttled"),
-    (500, "InternalServiceError", "uncertain", "ses_delivery_uncertain"),
-])
-def test_error_responses_do_not_leak_provider_details_or_retry(settings, status, code, kind, safe_code):
+@pytest.mark.parametrize(
+    "status,code,kind,safe_code",
+    [
+        (400, "MessageRejected", "rejected", "ses_rejected"),
+        (403, "AccessDeniedException", "rejected", "ses_rejected"),
+        (429, "TooManyRequestsException", "unavailable", "ses_throttled"),
+        (500, "InternalServiceError", "uncertain", "ses_delivery_uncertain"),
+    ],
+)
+def test_error_responses_do_not_leak_provider_details_or_retry(
+    settings, status, code, kind, safe_code
+):
     client = Mock()
-    client.send_email.side_effect = ClientError({
-        "Error": {"Code": code, "Message": "private-customer@example.invalid and private-credential"},
-        "ResponseMetadata": {"HTTPStatusCode": status},
-    }, "SendEmail")
+    client.send_email.side_effect = ClientError(
+        {
+            "Error": {
+                "Code": code,
+                "Message": "private-customer@example.invalid and private-credential",
+            },
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        "SendEmail",
+    )
     with pytest.raises(MailFailure) as failure:
         SESMailer(settings, client=client).send("customer@example.invalid", "Customer", "TEST-1234")
     assert failure.value.kind == kind
@@ -152,8 +196,13 @@ def test_error_responses_do_not_leak_provider_details_or_retry(settings, status,
     client.send_email.assert_called_once()
 
 
-@pytest.mark.parametrize("error", [ReadTimeoutError(endpoint_url="https://email.us-east-1.amazonaws.com"),
-                                  EndpointConnectionError(endpoint_url="https://email.us-east-1.amazonaws.com")])
+@pytest.mark.parametrize(
+    "error",
+    [
+        ReadTimeoutError(endpoint_url="https://email.us-east-1.amazonaws.com"),
+        EndpointConnectionError(endpoint_url="https://email.us-east-1.amazonaws.com"),
+    ],
+)
 def test_network_errors_are_uncertain_and_never_automatically_resent(settings, error):
     client = Mock()
     client.send_email.side_effect = error
@@ -163,7 +212,9 @@ def test_network_errors_are_uncertain_and_never_automatically_resent(settings, e
     client.send_email.assert_called_once()
 
 
-@pytest.mark.parametrize("response", [{}, {"MessageId": ""}, {"MessageId": None}, {"MessageId": "a" * 257}, None])
+@pytest.mark.parametrize(
+    "response", [{}, {"MessageId": ""}, {"MessageId": None}, {"MessageId": "a" * 257}, None]
+)
 def test_missing_acceptance_id_is_uncertain(settings, response):
     client = Mock()
     client.send_email.return_value = response
@@ -174,7 +225,9 @@ def test_missing_acceptance_id_is_uncertain(settings, response):
 
 def test_mailer_ignores_operator_profiles_and_generic_aws_keys(settings, monkeypatch, tmp_path):
     shared = tmp_path / "private-operator-credentials"
-    shared.write_text("[private-operator]\naws_access_key_id=operator-access\naws_secret_access_key=operator-secret\n")
+    shared.write_text(
+        "[private-operator]\naws_access_key_id=operator-access\naws_secret_access_key=operator-secret\n"
+    )
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(shared))
     monkeypatch.setenv("AWS_CONFIG_FILE", str(shared))
     monkeypatch.setenv("AWS_PROFILE", "private-operator")
@@ -182,8 +235,12 @@ def test_mailer_ignores_operator_profiles_and_generic_aws_keys(settings, monkeyp
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "operator-access")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "operator-secret")
     monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
-    for key in ("AWS_ROLE_ARN", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-                "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"):
+    for key in (
+        "AWS_ROLE_ARN",
+        "AWS_WEB_IDENTITY_TOKEN_FILE",
+        "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+        "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    ):
         monkeypatch.delenv(key, raising=False)
     session = _session(settings)
     assert session.get_credentials() is None
@@ -196,15 +253,24 @@ def test_dedicated_email_credentials_are_used_without_operator_credentials(setti
     monkeypatch.setenv("AWS_DEFAULT_PROFILE", "another-private-operator")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "operator-access")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "operator-secret")
-    settings.update(EMAIL_AWS_ACCESS_KEY_ID="mailer-access", EMAIL_AWS_SECRET_ACCESS_KEY="mailer-secret",
-                    EMAIL_AWS_SESSION_TOKEN="mailer-token")
+    settings.update(
+        EMAIL_AWS_ACCESS_KEY_ID="mailer-access",
+        EMAIL_AWS_SECRET_ACCESS_KEY="mailer-secret",
+        EMAIL_AWS_SESSION_TOKEN="mailer-token",
+    )
     session = _session(settings)
     credentials = session.get_credentials().get_frozen_credentials()
-    assert (credentials.access_key, credentials.secret_key, credentials.token) == ("mailer-access", "mailer-secret", "mailer-token")
+    assert (credentials.access_key, credentials.secret_key, credentials.token) == (
+        "mailer-access",
+        "mailer-secret",
+        "mailer-token",
+    )
     assert session.client("sesv2").meta.region_name == "us-east-1"
 
 
-def test_client_has_bounded_timeouts_no_hidden_send_retry_and_no_environment_endpoint_override(settings, monkeypatch):
+def test_client_has_bounded_timeouts_no_hidden_send_retry_and_no_environment_endpoint_override(
+    settings, monkeypatch
+):
     session = Mock()
     client = Mock()
     client.send_email.return_value = {"MessageId": "fixture-ses-id"}

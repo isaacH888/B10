@@ -13,4 +13,8 @@ class AuthError(Exception):
 
 
 def unavailable():
-    return AuthError("authentication_unavailable", "Authentication is temporarily unavailable. Please try again later.", 503)
+    return AuthError(
+        "authentication_unavailable",
+        "Authentication is temporarily unavailable. Please try again later.",
+        503,
+    )

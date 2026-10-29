@@ -7,8 +7,11 @@ import re
 class CallbackRedaction(logging.Filter):
     def filter(self, record):
         message = record.getMessage()
-        redacted = re.sub(r"(/api/v1/(?:(?:admin|customer)/callback|admin/password/transaction))\?[^\s\"\x1b]+",
-                          r"\1?<redacted>", message)
+        redacted = re.sub(
+            r"(/api/v1/(?:(?:admin|customer)/callback|admin/password/transaction))\?[^\s\"\x1b]+",
+            r"\1?<redacted>",
+            message,
+        )
         if redacted != message:
             record.msg, record.args = redacted, ()
         return True

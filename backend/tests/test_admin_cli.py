@@ -4,11 +4,9 @@ import logging
 from contextlib import contextmanager
 
 import pytest
-from flask import Flask
-from botocore.exceptions import ClientError
-
 from app.auth.admin_cli import register_admin_commands
-
+from botocore.exceptions import ClientError
+from flask import Flask
 
 ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Admin123"
 ARN = "arn:aws:sts::123456789012:assumed-role/popsibilities-operator/test-session"
@@ -28,14 +26,24 @@ class FakeStore:
         self.events.append(("audit", event, data))
 
     def find_identity_by_email(self, email, area="admin"):
-        return [record for record in self.records if record["email"] == email and record["area"] == area]
+        return [
+            record for record in self.records if record["email"] == email and record["area"] == area
+        ]
 
     def count_active_owners(self, issuer):
         return self.owner_count
 
     def upsert_identity(self, issuer, subject, area, email, name, now):
-        record = dict(id=len(self.records) + 1, issuer=issuer, subject=subject, area=area,
-                      email=email, name=name, admin_active=True, admin_role=None)
+        record = dict(
+            id=len(self.records) + 1,
+            issuer=issuer,
+            subject=subject,
+            area=area,
+            email=email,
+            name=name,
+            admin_active=True,
+            admin_role=None,
+        )
         self.records.append(record)
         self.events.append(("upsert", record.copy()))
         return record
@@ -65,9 +73,11 @@ class FakeStore:
         self.events.append(("recovery_complete", identity_id))
 
     def admin_provider_identities(self, canonical_id):
-        return [record for record in self.records
-                if record.get("canonical_identity_id", record["id"]) == canonical_id]
-
+        return [
+            record
+            for record in self.records
+            if record.get("canonical_identity_id", record["id"]) == canonical_id
+        ]
 
 
 class FakeProvider:
@@ -83,8 +93,14 @@ class FakeProvider:
 
     def admin_create_user(self, **arguments):
         self._call("create", arguments)
-        return {"User": {"Attributes": [{"Name": "sub", "Value": "provider-subject"},
-                                        {"Name": "email", "Value": self.response_email}]}}
+        return {
+            "User": {
+                "Attributes": [
+                    {"Name": "sub", "Value": "provider-subject"},
+                    {"Name": "email", "Value": self.response_email},
+                ]
+            }
+        }
 
     def admin_user_global_sign_out(self, **arguments):
         self._call("global_signout", arguments)
@@ -97,7 +113,6 @@ class FakeProvider:
 
     def admin_set_user_password(self, **arguments):
         self._call("password", arguments)
-
 
 
 @pytest.fixture
@@ -146,11 +161,19 @@ def test_invitation_requires_private_email_verification(operator_app, command):
     assert not operator_app[3]
 
 
-@pytest.mark.parametrize("command,role,bootstrap", [("bootstrap-owner", "owner", True),
-                                                     ("invite-admin", "staff", False)])
+@pytest.mark.parametrize(
+    "command,role,bootstrap", [("bootstrap-owner", "owner", True), ("invite-admin", "staff", False)]
+)
 def test_invitation_uses_trusted_caller_and_fixed_pool(operator_app, command, role, bootstrap):
-    result = run(operator_app, command, "--email", EMAIL.upper(), "--name", "Approved Person",
-                 "--verified-out-of-band")
+    result = run(
+        operator_app,
+        command,
+        "--email",
+        EMAIL.upper(),
+        "--name",
+        "Approved Person",
+        "--verified-out-of-band",
+    )
     assert result.exit_code == 0, result.output
     assert event_names(operator_app) == ["caller", "create", "upsert", "grant"]
     arguments = next(event[1] for event in operator_app[3] if event[0] == "create")
@@ -159,27 +182,53 @@ def test_invitation_uses_trusted_caller_and_fixed_pool(operator_app, command, ro
     assert arguments["ForceAliasCreation"] is False
     assert arguments["DesiredDeliveryMediums"] == ["EMAIL"]
     assert "TemporaryPassword" not in arguments
-    assert {item["Name"]: item["Value"] for item in arguments["UserAttributes"]}["email_verified"] == "true"
+    assert {item["Name"]: item["Value"] for item in arguments["UserAttributes"]}[
+        "email_verified"
+    ] == "true"
     assert ("grant", 1, role, bootstrap) in operator_app[3]
-    assert all(event[2]["detail"]["operator_arn"] == ARN for event in operator_app[3] if event[0] == "audit")
+    assert all(
+        event[2]["detail"]["operator_arn"] == ARN
+        for event in operator_app[3]
+        if event[0] == "audit"
+    )
 
 
 def test_existing_owner_prevents_bootstrap_before_invitation(operator_app):
     operator_app[1].owner_count = 1
-    result = run(operator_app, "bootstrap-owner", "--email", EMAIL, "--name", "Approved Person", "--verified-out-of-band")
+    result = run(
+        operator_app,
+        "bootstrap-owner",
+        "--email",
+        EMAIL,
+        "--name",
+        "Approved Person",
+        "--verified-out-of-band",
+    )
     assert result.exit_code != 0
     assert event_names(operator_app) == ["caller"]
 
 
 @pytest.mark.parametrize("command", ["bootstrap-owner", "invite-admin"])
 def test_historical_google_email_collision_requires_private_operator_review(operator_app, command):
-    source = operator_app[1].upsert_identity(ISSUER, "google-cognito-subject", "admin", EMAIL,
-                                           "Unapproved Google", 1)
-    source.update(canonical_identity_id=source["id"], is_google_alias=False,
-                  admin_active=False, admin_role=None)
+    source = operator_app[1].upsert_identity(
+        ISSUER, "google-cognito-subject", "admin", EMAIL, "Unapproved Google", 1
+    )
+    source.update(
+        canonical_identity_id=source["id"],
+        is_google_alias=False,
+        admin_active=False,
+        admin_role=None,
+    )
     operator_app[3].clear()
-    result = run(operator_app, command, "--email", EMAIL, "--name", "Approved Person",
-                 "--verified-out-of-band")
+    result = run(
+        operator_app,
+        command,
+        "--email",
+        EMAIL,
+        "--name",
+        "Approved Person",
+        "--verified-out-of-band",
+    )
     assert result.exit_code != 0
     assert "private operator review" in result.output
     assert "do not delete or merge" in result.output
@@ -189,14 +238,30 @@ def test_historical_google_email_collision_requires_private_operator_review(oper
 
 def test_provider_identity_mismatch_never_grants_permission(operator_app):
     operator_app[2].response_email = "unapproved@example.invalid"
-    result = run(operator_app, "invite-admin", "--email", EMAIL, "--name", "Approved Person", "--verified-out-of-band")
+    result = run(
+        operator_app,
+        "invite-admin",
+        "--email",
+        EMAIL,
+        "--name",
+        "Approved Person",
+        "--verified-out-of-band",
+    )
     assert result.exit_code != 0
     assert event_names(operator_app) == ["caller", "create"]
     assert not operator_app[1].records
 
 
-@pytest.mark.parametrize("issuer", ["", "https://issuer.invalid/pool", "https://cognito-idp.us-east-1.amazonaws.com:bad/us-east-1_Admin123",
-                                    "https://cognito-idp.us-east-1.amazonaws.com/us-west-2_Wrong", "http://cognito-idp.us-east-1.amazonaws.com/us-east-1_Admin123"])
+@pytest.mark.parametrize(
+    "issuer",
+    [
+        "",
+        "https://issuer.invalid/pool",
+        "https://cognito-idp.us-east-1.amazonaws.com:bad/us-east-1_Admin123",
+        "https://cognito-idp.us-east-1.amazonaws.com/us-west-2_Wrong",
+        "http://cognito-idp.us-east-1.amazonaws.com/us-east-1_Admin123",
+    ],
+)
 def test_malformed_admin_issuer_fails_before_aws(operator_app, issuer):
     operator_app[0].config["COGNITO_ADMIN_ISSUER"] = issuer
     result = run(operator_app, "revoke-admin-sessions", "--email", EMAIL)
@@ -269,9 +334,25 @@ def test_recovery_requires_action(operator_app):
 
 def test_lost_mfa_recovery_keeps_required_pool_policy(operator_app):
     existing(operator_app)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert result.exit_code == 0, result.output
-    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp", "global_signout", "recovery_complete"]
+    assert event_names(operator_app) == [
+        "caller",
+        "recovery_block",
+        "global_signout",
+        "password",
+        "delete_totp",
+        "global_signout",
+        "recovery_complete",
+    ]
     assert RECOVERY_SECRET not in result.output
     assert not operator_app[1].records[0]["admin_recovery_pending"]
 
@@ -279,7 +360,15 @@ def test_lost_mfa_recovery_keeps_required_pool_policy(operator_app):
 def test_missing_totp_reset_sdk_fails_before_session_mutation(operator_app):
     existing(operator_app)
     operator_app[2].admin_delete_software_token = None
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert result.exit_code != 0
     assert "Upgrade the AWS SDK" in result.output
     assert event_names(operator_app) == ["caller"]
@@ -287,7 +376,15 @@ def test_missing_totp_reset_sdk_fails_before_session_mutation(operator_app):
 
 def test_disabled_identity_cannot_be_recovered(operator_app):
     existing(operator_app, active=False)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert result.exit_code != 0
     assert event_names(operator_app) == ["caller"]
 
@@ -295,18 +392,42 @@ def test_disabled_identity_cannot_be_recovered(operator_app):
 def test_password_recovery_is_hidden_temporary_and_after_revocation(operator_app):
     existing(operator_app)
     secret = "only-in-private-prompt-93"
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa",
-                 "--reset-password", input=secret + "\n" + secret + "\n")
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        "--reset-password",
+        input=secret + "\n" + secret + "\n",
+    )
     assert result.exit_code == 0, result.output
     assert secret not in result.output
-    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp", "global_signout", "recovery_complete"]
+    assert event_names(operator_app) == [
+        "caller",
+        "recovery_block",
+        "global_signout",
+        "password",
+        "delete_totp",
+        "global_signout",
+        "recovery_complete",
+    ]
     arguments = next(event[1] for event in operator_app[3] if event[0] == "password")
     assert arguments["Password"] == secret and arguments["Permanent"] is False
     assert secret not in str([event for event in operator_app[3] if event[0] == "audit"])
 
 
 def test_password_secret_cannot_be_supplied_as_argument(operator_app):
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--password", "unsafe")
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--password",
+        "unsafe",
+    )
     assert result.exit_code != 0
     assert "No such option" in result.output
     assert not operator_app[3]
@@ -316,10 +437,24 @@ def test_totp_deletion_failure_leaves_recovery_blocked_after_password_change(ope
     existing(operator_app)
     operator_app[2].failure = "delete_totp"
     secret = "only-in-private-prompt-93"
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa",
-                 "--reset-password", input=secret + "\n" + secret + "\n")
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        "--reset-password",
+        input=secret + "\n" + secret + "\n",
+    )
     assert result.exit_code != 0
-    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp"]
+    assert event_names(operator_app) == [
+        "caller",
+        "recovery_block",
+        "global_signout",
+        "password",
+        "delete_totp",
+    ]
     assert operator_app[1].records[0]["admin_recovery_pending"]
     assert secret not in result.output
 
@@ -327,7 +462,15 @@ def test_totp_deletion_failure_leaves_recovery_blocked_after_password_change(ope
 def test_password_replacement_failure_cannot_delete_factor_or_clear_recovery_block(operator_app):
     record = existing(operator_app)
     operator_app[2].failure = "password"
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert result.exit_code != 0
     assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password"]
     assert record["admin_recovery_pending"]
@@ -336,30 +479,59 @@ def test_password_replacement_failure_cannot_delete_factor_or_clear_recovery_blo
 
 def test_lost_mfa_requires_private_replacement_password_before_provider_mutations(operator_app):
     existing(operator_app)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input="short\nshort\n")
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input="short\nshort\n",
+    )
     assert result.exit_code != 0
     assert not operator_app[3]
 
 
-@pytest.mark.parametrize("subject,enrolled,success", [("provider-subject", False, True),
-                                                     ("wrong-subject", False, False),
-                                                     ("provider-subject", True, False)])
-def test_interrupted_factor_deletion_requires_verified_provider_state(operator_app, subject, enrolled, success):
+@pytest.mark.parametrize(
+    "subject,enrolled,success",
+    [
+        ("provider-subject", False, True),
+        ("wrong-subject", False, False),
+        ("provider-subject", True, False),
+    ],
+)
+def test_interrupted_factor_deletion_requires_verified_provider_state(
+    operator_app, subject, enrolled, success
+):
     record = existing(operator_app)
     provider = operator_app[2]
 
     def already_deleted(**arguments):
         provider._call("delete_totp", arguments)
-        raise ClientError({"Error": {"Code": "ResourceNotFoundException", "Message": "private"}}, "AdminDeleteSoftwareToken")
+        raise ClientError(
+            {"Error": {"Code": "ResourceNotFoundException", "Message": "private"}},
+            "AdminDeleteSoftwareToken",
+        )
 
     def user_state(**arguments):
         provider._call("inspect_user", arguments)
-        return {"Enabled": True, "UserAttributes": [{"Name": "sub", "Value": subject}],
-                "UserMFASettingList": ["SOFTWARE_TOKEN_MFA"] if enrolled else []}
+        return {
+            "Enabled": True,
+            "UserAttributes": [{"Name": "sub", "Value": subject}],
+            "UserMFASettingList": ["SOFTWARE_TOKEN_MFA"] if enrolled else [],
+        }
 
     provider.admin_delete_software_token = already_deleted
     provider.admin_get_user = user_state
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert (result.exit_code == 0) == success
     assert record["admin_recovery_pending"] == (not success)
     assert "inspect_user" in event_names(operator_app)
@@ -373,7 +545,9 @@ def test_manual_signout_reconciliation_revokes_local_first(operator_app):
 
 
 def test_commands_register_no_http_routes(operator_app):
-    assert [rule.rule for rule in operator_app[0].url_map.iter_rules()] == ["/static/<path:filename>"]
+    assert [rule.rule for rule in operator_app[0].url_map.iter_rules()] == [
+        "/static/<path:filename>"
+    ]
 
 
 def test_unidentified_aws_caller_cannot_mutate_local_access(operator_app):
@@ -385,7 +559,8 @@ def test_unidentified_aws_caller_cannot_mutate_local_access(operator_app):
             return {"Arn": "untrusted-operator"}
 
     operator_app[0].extensions["auth_admin_client_factory"] = lambda service, region: (
-        InvalidSTS() if service == "sts" else original(service, region))
+        InvalidSTS() if service == "sts" else original(service, region)
+    )
     result = run(operator_app, "disable-admin", "--email", EMAIL)
     assert result.exit_code != 0
     assert "valid operator identity" in result.output
@@ -401,7 +576,8 @@ def test_aws_identity_failure_cannot_mutate_local_access(operator_app):
             raise RuntimeError("credential-details-must-stay-private")
 
     operator_app[0].extensions["auth_admin_client_factory"] = lambda service, region: (
-        UnavailableSTS() if service == "sts" else original(service, region))
+        UnavailableSTS() if service == "sts" else original(service, region)
+    )
     result = run(operator_app, "change-role", "--email", EMAIL, "--role", "owner")
     assert result.exit_code != 0
     assert "credential-details-must-stay-private" not in result.output
@@ -423,14 +599,23 @@ def test_sdk_logs_cannot_record_temporary_password_and_logging_is_restored(opera
 
     def verbose_sdk(**arguments):
         logging.getLogger("botocore.endpoint").debug("request-body=%s", arguments)
-        logging.getLogger("operator.custom.transport").critical("password=%s", arguments["Password"])
+        logging.getLogger("operator.custom.transport").critical(
+            "password=%s", arguments["Password"]
+        )
         original(**arguments)
 
     operator_app[2].admin_set_user_password = verbose_sdk
     previous = logging.root.manager.disable
     with caplog.at_level(logging.DEBUG):
-        result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band",
-                     "--reset-password", input=secret + "\n" + secret + "\n")
+        result = run(
+            operator_app,
+            "recover-admin",
+            "--email",
+            EMAIL,
+            "--verified-out-of-band",
+            "--reset-password",
+            input=secret + "\n" + secret + "\n",
+        )
         assert result.exit_code == 0, result.output
         assert secret not in caplog.text and secret not in result.output
         assert logging.root.manager.disable == previous
@@ -451,9 +636,16 @@ GOOGLE_UID = "108012345678901234567"
 
 
 def linked_alias(fixture, issuer=ISSUER, username=None):
-    record = fixture[1].upsert_identity(issuer, "google-cognito-subject", "admin", EMAIL, "Same Person", 1)
-    record.update(canonical_identity_id=1, is_google_alias=True, google_subject=GOOGLE_UID,
-                  provider_username=username or "google_" + GOOGLE_UID, admin_role="staff")
+    record = fixture[1].upsert_identity(
+        issuer, "google-cognito-subject", "admin", EMAIL, "Same Person", 1
+    )
+    record.update(
+        canonical_identity_id=1,
+        is_google_alias=True,
+        google_subject=GOOGLE_UID,
+        provider_username=username or "google_" + GOOGLE_UID,
+        admin_role="staff",
+    )
     fixture[3].clear()
     return record
 
@@ -467,29 +659,69 @@ def test_removed_google_operator_commands_cannot_approve_access(operator_app, co
     assert not operator_app[3]
 
 
-@pytest.mark.parametrize("command,options,expected", [
-    ("disable-admin", [], ["caller", "local_access", "global_signout", "global_signout", "disable", "disable"]),
-    ("change-role", ["--role", "owner"], ["caller", "local_access", "global_signout", "global_signout"]),
-    ("revoke-admin-sessions", [], ["caller", "local_revoke", "global_signout", "global_signout"]),
-])
-def test_lifecycle_targets_canonical_and_every_linked_google_profile(operator_app, command, options, expected):
+@pytest.mark.parametrize(
+    "command,options,expected",
+    [
+        (
+            "disable-admin",
+            [],
+            ["caller", "local_access", "global_signout", "global_signout", "disable", "disable"],
+        ),
+        (
+            "change-role",
+            ["--role", "owner"],
+            ["caller", "local_access", "global_signout", "global_signout"],
+        ),
+        (
+            "revoke-admin-sessions",
+            [],
+            ["caller", "local_revoke", "global_signout", "global_signout"],
+        ),
+    ],
+)
+def test_lifecycle_targets_canonical_and_every_linked_google_profile(
+    operator_app, command, options, expected
+):
     existing(operator_app)
     linked_alias(operator_app)
     result = run(operator_app, command, "--email", EMAIL, *options)
     assert result.exit_code == 0, result.output
     assert event_names(operator_app) == expected
     calls = [event[1] for event in operator_app[3] if event[0] == "global_signout"]
-    assert calls == [{"UserPoolId": "us-east-1_Admin123", "Username": "provider-subject"},
-                     {"UserPoolId": "us-east-1_Admin123", "Username": "google_" + GOOGLE_UID}]
+    assert calls == [
+        {"UserPoolId": "us-east-1_Admin123", "Username": "provider-subject"},
+        {"UserPoolId": "us-east-1_Admin123", "Username": "google_" + GOOGLE_UID},
+    ]
 
 
 def test_native_recovery_also_revokes_linked_google_provider_sessions(operator_app):
     existing(operator_app)
     linked_alias(operator_app)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    result = run(
+        operator_app,
+        "recover-admin",
+        "--email",
+        EMAIL,
+        "--verified-out-of-band",
+        "--lost-mfa",
+        input=RECOVERY_INPUT,
+    )
     assert result.exit_code == 0, result.output
-    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "global_signout", "password", "delete_totp", "global_signout", "global_signout", "recovery_complete"]
-    assert next(event[1] for event in operator_app[3] if event[0] == "delete_totp")["Username"] == "provider-subject"
+    assert event_names(operator_app) == [
+        "caller",
+        "recovery_block",
+        "global_signout",
+        "global_signout",
+        "password",
+        "delete_totp",
+        "global_signout",
+        "global_signout",
+        "recovery_complete",
+    ]
+    assert (
+        next(event[1] for event in operator_app[3] if event[0] == "delete_totp")["Username"]
+        == "provider-subject"
+    )
 
 
 def test_linked_profile_cannot_cross_pools_on_lifecycle(operator_app):
@@ -502,8 +734,15 @@ def test_linked_profile_cannot_cross_pools_on_lifecycle(operator_app):
 
 def test_historical_unapproved_google_profile_does_not_shadow_canonical_admin(operator_app):
     existing(operator_app)
-    source = operator_app[1].upsert_identity(ISSUER, "google-cognito-subject", "admin", EMAIL, "Historical Google", 1)
-    source.update(canonical_identity_id=source["id"], is_google_alias=False, admin_active=False, admin_role=None)
+    source = operator_app[1].upsert_identity(
+        ISSUER, "google-cognito-subject", "admin", EMAIL, "Historical Google", 1
+    )
+    source.update(
+        canonical_identity_id=source["id"],
+        is_google_alias=False,
+        admin_active=False,
+        admin_role=None,
+    )
     operator_app[3].clear()
     result = run(operator_app, "change-role", "--email", EMAIL, "--role", "owner")
     assert result.exit_code == 0, result.output

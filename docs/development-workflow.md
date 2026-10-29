@@ -1,6 +1,6 @@
 # Agile and Git workflow
 
-Owner: Isaac Hernandez. Updated October 5, 2026. Local workflow and CI are prepared;
+Owner: Isaac Hernandez. Updated October 29, 2026. Local workflow and CI are prepared;
 remote branch protection, issue board and PR enforcement have not been configured.
 
 ## Tasks and acceptance
@@ -18,32 +18,32 @@ release/recovery evidence. Do not mark integration Done because a plan exists.
 ## Branches and environments
 
 Use short-lived `feature/<area>`, `fix/<area>`, `docs/<area>` or `integration/<area>`
-branches and review through PRs. This change includes code/configuration as well as
-docs, so `feature/shared-foundation` is an appropriate proposed branch. Pure document
-changes can use `docs/<topic>`. This foundation is on `feature/shared-foundation`
-for review. Keep main as the reviewed baseline and preserve local changes when switching.
+branches and review through PRs into `dev`. The local `dev` branch contains the
+combined foundation, backend and authentication work pending publication approval.
+Keep teammates' feature branches and commit histories intact. Release candidates
+move from `dev` to `main` through a separate reviewed PR.
 
 Suggested owner branches include feature/public-website, feature/catering-form,
 feature/pricing-api, feature/authentication, feature/email-automation and
 feature/database-schema. `integration/staging` is optional coordination only; it
 has not been created and is not required for each document edit.
 
-Main is the reviewed integration baseline, not an automatic production deployment.
-Development, staging and production are separate environments. First demonstrate
+Main holds reviewed release candidates. Development, test/staging and production
+are separate running environments; the current DEV runtime is localhost. First demonstrate
 changes locally, run PR checks/review, then approve a scoped staging release. Production
 requires its own release decision. Avoid maintaining extra branches without a purpose.
 
 ```sh
 # Example only: inspect local work before choosing an unused branch name.
 git status --short --branch
-git switch -c feature/shared-foundation
+git switch -c feature/your-task dev
 git diff --check
 git diff
-# Stage explicit reviewed paths, inspect the staged diff, then commit on the branch.
+# Stage explicit reviewed paths and inspect the staged diff before asking to commit.
 ```
 
-Isaac authorized feature-branch publication on October 5. Remote repository settings
-remain unchanged. Use focused commit
+Isaac requires explicit approval before each commit or push, as clarified on
+October 29. Remote repository settings remain unchanged. Use focused commit
 subjects such as `feat(foundation): add shared app shells` or
 `docs(contracts): record database mappings`. Keep credentials, customer data and
 emojis out of commits. Review new untracked files as well as tracked diffs.
@@ -65,6 +65,8 @@ contract/examples/links/config checks, backend tests with disposable MySQL, and 
 build. It uses read-only repository permissions and has no deployment job. Remote
 execution is recorded in GitHub Actions after publication. Once actual runs exist, configure its successful
 job names as required checks; do not claim settings are enforced already.
+The [DEV publication review](dev-review.md) records the initial combined change;
+the [release workflow](release-workflow.md) describes later environment promotions.
 
 ## Conflicts
 

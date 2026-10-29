@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "format": "prettier --write --ignore-path ../.prettierignore src tests *.js index.html package.json package-lock.json ../compose.yaml ../.github/workflows/*.yml ../backend/app/pricing.config.json ../docs/api/*.json ../infra/*.json",
+    "format:check": "prettier --check --ignore-path ../.prettierignore src tests *.js index.html package.json package-lock.json ../compose.yaml ../.github/workflows/*.yml ../backend/app/pricing.config.json ../docs/api/*.json ../infra/*.json"
   },
   "engines": {
     "node": ">=22.12.0 <26"
@@ -23,6 +25,7 @@
     "@playwright/test": "1.64.0",
     "@vitejs/plugin-react": "6.1.2",
     "jsqr": "1.4.0",
-    "vite": "8.3.2"
+    "prettier": "3.9.10",
+    "vite": "8.3.5"
   }
 }

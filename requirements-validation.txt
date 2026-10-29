@@ -1,0 +1,2 @@
+# Development and CI formatting tools; runtime dependencies remain in backend/.
+ruff==0.17.3

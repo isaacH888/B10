@@ -20,7 +20,9 @@
     }
   },
   "Conditions": {
-    "HasConfigurationSet": {"Fn::Not": [{"Fn::Equals": [{"Ref": "ConfigurationSetName"}, ""]}]}
+    "HasConfigurationSet": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "ConfigurationSetName" }, ""] }]
+    }
   },
   "Resources": {
     "CustomerTestEmailPolicy": {
@@ -29,19 +31,33 @@
         "Description": "SES SendEmail from the configured sender identity only. Attach to the dedicated website mailer workload role, never an operator role.",
         "PolicyDocument": {
           "Version": "2012-10-17",
-          "Statement": [{
-            "Effect": "Allow",
-            "Action": ["ses:SendEmail"],
-            "Resource": {
-              "Fn::If": ["HasConfigurationSet", [
-                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"},
-                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${ConfigurationSetName}"}
-              ], [
-                {"Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"}
-              ]]
-            },
-            "Condition": {"StringEquals": {"ses:FromAddress": {"Ref": "FromAddress"}}}
-          }]
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": ["ses:SendEmail"],
+              "Resource": {
+                "Fn::If": [
+                  "HasConfigurationSet",
+                  [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${ConfigurationSetName}"
+                    }
+                  ],
+                  [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SenderIdentity}"
+                    }
+                  ]
+                ]
+              },
+              "Condition": {
+                "StringEquals": { "ses:FromAddress": { "Ref": "FromAddress" } }
+              }
+            }
+          ]
         }
       }
     }
@@ -49,7 +65,7 @@
   "Outputs": {
     "CustomerTestEmailPolicyArn": {
       "Description": "Attach manually to a dedicated mailer runtime role after review; this stack does not attach it.",
-      "Value": {"Ref": "CustomerTestEmailPolicy"}
+      "Value": { "Ref": "CustomerTestEmailPolicy" }
     }
   }
 }

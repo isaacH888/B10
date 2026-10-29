@@ -1,17 +1,16 @@
 """Delivery reservations and abuse budgets on a disposable MySQL database."""
 
-from concurrent.futures import ThreadPoolExecutor
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from uuid import NAMESPACE_URL, uuid5
 
 import pytest
-
 from app import database
 from app.auth.store import Store
 from app.email.store import MailConflict, MailRateLimited, MailStore, MailStoreUnavailable
 from app.migrations import apply_migrations
-from test_auth_store import NOW, db_settings, digest
-
+from test_auth_store import NOW, digest
+from test_auth_store import db_settings as db_settings
 
 TABLES = ("email_test_messages", "email_test_budgets")
 
@@ -35,8 +34,9 @@ def mail_store(db_settings):
 
 
 def reserve(store, label="first", *, identity="first", recipient="first", now=NOW):
-    return store.reserve(customer(identity), digest("request:" + label),
-                         digest("recipient:" + recipient), now)
+    return store.reserve(
+        customer(identity), digest("request:" + label), digest("recipient:" + recipient), now
+    )
 
 
 def message_count(settings):
@@ -87,7 +87,9 @@ def test_same_request_is_reserved_once_across_concurrent_connections(mail_store)
 
 @pytest.mark.database
 @pytest.mark.parametrize("changed", [{"identity": "another"}, {"recipient": "another"}])
-def test_request_collision_cannot_be_reused_for_different_identity_or_recipient(mail_store, changed):
+def test_request_collision_cannot_be_reused_for_different_identity_or_recipient(
+    mail_store, changed
+):
     reserve(mail_store)
     with pytest.raises(MailConflict):
         reserve(mail_store, **changed)
@@ -113,8 +115,9 @@ def test_concurrent_different_requests_cannot_exceed_global_pacing(mail_store):
         barrier.wait()
         label = str(number)
         try:
-            _, created = reserve(MailStore(mail_store.settings), label,
-                                 identity=label, recipient=label)
+            _, created = reserve(
+                MailStore(mail_store.settings), label, identity=label, recipient=label
+            )
             return created
         except MailRateLimited:
             return False
@@ -153,8 +156,16 @@ def test_rejected_recipient_does_not_consume_global_or_customer_budgets(mail_sto
         reserve(mail_store, "blocked", identity="another-customer", now=NOW + 6)
     # All earlier bucket changes must roll back when a later bucket rejects a
     # request, leaving this same-second request to a different mailbox usable.
-    assert reserve(mail_store, "allowed", identity="another-customer",
-                   recipient="another-mailbox", now=NOW + 6)[1] is True
+    assert (
+        reserve(
+            mail_store,
+            "allowed",
+            identity="another-customer",
+            recipient="another-mailbox",
+            now=NOW + 6,
+        )[1]
+        is True
+    )
     assert message_count(mail_store.settings) == 4
 
 
@@ -163,12 +174,16 @@ def test_daily_budget_is_shared_and_rolls_over_at_utc_midnight(mail_store):
     day = (NOW // 86400) * 86400
     for number in range(60):
         label = str(number)
-        assert reserve(mail_store, label, identity=label, recipient=label,
-                       now=day + number * 2)[1] is True
+        assert (
+            reserve(mail_store, label, identity=label, recipient=label, now=day + number * 2)[1]
+            is True
+        )
     with pytest.raises(MailRateLimited):
         reserve(mail_store, "over-daily-limit", identity="new", recipient="new", now=day + 120)
     assert message_count(mail_store.settings) == 60
-    assert reserve(mail_store, "next-day", identity="new", recipient="new", now=day + 86400)[1] is True
+    assert (
+        reserve(mail_store, "next-day", identity="new", recipient="new", now=day + 86400)[1] is True
+    )
 
 
 @pytest.mark.database
@@ -190,8 +205,9 @@ def test_finished_send_is_durable_and_cannot_be_rewritten_or_resent(mail_store, 
     row, _ = reserve(mail_store)
     message_id = "ses-test-message" if status == "accepted" else None
     error_code = "mail_unavailable" if status != "accepted" else None
-    mail_store.finish(row["request_hash"], status, NOW + 1,
-                      message_id=message_id, error_code=error_code)
+    mail_store.finish(
+        row["request_hash"], status, NOW + 1, message_id=message_id, error_code=error_code
+    )
     mail_store.finish(row["request_hash"], "failed", NOW + 2, error_code="later-error")
     repeated, created = reserve(MailStore(mail_store.settings), now=NOW + 60)
     assert created is False

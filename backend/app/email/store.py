@@ -56,45 +56,84 @@ class MailStore:
             # A single short SQL lock serializes the shared budgets across web
             # workers. Release it before any provider call, including credentials.
             gate = _hash("email:dispatch")
-            cursor.execute("""INSERT INTO email_test_budgets
+            cursor.execute(
+                """INSERT INTO email_test_budgets
                 (bucket_hash,window_start,attempts,expires_at) VALUES (%s,0,0,0)
-                ON DUPLICATE KEY UPDATE attempts=attempts""", (gate,))
-            cursor.execute("SELECT bucket_hash FROM email_test_budgets WHERE bucket_hash=%s FOR UPDATE", (gate,))
+                ON DUPLICATE KEY UPDATE attempts=attempts""",
+                (gate,),
+            )
+            cursor.execute(
+                "SELECT bucket_hash FROM email_test_budgets WHERE bucket_hash=%s FOR UPDATE",
+                (gate,),
+            )
             cursor.fetchone()
-            cursor.execute("SELECT * FROM email_test_messages WHERE request_hash=%s FOR UPDATE", (request_hash,))
+            cursor.execute(
+                "SELECT * FROM email_test_messages WHERE request_hash=%s FOR UPDATE",
+                (request_hash,),
+            )
             existing = cursor.fetchone()
             if existing:
-                if existing["identity_id"] != identity_id or existing["recipient_hash"] != recipient_hash:
+                if (
+                    existing["identity_id"] != identity_id
+                    or existing["recipient_hash"] != recipient_hash
+                ):
                     raise MailConflict("The email request has changed")
                 if existing["status"] == "sending" and now >= existing["created_at"] + 30:
-                    cursor.execute("""UPDATE email_test_messages SET status='uncertain',
-                        error_code='email_delivery_uncertain',updated_at=%s WHERE request_hash=%s""", (now, request_hash))
-                    existing.update(status="uncertain", error_code="email_delivery_uncertain", updated_at=now)
+                    cursor.execute(
+                        """UPDATE email_test_messages SET status='uncertain',
+                        error_code='email_delivery_uncertain',updated_at=%s WHERE request_hash=%s""",
+                        (now, request_hash),
+                    )
+                    existing.update(
+                        status="uncertain", error_code="email_delivery_uncertain", updated_at=now
+                    )
                 return existing, False
 
-            budgets = (("global:second", 1, 1), ("global:day", 60, 86400),
-                       ("identity:" + identity_id, 3, 3600), ("recipient:" + recipient_hash, 3, 3600))
+            budgets = (
+                ("global:second", 1, 1),
+                ("global:day", 60, 86400),
+                ("identity:" + identity_id, 3, 3600),
+                ("recipient:" + recipient_hash, 3, 3600),
+            )
             for key, limit, seconds in budgets:
                 bucket = _hash("email:" + key)
                 start = now // seconds * seconds
-                cursor.execute("""INSERT IGNORE INTO email_test_budgets
+                cursor.execute(
+                    """INSERT IGNORE INTO email_test_budgets
                     (bucket_hash,window_start,attempts,expires_at) VALUES (%s,%s,0,%s)""",
-                               (bucket, start, start + seconds))
-                cursor.execute("SELECT window_start,attempts FROM email_test_budgets WHERE bucket_hash=%s FOR UPDATE", (bucket,))
+                    (bucket, start, start + seconds),
+                )
+                cursor.execute(
+                    "SELECT window_start,attempts FROM email_test_budgets WHERE bucket_hash=%s FOR UPDATE",
+                    (bucket,),
+                )
                 row = cursor.fetchone()
                 count = int(row["attempts"]) if row["window_start"] == start else 0
                 if count >= limit:
                     raise MailRateLimited("Too many test emails")
-                cursor.execute("""UPDATE email_test_budgets SET window_start=%s,attempts=%s,expires_at=%s
-                    WHERE bucket_hash=%s""", (start, count + 1, start + seconds, bucket))
+                cursor.execute(
+                    """UPDATE email_test_budgets SET window_start=%s,attempts=%s,expires_at=%s
+                    WHERE bucket_hash=%s""",
+                    (start, count + 1, start + seconds, bucket),
+                )
             reference = "TEST-" + uuid4().hex[:20].upper()
-            cursor.execute("""INSERT INTO email_test_messages
+            cursor.execute(
+                """INSERT INTO email_test_messages
                 (request_hash,identity_id,recipient_hash,reference,status,created_at,updated_at)
                 VALUES (%s,%s,%s,%s,'sending',%s,%s)""",
-                           (request_hash, identity_id, recipient_hash, reference, now, now))
-            return {"request_hash": request_hash, "identity_id": identity_id, "recipient_hash": recipient_hash,
-                    "reference": reference, "status": "sending", "created_at": now, "updated_at": now,
-                    "provider_message_id": None, "error_code": None}, True
+                (request_hash, identity_id, recipient_hash, reference, now, now),
+            )
+            return {
+                "request_hash": request_hash,
+                "identity_id": identity_id,
+                "recipient_hash": recipient_hash,
+                "reference": reference,
+                "status": "sending",
+                "created_at": now,
+                "updated_at": now,
+                "provider_message_id": None,
+                "error_code": None,
+            }, True
 
     def finish(self, request_hash, status, now, *, message_id=None, error_code=None):
         if status not in {"accepted", "failed", "uncertain"}:
@@ -103,6 +142,9 @@ class MailStore:
             # A delayed SES success is positive evidence even if a concurrent
             # retry already classified the abandoned reservation as uncertain.
             states = "('sending','uncertain')" if status == "accepted" else "('sending')"
-            cursor.execute("""UPDATE email_test_messages SET status=%s,provider_message_id=%s,
-                error_code=%s,updated_at=%s WHERE request_hash=%s AND status IN """ + states,
-                           (status, message_id, error_code, now, request_hash))
+            cursor.execute(
+                """UPDATE email_test_messages SET status=%s,provider_message_id=%s,
+                error_code=%s,updated_at=%s WHERE request_hash=%s AND status IN """
+                + states,
+                (status, message_id, error_code, now, request_hash),
+            )
