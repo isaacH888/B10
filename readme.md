@@ -2,7 +2,27 @@
 
 Digital Modernization & Catering Management System. Lead Developer: Isaac Hernandez.
 
+## Booking and Google Calendar automation
+
+The catering automation extends the existing React/Vite, Flask, MySQL and Cognito
+foundation. Owners can approve availability, reserve capacity, verify external
+payments, and operate calendar synchronization at `/admin/automation`. A verified
+50% deposit confirms a booking and queues its calendar event, confirmation emails,
+and reminders while the remaining balance stays visible. Full payment is not a
+prerequisite for the calendar event.
+
+See [setup, deployment, operations and staging checks](docs/calendar-automation.md),
+[Google OAuth details and recovery](docs/google-calendar-reference.md), and
+[the AWS SAM configuration](infra/automation.yaml). Automation is opt-in through
+`AUTOMATION_ENABLED`; external payment verification requires an authenticated owner
+to check the actual provider account. No live deployment or Google/SES verification
+is implied by the automated mock tests. The older authentication demo at `/admin`
+retains its labeled synthetic sample data and links owners to the real workspace.
+
 ## Current status
+
+The following section records the authentication foundation before the booking
+automation described above.
 
 Updated October 9, 2026. Branch `feat/authentication-macha` adds customer and admin
 authentication to the approved React/Vite + Flask + MySQL foundation. Customers use

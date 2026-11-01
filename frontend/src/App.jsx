@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
+import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 
 function Layout({ children }) {
   return <div className="test-shell">
@@ -110,6 +111,7 @@ function LoginPage({ area }) {
 }
 
 function ProtectedPage({ area }) {
+  const location = useLocation();
   const { sessions, refresh, expire, logout } = useAuth();
   const [now, setNow] = useState(Date.now());
   const session = sessions[area];
@@ -145,7 +147,12 @@ function ProtectedPage({ area }) {
   return <section>
     <h1>{admin ? "Admin dashboard" : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}</h1>
     <p>{admin ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.` : "Customer session is authenticated."}</p>
-    {admin && <AdminDashboard identity={identity} />}
+    {admin && (location.pathname.startsWith("/admin/automation") || location.pathname.startsWith("/admin/bookings/"))
+      ? <AutomationDashboard identity={identity} csrfToken={session.data.csrf_token} />
+      : admin && <>
+        {identity.role === "owner" && <p><Link to="/admin/automation">Manage catering bookings and Calendar</Link></p>}
+        <AdminDashboard identity={identity} />
+      </>}
     {remaining <= 5 && <Notice>
       Your session expires in {remaining ? `${remaining} minute${remaining === 1 ? "" : "s"}` : "less than a minute"}. Sign in again after it expires to continue.
     </Notice>}
@@ -194,6 +201,8 @@ export default function App() {
     <Route path="/admin/login" element={<AdminPasswordLogin />} />
     <Route path="/admin/mfa" element={<Navigate to="/admin/login?reauth=1" replace />} />
     <Route path="/admin" element={<ProtectedPage area="admin" />} />
+    <Route path="/admin/automation" element={<ProtectedPage area="admin" />} />
+    <Route path="/admin/bookings/:bookingId" element={<ProtectedPage area="admin" />} />
     <Route path="*" element={<NotFound />} />
   </Routes></Layout></AuthProvider></BrowserRouter>;
 }

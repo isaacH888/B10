@@ -43,4 +43,6 @@ def read_settings():
         if any(not settings[key] for key in required):
             raise ValueError("Hosted environments require application and TLS database configuration")
     settings.update(environment_settings(environment))
+    from .automation.settings import environment_settings as automation_settings
+    settings.update(automation_settings(environment))
     return settings
