@@ -419,6 +419,7 @@
           "Fn::Sub": "popsibilities-${Environment}-admin-bff"
         },
         "GenerateSecret": true,
+        "EnablePropagateAdditionalUserContextData": true,
         "AllowedOAuthFlowsUserPoolClient": true,
         "AllowedOAuthFlows": [
           "code"
@@ -531,11 +532,11 @@
         "AccountTakeoverRiskConfiguration": {
           "Actions": {
             "HighAction": {
-              "EventAction": "NO_ACTION",
+              "EventAction": "BLOCK",
               "Notify": false
             },
             "MediumAction": {
-              "EventAction": "NO_ACTION",
+              "EventAction": "MFA_REQUIRED",
               "Notify": false
             },
             "LowAction": {

@@ -33,8 +33,12 @@ backend private files. The MySQL root password belongs only to Compose.
 | `COGNITO_CUSTOMER_CLIENT_SECRET`, `COGNITO_ADMIN_CLIENT_SECRET` | Flask OIDC; Shourya | Backend-only client secrets, never Vite settings or template outputs. |
 | `COGNITO_CUSTOMER_DOMAIN`, `COGNITO_ADMIN_DOMAIN` | Flask OIDC; Shourya | Exact HTTPS Cognito managed-login origins, no path or trailing slash. |
 | `DB_MIGRATION_USER`, `DB_MIGRATION_PASSWORD` | Explicit migration command; shared persistence | Separate hosted schema credentials; read only by the migration runner, not runtime Flask settings. |
-| `EMAIL_ENABLED`, `EMAIL_PROVIDER`, `EMAIL_API_KEY` | Email adapter; Shourya | Reserved; disabled template; provider and credentials pending |
-| `EMAIL_FROM_ADDRESS`, `BUSINESS_NOTIFICATION_EMAIL`, `EMAIL_SANDBOX_RECIPIENT` | Email; Shourya/client | Reserved verified sender, business recipient and staging override |
+| `EMAIL_ENABLED`, `EMAIL_PROVIDER` | Customer sample email; Shourya | Explicit true/false, false by default; provider must be ses when enabled |
+| `EMAIL_AWS_REGION` | SES adapter | Default us-east-1; sender verification and sending limits are regional |
+| `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO_ADDRESS` | SES adapter | Required bare sender and monitored reply addresses when enabled |
+| `EMAIL_SES_CONFIGURATION_SET` | SES adapter | Optional preconfigured SES event/suppression configuration set |
+| `EMAIL_AWS_ACCESS_KEY_ID`, `EMAIL_AWS_SECRET_ACCESS_KEY`, `EMAIL_AWS_SESSION_TOKEN` | Local SES adapter only | Optional dedicated mailer credentials. Never use the private Cognito operator; hosted environments use a mailer workload role. Generic AWS credentials and shared profiles are ignored. |
+| `BUSINESS_NOTIFICATION_EMAIL`, `EMAIL_SANDBOX_RECIPIENT` | Future email integrations | Reserved, unused by the customer test endpoint, which resolves the current verified Cognito customer email |
 | `CALENDAR_ENABLED`, `GOOGLE_CALENDAR_ID` | Google adapter; Shourya | Reserved; disabled; Week 5 integration |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Google; Shourya | Reserved private file path if service-account design is approved |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | Google; Shourya | Reserved OAuth alternative; choose account model/scopes rather than requiring both mechanisms |
@@ -47,7 +51,9 @@ backend private files. The MySQL root password belongs only to Compose.
 | `CUSTOM_EVENT_INQUIRY_URL` | Quote inquiry action; Anh/Dillion/client | Reserved destination for beyond-30-mile requests; empty until approved route is provided |
 
 Cognito configuration is implemented for the user-approved authentication design.
-Payment, email automation, and calendar secrets remain unrelated reserved settings.
+Customer sample email configuration is separate from private operator access.
+Business email automation, payments, and Calendar remain pending. See
+[customer test email](customer-test-email.md) for setup and delivery limitations.
 A full-service rate is not encoded here: the $150 question still needs explicit
 confirmation. See [source alignment](reference-alignment.md).
 

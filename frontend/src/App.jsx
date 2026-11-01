@@ -5,6 +5,7 @@ import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
+import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 
 function Layout({ children }) {
   return <div className="test-shell">
@@ -153,6 +154,7 @@ function ProtectedPage({ area }) {
         {identity.role === "owner" && <p><Link to="/admin/automation">Manage catering bookings and Calendar</Link></p>}
         <AdminDashboard identity={identity} />
       </>}
+    {!admin && <CustomerTestEmail key={identity.id} csrfToken={session.data.csrf_token} email={identity.email} />}
     {remaining <= 5 && <Notice>
       Your session expires in {remaining ? `${remaining} minute${remaining === 1 ? "" : "s"}` : "less than a minute"}. Sign in again after it expires to continue.
     </Notice>}

@@ -1,9 +1,11 @@
 """Private lifecycle commands use mocked AWS and storage, never a live pool."""
 
 import logging
+from contextlib import contextmanager
 
 import pytest
 from flask import Flask
+from botocore.exceptions import ClientError
 
 from app.auth.admin_cli import register_admin_commands
 
@@ -11,6 +13,8 @@ from app.auth.admin_cli import register_admin_commands
 ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Admin123"
 ARN = "arn:aws:sts::123456789012:assumed-role/popsibilities-operator/test-session"
 EMAIL = "approved@example.invalid"
+RECOVERY_SECRET = "test-private-recovery-password"
+RECOVERY_INPUT = RECOVERY_SECRET + "\n" + RECOVERY_SECRET + "\n"
 
 
 class FakeStore:
@@ -50,6 +54,15 @@ class FakeStore:
     def revoke_identity_sessions(self, identity_id, now):
         self.events.append(("local_revoke", identity_id))
         return 1
+
+    @contextmanager
+    def admin_recovery(self, identity_id, now):
+        record = self.records[identity_id - 1]
+        record["admin_recovery_pending"] = True
+        self.events.append(("recovery_block", identity_id))
+        yield
+        record["admin_recovery_pending"] = False
+        self.events.append(("recovery_complete", identity_id))
 
     def admin_provider_identities(self, canonical_id):
         return [record for record in self.records
@@ -256,15 +269,17 @@ def test_recovery_requires_action(operator_app):
 
 def test_lost_mfa_recovery_keeps_required_pool_policy(operator_app):
     existing(operator_app)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa")
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
     assert result.exit_code == 0, result.output
-    assert event_names(operator_app) == ["caller", "local_revoke", "global_signout", "delete_totp"]
+    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp", "global_signout", "recovery_complete"]
+    assert RECOVERY_SECRET not in result.output
+    assert not operator_app[1].records[0]["admin_recovery_pending"]
 
 
 def test_missing_totp_reset_sdk_fails_before_session_mutation(operator_app):
     existing(operator_app)
     operator_app[2].admin_delete_software_token = None
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa")
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
     assert result.exit_code != 0
     assert "Upgrade the AWS SDK" in result.output
     assert event_names(operator_app) == ["caller"]
@@ -272,7 +287,7 @@ def test_missing_totp_reset_sdk_fails_before_session_mutation(operator_app):
 
 def test_disabled_identity_cannot_be_recovered(operator_app):
     existing(operator_app, active=False)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa")
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
     assert result.exit_code != 0
     assert event_names(operator_app) == ["caller"]
 
@@ -284,7 +299,7 @@ def test_password_recovery_is_hidden_temporary_and_after_revocation(operator_app
                  "--reset-password", input=secret + "\n" + secret + "\n")
     assert result.exit_code == 0, result.output
     assert secret not in result.output
-    assert event_names(operator_app) == ["caller", "local_revoke", "global_signout", "delete_totp", "password"]
+    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp", "global_signout", "recovery_complete"]
     arguments = next(event[1] for event in operator_app[3] if event[0] == "password")
     assert arguments["Password"] == secret and arguments["Permanent"] is False
     assert secret not in str([event for event in operator_app[3] if event[0] == "audit"])
@@ -297,15 +312,57 @@ def test_password_secret_cannot_be_supplied_as_argument(operator_app):
     assert not operator_app[3]
 
 
-def test_totp_deletion_failure_prevents_password_change(operator_app):
+def test_totp_deletion_failure_leaves_recovery_blocked_after_password_change(operator_app):
     existing(operator_app)
     operator_app[2].failure = "delete_totp"
     secret = "only-in-private-prompt-93"
     result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa",
                  "--reset-password", input=secret + "\n" + secret + "\n")
     assert result.exit_code != 0
-    assert event_names(operator_app) == ["caller", "local_revoke", "global_signout", "delete_totp"]
+    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password", "delete_totp"]
+    assert operator_app[1].records[0]["admin_recovery_pending"]
     assert secret not in result.output
+
+
+def test_password_replacement_failure_cannot_delete_factor_or_clear_recovery_block(operator_app):
+    record = existing(operator_app)
+    operator_app[2].failure = "password"
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    assert result.exit_code != 0
+    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "password"]
+    assert record["admin_recovery_pending"]
+    assert "Recovery completed" not in result.output
+
+
+def test_lost_mfa_requires_private_replacement_password_before_provider_mutations(operator_app):
+    existing(operator_app)
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input="short\nshort\n")
+    assert result.exit_code != 0
+    assert not operator_app[3]
+
+
+@pytest.mark.parametrize("subject,enrolled,success", [("provider-subject", False, True),
+                                                     ("wrong-subject", False, False),
+                                                     ("provider-subject", True, False)])
+def test_interrupted_factor_deletion_requires_verified_provider_state(operator_app, subject, enrolled, success):
+    record = existing(operator_app)
+    provider = operator_app[2]
+
+    def already_deleted(**arguments):
+        provider._call("delete_totp", arguments)
+        raise ClientError({"Error": {"Code": "ResourceNotFoundException", "Message": "private"}}, "AdminDeleteSoftwareToken")
+
+    def user_state(**arguments):
+        provider._call("inspect_user", arguments)
+        return {"Enabled": True, "UserAttributes": [{"Name": "sub", "Value": subject}],
+                "UserMFASettingList": ["SOFTWARE_TOKEN_MFA"] if enrolled else []}
+
+    provider.admin_delete_software_token = already_deleted
+    provider.admin_get_user = user_state
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
+    assert (result.exit_code == 0) == success
+    assert record["admin_recovery_pending"] == (not success)
+    assert "inspect_user" in event_names(operator_app)
 
 
 def test_manual_signout_reconciliation_revokes_local_first(operator_app):
@@ -429,9 +486,9 @@ def test_lifecycle_targets_canonical_and_every_linked_google_profile(operator_ap
 def test_native_recovery_also_revokes_linked_google_provider_sessions(operator_app):
     existing(operator_app)
     linked_alias(operator_app)
-    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa")
+    result = run(operator_app, "recover-admin", "--email", EMAIL, "--verified-out-of-band", "--lost-mfa", input=RECOVERY_INPUT)
     assert result.exit_code == 0, result.output
-    assert event_names(operator_app) == ["caller", "local_revoke", "global_signout", "global_signout", "delete_totp"]
+    assert event_names(operator_app) == ["caller", "recovery_block", "global_signout", "global_signout", "password", "delete_totp", "global_signout", "global_signout", "recovery_complete"]
     assert next(event[1] for event in operator_app[3] if event[0] == "delete_totp")["Username"] == "provider-subject"
 
 

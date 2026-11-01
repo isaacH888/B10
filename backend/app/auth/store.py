@@ -35,6 +35,7 @@ class LoginCancelledError(ValueError):
 
 IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active,
     COALESCE(e.version,0) AS native_login_version,
+    (r.identity_id IS NOT NULL) AS admin_recovery_pending,
     COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
     (l.provider_identity_id IS NOT NULL) AS is_google_alias,
     l.google_subject, l.provider_username, f.version AS mfa_version,
@@ -43,9 +44,11 @@ IDENTITY_SELECT = """SELECT i.*, a.role AS admin_role, a.active AS admin_active,
     LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
     LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_login_epochs e ON e.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_recoveries r ON r.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
 SESSION_SELECT = """SELECT s.*, i.issuer, i.subject, i.email, i.name,
     COALESCE(e.version,0) AS native_login_version,
+    (r.identity_id IS NOT NULL) AS admin_recovery_pending,
     a.role AS admin_role, a.active AS admin_active,
     COALESCE(l.admin_identity_id,i.id) AS canonical_identity_id,
     (l.provider_identity_id IS NOT NULL) AS is_google_alias,
@@ -55,6 +58,7 @@ SESSION_SELECT = """SELECT s.*, i.issuer, i.subject, i.email, i.name,
     LEFT JOIN auth_admin_google_links l ON l.provider_identity_id=i.id
     LEFT JOIN auth_admin_access a ON a.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_login_epochs e ON e.identity_id=COALESCE(l.admin_identity_id,i.id)
+    LEFT JOIN auth_admin_recoveries r ON r.identity_id=COALESCE(l.admin_identity_id,i.id)
     LEFT JOIN auth_admin_totp f ON f.canonical_identity_id=COALESCE(l.admin_identity_id,i.id)"""
 GOOGLE_CHALLENGE_SELECT = """SELECT c.*, i.issuer, i.subject, i.email, i.name,
     l.admin_identity_id AS canonical_identity_id, a.role AS admin_role, a.active AS admin_active,
@@ -155,6 +159,11 @@ class Store:
             cursor.execute("SELECT version,name,checksum,applied_at FROM schema_migrations")
             history = {row["version"]: row for row in cursor.fetchall()}
             for path in migration_files():
+                # Feature migrations do not gate sign-in when their feature is
+                # disabled. Keep authentication's own schema checks explicit.
+                if path.name not in {"0001_auth.sql", "0002_admin_google_mfa.sql", "0003_admin_native_login.sql",
+                                     "0004_admin_login_epochs.sql", "0005_admin_recovery.sql"}:
+                    continue
                 row = history.get(int(path.name[:4]))
                 if (not row or row["applied_at"] is None or row["name"] != path.name
                         or row["checksum"] != checksum(path)):
@@ -172,6 +181,7 @@ class Store:
                 "SELECT challenge_hash,binding_hash,proof_hash,encrypted_payload,attempts FROM auth_admin_google_challenges LIMIT 0",
                 "SELECT token_hash,binding_hash,created_at,expires_at,attempts,encrypted_payload FROM auth_admin_native_flows LIMIT 0",
                 "SELECT identity_id,version,updated_at FROM auth_admin_login_epochs LIMIT 0",
+                "SELECT identity_id,started_at FROM auth_admin_recoveries LIMIT 0",
             ):
                 cursor.execute(query)
         return True
@@ -276,6 +286,13 @@ class Store:
             cursor.execute("DELETE FROM auth_admin_native_flows WHERE token_hash=%s", (token_hash,))
             row["attempts"] += 1
             return row
+
+    def delete_admin_native_flow(self, token_hash, binding_hash):
+        """Retire invalid state only when it belongs to the requesting browser."""
+        with self._transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("DELETE FROM auth_admin_native_flows WHERE token_hash=%s AND binding_hash=%s",
+                           (token_hash, binding_hash))
+            return cursor.rowcount == 1
 
     def cancel_login(self, binding_hash, area, now):
         _area(area)
@@ -419,7 +436,7 @@ class Store:
                 identity = _decode_identity(cursor.fetchone())
                 if (not identity or identity["area"] != area
                         or identity["is_google_alias"]
-                        or (area == "admin" and not identity["admin_active"])):
+                        or (area == "admin" and (not identity["admin_active"] or identity["admin_recovery_pending"]))):
                     raise AccessDeniedError("Identity has no access to this authentication area")
                 if area == "admin" and session.get("assurance", {}).get("method") == "cognito_native_challenge":
                     cursor.execute("SELECT version FROM auth_admin_login_epochs WHERE identity_id=%s FOR UPDATE",
@@ -472,6 +489,44 @@ class Store:
                     self._audit(cursor, "identity.sessions_revoked", identity_id, None, {"count": count}, now)
                     connection.commit()
                     return count
+
+    @contextmanager
+    def admin_recovery(self, identity_id, now):
+        """Keep a durable login block if any private credential replacement fails."""
+        with self._transaction() as connection:
+            # Serialize provider mutations for this person, including retries of
+            # interrupted recovery. The durable row also survives process death.
+            with self._advisory_lock(connection, "auth-admin-recovery", identity_id):
+                with self._advisory_lock(connection, "auth-admin-access", "all"):
+                    with connection.cursor() as cursor:
+                        cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (identity_id,))
+                        identity = _decode_identity(cursor.fetchone())
+                        if (not identity or identity["area"] != "admin" or identity["is_google_alias"]
+                                or not identity["admin_active"] or identity["admin_role"] not in {"owner", "staff"}):
+                            raise AccessDeniedError("An active native administrator is required")
+                        cursor.execute("""INSERT INTO auth_admin_recoveries (identity_id,started_at)
+                            VALUES (%s,%s) ON DUPLICATE KEY UPDATE started_at=VALUES(started_at)""",
+                            (identity_id, now))
+                        self._revoke_identity(cursor, identity_id, now)
+                        cursor.execute("SELECT version FROM auth_admin_login_epochs WHERE identity_id=%s", (identity_id,))
+                        version = cursor.fetchone()["version"]
+                        self._audit(cursor, "admin.recovery_blocked", identity_id, None, {}, now)
+                        connection.commit()
+                # No row locks are held across AWS. On exception the committed
+                # block remains; only a complete verified retry may remove it.
+                yield
+                completed = max(now, int(time.time()))
+                with self._advisory_lock(connection, "auth-admin-access", "all"):
+                    with connection.cursor() as cursor:
+                        cursor.execute(IDENTITY_SELECT + " WHERE i.id=%s FOR UPDATE", (identity_id,))
+                        identity = _decode_identity(cursor.fetchone())
+                        if (not identity or not identity["admin_active"] or not identity["admin_recovery_pending"]
+                                or identity["native_login_version"] != version):
+                            raise AccessDeniedError("Administrator access changed during recovery")
+                        self._revoke_identity(cursor, identity_id, completed)
+                        cursor.execute("DELETE FROM auth_admin_recoveries WHERE identity_id=%s", (identity_id,))
+                        self._audit(cursor, "admin.recovery_completed", identity_id, None, {}, completed)
+                        connection.commit()
 
     @staticmethod
     def _google_source(row):

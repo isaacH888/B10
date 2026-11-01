@@ -539,6 +539,54 @@ def test_native_public_password_totp_sequence_uses_secret_hash_without_iam(provi
     assert observed[1][1]['json']['ChallengeResponses']['SOFTWARE_TOKEN_MFA_CODE'] == '123456'
 
 
+@pytest.mark.parametrize('address,expected', [('192.0.2.14', '192.0.2.14'),
+                                           ('2001:0db8:0:0::5', '2001:db8::5')])
+def test_native_risk_context_follows_all_password_challenge_steps(provider, monkeypatch, address, expected):
+    provider.propagate_user_context = True
+    observed = []
+
+    def invoke(operation, payload, **kwargs):
+        observed.append((operation, payload))
+        if operation == 'VerifySoftwareToken':
+            return {'Status': 'SUCCESS', 'Session': NATIVE_SESSION}
+        if payload.get('ChallengeName') == 'SOFTWARE_TOKEN_MFA':
+            return {'AuthenticationResult': {'AccessToken': 'fixture-access', 'IdToken': 'fixture-id',
+                    'RefreshToken': 'fixture-refresh', 'TokenType': 'Bearer', 'ExpiresIn': 300}}
+        return native_response('SOFTWARE_TOKEN_MFA')
+
+    monkeypatch.setattr(provider, '_native_operation', invoke)
+    provider.native_password(NATIVE_USERNAME, 'fixture-password', client_address=address)
+    provider.native_new_password(NATIVE_SESSION, NATIVE_USERNAME, 'fixture-password', {}, client_address=address)
+    provider.native_enroll(NATIVE_SESSION, NATIVE_USERNAME, '123456', client_address=address)
+    provider.native_totp(NATIVE_SESSION, NATIVE_USERNAME, '123456', client_address=address)
+    assert len(observed) == 5
+    for operation, payload in observed:
+        if operation == 'VerifySoftwareToken':
+            assert 'UserContextData' not in payload  # This API does not accept it.
+        else:
+            assert payload['UserContextData'] == {'IpAddress': expected}
+
+
+def test_risk_context_requires_explicit_rollout_opt_in(provider, monkeypatch):
+    observed = []
+    monkeypatch.setattr(provider, '_native_operation',
+                        lambda op, payload: observed.append(payload) or native_response('SOFTWARE_TOKEN_MFA'))
+    provider.native_password(NATIVE_USERNAME, 'fixture-password', client_address='192.0.2.14')
+    assert 'UserContextData' not in observed[0]
+
+
+@pytest.mark.parametrize('address', [None, '', 'unknown', '192.0.2.14, 198.51.100.8',
+                                    '192.0.2.14:443', 'fe80::1%eth0', 3221225998])
+def test_enabled_risk_context_rejects_invalid_transport_address_before_cognito(provider, monkeypatch, address):
+    provider.propagate_user_context = True
+    observed = []
+    monkeypatch.setattr(provider, '_native_operation', lambda *args, **kwargs: observed.append(args))
+    with pytest.raises(AuthError) as failure:
+        provider.native_password(NATIVE_USERNAME, 'fixture-password', client_address=address)
+    assert failure.value.status == 503
+    assert observed == []
+
+
 @pytest.mark.parametrize('body', [
     {'AuthenticationResult': {}}, native_response('SMS_MFA'), native_response('EMAIL_OTP'),
     native_response('SELECT_CHALLENGE'), native_response('CUSTOM_CHALLENGE'),
