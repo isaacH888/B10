@@ -11,7 +11,9 @@ import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
+import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
+import { OrderConfirmation } from "./OrderConfirmation.jsx";
 
 function Layout({ children }) {
   return (
@@ -22,6 +24,7 @@ function Layout({ children }) {
         </p>
         <nav aria-label="Main navigation">
           <Link to="/">Home</Link>
+          <Link to="/order">Catering order</Link>
           <Link to="/login">Customer login</Link>
           <Link to="/account">Customer session</Link>
           <Link to="/admin/login">Admin login</Link>
@@ -383,6 +386,8 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/order" element={<CateringPage />} />
+            <Route path="/order/confirm" element={<OrderConfirmation />} />
             <Route path="/login" element={<LoginPage area="customer" />} />
             <Route
               path="/account"

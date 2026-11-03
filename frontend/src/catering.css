@@ -1,0 +1,445 @@
+/* Catering page styles - Popssibilities brand
+   Yellow  #FFCC4B
+   Pink    #F8BFCB
+   Red     #D82C37
+   Blue    #293CA2
+   Tan     #FFF3D9
+   Font    Anton (Google Fonts)
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=Anton&display=swap");
+
+/* ----- Hero section ----- */
+.catering-hero {
+  position: relative;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  background: #293CA2;
+}
+.catering-hero-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.55;
+}
+.catering-hero-content {
+  position: relative;
+  z-index: 1;
+  padding: 3rem 2rem;
+  max-width: 560px;
+}
+.catering-hero-content h1 {
+  margin: 0 0 0.75rem;
+  font-family: "Anton", sans-serif;
+  font-size: 3rem;
+  color: #fff;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+.catering-hero-content p {
+  margin: 0 0 1.5rem;
+  font-size: 1.1rem;
+  color: #FFF3D9;
+}
+
+/* ----- Primary button ----- */
+.btn-primary {
+  display: inline-block;
+  padding: 0.7rem 1.75rem;
+  background: #D82C37;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  transition: background 0.15s;
+}
+.btn-primary:hover {
+  background: #b82030;
+}
+.btn-primary:focus-visible {
+  outline: 3px solid #FFCC4B;
+  outline-offset: 3px;
+}
+
+/* ----- How it works section ----- */
+.catering-info {
+  background: #FFF3D9;
+  padding: 2.5rem 2rem;
+}
+.catering-info h2 {
+  margin: 0 0 1rem;
+  font-family: "Anton", sans-serif;
+  color: #293CA2;
+  letter-spacing: 0.02em;
+}
+.catering-info ol,
+.catering-info ul {
+  margin: 0 0 1.5rem;
+  padding-left: 1.5rem;
+  line-height: 2;
+}
+.catering-info ul {
+  list-style: none;
+  padding-left: 0;
+}
+.catering-info ul li::before {
+  content: "- ";
+  color: #D82C37;
+  font-weight: 600;
+}
+
+/* ----- Modal backdrop ----- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1.5rem;
+}
+
+/* ----- Modal card: image left, form right ----- */
+.modal {
+  background: #FFCC4B;
+  width: 820px;
+  height: 580px;
+  display: flex;
+  flex-direction: row;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32);
+  flex-shrink: 0;
+}
+
+/* ----- Left: image panel (50% width, full height) ----- */
+.modal-image-panel {
+  width: 50%;
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.modal-image-panel img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+/* Step counter overlaid top-left on the image */
+.step-indicator-overlay {
+  font-size: 0.72rem;
+  color: #293CA2;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* Close button sits in the form header row */
+.modal-close {
+  background: none;
+  border: none;
+  color: #293CA2;
+  font-size: 1.3rem;
+  line-height: 1;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+}
+.modal-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+.modal-close:focus-visible {
+  outline: 2px solid #293CA2;
+  outline-offset: 2px;
+}
+
+/* ----- Right: form panel (50% width, full height) ----- */
+.modal-form-panel {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #FFCC4B;
+}
+.modal-form-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1.25rem 1.5rem 0;
+}
+/* Row at top of form side: step counter left, close button right */
+.modal-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+.modal-step-title {
+  font-family: "Anton", sans-serif;
+  font-size: 1.6rem;
+  color: #293CA2;
+  margin: 0 0 0.1rem;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.modal-step-subtitle {
+  font-size: 0.82rem;
+  color: #555;
+  margin: 0 0 0.9rem;
+}
+
+/* Scrollable fields */
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.modal-body::-webkit-scrollbar {
+  width: 4px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+/* ----- Narrow screens: stack image top, form bottom ----- */
+@media (max-width: 640px) {
+  .modal {
+    width: 100%;
+    height: auto;
+    max-height: 92vh;
+    flex-direction: column;
+  }
+  .modal-image-panel {
+    width: 100%;
+    height: 180px;
+  }
+  .modal-form-panel {
+    width: 100%;
+  }
+}
+
+/* ----- Form fields ----- */
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+legend {
+  /* visually hidden - title shown via modal-step-title */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.75rem;
+}
+.form-field label,
+.field-group-label {
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #293CA2;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.required-mark {
+  color: #D82C37;
+  margin-left: 2px;
+}
+.form-field input,
+.form-field select,
+.form-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 6px;
+  background: #FFF3D9;
+  color: #222;
+}
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  outline: 2px solid #293CA2;
+  outline-offset: 1px;
+}
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: #aaa;
+}
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.form-row .form-field {
+  flex: 1;
+  min-width: 6rem;
+}
+.field-error {
+  margin: 0;
+  color: #D82C37;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.field-hint {
+  margin: 0;
+  color: #666;
+  font-size: 0.78rem;
+}
+
+/* ----- Service type radio cards (Step 2) ----- */
+.service-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.service-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: #FFF3D9;
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.12s;
+}
+.service-option:has(input:checked) {
+  border-color: #293CA2;
+}
+.service-option input[type="radio"] {
+  width: auto;
+  margin-top: 0.15rem;
+  accent-color: #293CA2;
+  flex-shrink: 0;
+}
+.service-option-text strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #293CA2;
+  font-weight: 700;
+}
+.service-option-text span {
+  font-size: 0.78rem;
+  color: #666;
+}
+
+/* ----- Modal footer: Back / Next buttons ----- */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.75rem 1.5rem 1rem;
+  flex-shrink: 0;
+}
+.btn-back {
+  padding: 0.55rem 1.4rem;
+  background: #293CA2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: background 0.12s;
+}
+.btn-back:hover {
+  background: #1e2e82;
+}
+.btn-next {
+  padding: 0.55rem 1.6rem;
+  background: #D82C37;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: background 0.12s;
+}
+.btn-next:hover {
+  background: #b82030;
+}
+.btn-next:disabled,
+.btn-back:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn-next:focus-visible,
+.btn-back:focus-visible,
+.btn-primary:focus-visible {
+  outline: 3px solid #293CA2;
+  outline-offset: 3px;
+}
+
+/* ----- Quote result on summary step ----- */
+.quote-result {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  background: #fff;
+  border: 2px solid #293CA2;
+  border-radius: 8px;
+}
+.quote-result h3 {
+  margin: 0 0 0.4rem;
+  font-family: "Anton", sans-serif;
+  color: #293CA2;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+.quote-total {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #293CA2;
+  margin: 0.2rem 0;
+}
+.quote-deposit {
+  font-size: 0.88rem;
+  color: #555;
+  margin: 0.2rem 0;
+}
+
+/* ----- Catering notice (errors / info) ----- */
+.catering-notice {
+  margin: 0.75rem 0;
+  padding: 0.7rem 0.85rem;
+  background: #F8BFCB;
+  border-left: 3px solid #D82C37;
+  border-radius: 4px;
+}
+.catering-notice p {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+}
+.catering-notice p:last-child {
+  margin-bottom: 0;
+}
