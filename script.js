@@ -1,0 +1,1 @@
+document.getElementById('newsletter-form')?.addEventListener('submit', function (e) { e.preventDefault(); this.querySelector('.form-message').textContent = 'Thanks! Email signups will be saved once the backend is connected.' });
