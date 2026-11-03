@@ -1,5 +1,6 @@
 """Application factory shared by the component owners."""
 
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -68,7 +69,31 @@ def create_app(test_config=None):
         )
     app.register_blueprint(auth, url_prefix="/api/v1")
     register_admin_commands(app)
+    from .automation.domain import BookingService, DomainError
+    from .automation.google import GoogleFailure
+    from .automation.routes import automation
+    from .automation.store import Store as AutomationStore
+    from .automation.store import StoreUnavailable as AutomationUnavailable
     from .email.provider import SESMailer
+
+    app.register_blueprint(automation, url_prefix="/api/v1/admin/automation")
+    if app.config.get("AUTOMATION_ENABLED"):
+        automation_store = app.config.get("AUTOMATION_STORE") or AutomationStore(app.config)
+        app.extensions["automation_store"] = automation_store
+        app.extensions["booking_service"] = app.config.get("BOOKING_SERVICE") or BookingService(
+            automation_store,
+            clock=app.config.get("AUTOMATION_CLOCK") or time.time,
+            capacity=app.config.get("AUTOMATION_CAPACITY", 1000),
+            reservation_seconds=app.config.get("AUTOMATION_RESERVATION_SECONDS", 172800),
+        )
+        if app.config.get("AUTOMATION_SERVICES") is not None:
+            services = app.config["AUTOMATION_SERVICES"]
+        else:
+            from .automation.runtime import build_services
+
+            services = build_services(app.config, automation_store)
+        app.extensions.update(services)
+        app.extensions["automation_services"] = services
     from .email.routes import email
     from .email.service import CustomerMailService
     from .email.store import MailStore
@@ -117,6 +142,21 @@ def create_app(test_config=None):
     def handle_auth_store_error(error):
         app.logger.warning("Authentication persistence unavailable; request_id=%s", g.request_id)
         return handle_auth_error(unavailable())
+
+    @app.errorhandler(DomainError)
+    def handle_booking_error(error):
+        return handle_auth_error(AuthError(error.code, str(error), error.status))
+
+    @app.errorhandler(AutomationUnavailable)
+    def handle_automation_store_error(error):
+        return handle_auth_error(
+            AuthError("automation_unavailable", "Booking storage is temporarily unavailable.", 503)
+        )
+
+    @app.errorhandler(GoogleFailure)
+    def handle_google_error(error):
+        status = 503 if error.category == "transient" else 409
+        return handle_auth_error(AuthError("google_" + error.category, error.message, status))
 
     @app.errorhandler(HTTPException)
     def handle_http_error(error):

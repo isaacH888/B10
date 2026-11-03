@@ -5,12 +5,14 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useSearchParams,
 } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
+import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
@@ -97,18 +99,14 @@ function Notice({ children }) {
   );
 }
 
-function LoginPage({ area }) {
-  const admin = area === "admin";
+function LoginPage() {
+  const area = "customer";
   const { sessions, login, logout, refresh } = useAuth();
   const [params] = useSearchParams();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const session = sessions[area];
   const queryMessage = callbackMessage(params.get("error"));
-  const reauthentication =
-    admin &&
-    (params.get("reauth") === "1" ||
-      (session.status === "authenticated" && Boolean(queryMessage)));
 
   async function begin(provider) {
     setBusy(provider);
@@ -121,30 +119,15 @@ function LoginPage({ area }) {
     }
   }
 
-  if (
-    session.status === "authenticated" &&
-    !reauthentication &&
-    !queryMessage
-  ) {
-    return <Navigate to={admin ? "/admin" : "/account"} replace />;
+  if (session.status === "authenticated" && !queryMessage) {
+    return <Navigate to="/account" replace />;
   }
   return (
     <section>
-      <h1>
-        {reauthentication
-          ? "Verify your access"
-          : admin
-            ? "Team sign-in"
-            : "Customer sign-in"}
-      </h1>
+      <h1>Customer sign-in</h1>
       <p>
-        {reauthentication
-          ? "Sign in again and complete authenticator verification before sensitive actions."
-          : admin
-            ? "Sign in with your team email and password. Your authenticator app is required each time you sign in."
-            : "Sign in or create a customer account using email and password or Google."}
+        Sign in or create a customer account using email and password or Google.
       </p>
-      {admin && <p>Administrator access is invitation only.</p>}
       {queryMessage && <Notice>{queryMessage}</Notice>}
       {error && <Notice>{error}</Notice>}
       {session.status === "error" && !error && (
@@ -174,33 +157,29 @@ function LoginPage({ area }) {
           >
             {busy === "password"
               ? "Opening secure sign-in…"
-              : admin
-                ? "Continue with password"
-                : "Continue with email and password"}
+              : "Continue with email and password"}
           </button>
-          {!admin && (
-            <button
-              type="button"
-              disabled={Boolean(busy) || session.logoutPending}
-              onClick={() => begin("google")}
-            >
-              {busy === "google"
-                ? "Opening Google sign-in…"
-                : "Continue with Google"}
-            </button>
-          )}
+          <button
+            type="button"
+            disabled={Boolean(busy) || session.logoutPending}
+            onClick={() => begin("google")}
+          >
+            {busy === "google"
+              ? "Opening Google sign-in…"
+              : "Continue with Google"}
+          </button>
         </div>
       )}
       <p>
-        {admin
-          ? "Need an invitation or help with your authenticator? Contact the account owner."
-          : "Account registration and password reset are available on the secure sign-in screen."}
+        Account registration and password reset are available on the secure
+        sign-in screen.
       </p>
     </section>
   );
 }
 
 function ProtectedPage({ area }) {
+  const location = useLocation();
   const { sessions, refresh, expire, logout } = useAuth();
   const [now, setNow] = useState(Date.now());
   const session = sessions[area];
@@ -275,7 +254,27 @@ function ProtectedPage({ area }) {
           ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.`
           : "Customer session is authenticated."}
       </p>
-      {admin && <AdminDashboard identity={identity} />}
+      {admin &&
+      (location.pathname.startsWith("/admin/automation") ||
+        location.pathname.startsWith("/admin/bookings/")) ? (
+        <AutomationDashboard
+          identity={identity}
+          csrfToken={session.data.csrf_token}
+        />
+      ) : (
+        admin && (
+          <>
+            {identity.role === "owner" && (
+              <p>
+                <Link to="/admin/automation">
+                  Manage catering bookings and Calendar
+                </Link>
+              </p>
+            )}
+            <AdminDashboard identity={identity} />
+          </>
+        )
+      )}
       {!admin && (
         <CustomerTestEmail
           key={identity.id}
@@ -388,7 +387,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/order" element={<CateringPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
-            <Route path="/login" element={<LoginPage area="customer" />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route
               path="/account"
               element={<ProtectedPage area="customer" />}
@@ -399,6 +398,14 @@ export default function App() {
               element={<Navigate to="/admin/login?reauth=1" replace />}
             />
             <Route path="/admin" element={<ProtectedPage area="admin" />} />
+            <Route
+              path="/admin/automation"
+              element={<ProtectedPage area="admin" />}
+            />
+            <Route
+              path="/admin/bookings/:bookingId"
+              element={<ProtectedPage area="admin" />}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>

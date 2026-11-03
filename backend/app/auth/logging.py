@@ -8,7 +8,7 @@ class CallbackRedaction(logging.Filter):
     def filter(self, record):
         message = record.getMessage()
         redacted = re.sub(
-            r"(/api/v1/(?:(?:admin|customer)/callback|admin/password/transaction))\?[^\s\"\x1b]+",
+            r"(/api/v1/(?:(?:admin|customer)/callback|admin/password/transaction|admin/automation/google/callback))\?[^\s\"\x1b]+",
             r"\1?<redacted>",
             message,
         )

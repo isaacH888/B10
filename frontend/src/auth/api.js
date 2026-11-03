@@ -50,10 +50,12 @@ export async function apiRequest(path, options = {}) {
       return body.data;
     }
     if (!response.ok) {
-      throw new ApiError(
+      const failure = new ApiError(
         response.status,
         body?.error?.code || "request_failed",
       );
+      failure.serverMessage = body?.error?.message;
+      throw failure;
     }
     if (!body || !Object.hasOwn(body, "data"))
       throw new ApiError(502, "invalid_response");

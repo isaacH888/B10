@@ -86,18 +86,19 @@ export function OrderConfirmation() {
             event date.
           </li>
           <li>
-            Once confirmed, you will receive an email with a link to pay the 50%
-            deposit (
+            After availability is approved, our team will provide instructions
+            for the deposit (
             {depositDue != null ? formatCents(depositDue) : "50% of your total"}
             ).
           </li>
           <li>
-            Payment can be made via Square, PayPal, or Venmo using the link
-            provided.
+            Use the payment method agreed with our team. The owner will verify
+            the transaction with the payment provider.
           </li>
           <li>
-            Your booking is secured after the deposit is received. A final
-            payment reminder will be sent 7 days before your event.
+            Your booking is secured after the owner verifies the required
+            deposit. Our team will coordinate the remaining balance and event
+            details with you.
           </li>
         </ol>
       </section>

@@ -3,12 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
 import venueImage from "./assets/Venue.webp";
-import {
-  mockGetQuote,
-  mockGetQuoteOutsideRadius,
-  mockGetQuoteRequiresReview,
-  mockSubmitOrder,
-} from "./mockApi.js";
+import { apiRequest } from "./auth/api.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -555,7 +550,7 @@ function StepSummary({
         </p>
       )}
 
-      {quoteStatus === "priced" && quote && (
+      {["priced", "submitting"].includes(quoteStatus) && quote && (
         <div className="quote-result">
           <h3>Your quote</h3>
           {quote.pricing.line_items.map((item) => (
@@ -605,8 +600,8 @@ function StepSummary({
       {quoteStatus === "requires_review" && (
         <div className="catering-notice" role="status">
           <p>
-            Your request needs a manual pricing review. A member of our team
-            will follow up with a custom quote.
+            Your request needs a manual pricing review. Please contact our team
+            for a custom quote. Your order has not been submitted.
           </p>
           <p>No payment is due at this time.</p>
           <button
@@ -687,13 +682,21 @@ function validateStep(step, form) {
   }
   if (step === 4) {
     const qty = Number(form.quantity);
-    if (!form.quantity || isNaN(qty) || qty < 50)
+    if (!Number.isInteger(qty))
+      errors.quantity = "Enter a whole number of popsicles.";
+    else if (!form.quantity || qty < 50)
       errors.quantity = "Minimum order is 50 popsicles.";
     else if (qty > 100000)
       errors.quantity = "Maximum order is 100,000 popsicles.";
     const dryIce = form.dry_ice_blocks;
-    if (dryIce !== "" && (isNaN(Number(dryIce)) || Number(dryIce) < 0))
-      errors.dry_ice_blocks = "Enter a valid number of dry ice blocks.";
+    if (
+      dryIce !== "" &&
+      (!Number.isInteger(Number(dryIce)) ||
+        Number(dryIce) < 0 ||
+        Number(dryIce) > 1000)
+    )
+      errors.dry_ice_blocks =
+        "Enter a whole number of dry ice blocks from 0 to 1,000.";
   }
   return errors;
 }
@@ -763,12 +766,11 @@ function CateringModal({ onClose }) {
       delete next[field];
       return next;
     });
-    // Any field change on the summary step invalidates the current quote.
-    if (currentStep === 5 && quoteStatus !== "idle") {
-      setQuoteStatus("idle");
-      setQuote(null);
-      idempotencyKey.current = null;
-    }
+    // Back/edit/Next must never submit a price or retry key for older details.
+    setQuoteStatus("idle");
+    setQuote(null);
+    setSubmitError("");
+    idempotencyKey.current = null;
   }
 
   function handleNext() {
@@ -790,10 +792,14 @@ function CateringModal({ onClose }) {
     setQuoteStatus("loading");
     setQuote(null);
     setSubmitError("");
+    idempotencyKey.current = null;
     try {
       const requestBody = buildRequestBody(form, null);
-      // TODO: replace with apiRequest("/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) })
-      const data = await mockGetQuote(requestBody);
+      const data = await apiRequest("/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
       setQuote(data);
       if (data.status === "priced") {
         setQuoteStatus("priced");
@@ -809,21 +815,36 @@ function CateringModal({ onClose }) {
 
   async function handleSubmitOrder() {
     if (!quote || quoteStatus !== "priced") return;
+    if (Date.parse(quote.expires_at) <= Date.now()) {
+      setQuoteStatus("error");
+      setQuote(null);
+      idempotencyKey.current = null;
+      return;
+    }
     idempotencyKey.current ||= crypto.randomUUID();
     setQuoteStatus("submitting");
     setSubmitError("");
     try {
       const requestBody = buildRequestBody(form, quote.id);
-      // TODO: replace with apiRequest("/orders", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey.current },
-      //   body: JSON.stringify(requestBody),
-      // })
-      const order = await mockSubmitOrder(requestBody);
+      const order = await apiRequest("/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey.current,
+        },
+        body: JSON.stringify(requestBody),
+      });
       navigate("/order/confirm", { state: { order } });
     } catch (error) {
       // Keep the same idempotency key on retry to prevent duplicate orders.
-      setQuoteStatus("priced");
+      const refreshQuote = ["quote_expired", "quote_mismatch"].includes(
+        error?.code,
+      );
+      setQuoteStatus(refreshQuote ? "error" : "priced");
+      if (refreshQuote) {
+        setQuote(null);
+        idempotencyKey.current = null;
+      }
       setSubmitError(
         error?.code === "quote_expired"
           ? "Your quote expired. Please recalculate to get a fresh quote."
@@ -835,7 +856,8 @@ function CateringModal({ onClose }) {
   }
 
   function handleModalKeyDown(e) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape" && !["loading", "submitting"].includes(quoteStatus))
+      onClose();
   }
 
   return (
@@ -863,6 +885,7 @@ function CateringModal({ onClose }) {
                 type="button"
                 className="modal-close"
                 onClick={onClose}
+                disabled={["loading", "submitting"].includes(quoteStatus)}
                 aria-label="Close catering form"
               >
                 &times;

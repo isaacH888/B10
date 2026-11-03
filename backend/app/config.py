@@ -57,6 +57,9 @@ def read_settings():
                 "Hosted environments require application and TLS database configuration"
             )
     settings.update(environment_settings(environment))
+    from .automation.settings import environment_settings as automation_settings
+
+    settings.update(automation_settings(environment))
     from .email.settings import environment_settings as email_settings
 
     settings.update(email_settings())

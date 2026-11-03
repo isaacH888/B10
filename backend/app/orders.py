@@ -23,13 +23,9 @@ Known gaps, tracked in docs/decisions-and-blockers.md (T08):
   - Quotes are not persisted yet, so ``quote_id`` is validated and stored as the
     reference, but expiry/revision/equality lookups (409 ``quote_expired`` and
     ``quote_mismatch``) cannot be enforced until a quote store exists.
-  - Bryson's schema is not in the repository. ``_save_in_database`` assumes the
-    tables and columns it names and must be aligned with the approved migration.
-    Without database credentials the order lives in a per-process memory store.
+  - Without database credentials the order lives in a per-process memory store.
   - ``reason`` is validated but not stored: the order schema has no field for it and
     the audit table is not defined yet.
-  - Status changes rewrite ``orders.response_json``, so a later replay of the original
-    POST in database mode returns the current order rather than the first response.
 """
 
 import hashlib
@@ -351,7 +347,8 @@ def _save_in_database(key, digest, order):
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT request_hash, response_json FROM orders WHERE idempotency_key = %s", (key,)
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+                (key,),
             )
             row = cursor.fetchone()
             if row:
@@ -368,7 +365,8 @@ def _save_in_database(key, digest, order):
             cursor.execute(
                 "INSERT INTO orders (public_id, customer_id, status, version, quote_id, pricing_revision,"
                 " total_cents, deposit_due_cents, event_starts_at, event_timezone, idempotency_key,"
-                " request_hash, response_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                " response_json, request_hash, submission_json)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     order["id"],
                     cursor.lastrowid,
@@ -381,6 +379,7 @@ def _save_in_database(key, digest, order):
                     starts_at.replace(tzinfo=None),
                     order["event"]["timezone"],
                     key,
+                    json.dumps(order, separators=(",", ":")),
                     digest,
                     json.dumps(order, separators=(",", ":")),
                 ),
@@ -394,6 +393,24 @@ def _save_in_database(key, digest, order):
             )
         connection.commit()
         return order
+    except pymysql.IntegrityError as error:
+        connection.rollback()
+        if error.args[0] != 1062:
+            raise
+        # A concurrent request may have won the unique idempotency-key insert.
+        # Read after rollback so REPEATABLE READ sees that committed submission.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+                (key,),
+            )
+            row = cursor.fetchone()
+        connection.rollback()
+        if not row:
+            raise
+        if row[0] != digest:
+            raise IdempotencyConflict from None
+        return json.loads(row[1])
     except BaseException:
         connection.rollback()
         raise
@@ -424,6 +441,10 @@ class StaleVersion(Exception):
 
 class InvalidTransition(Exception):
     """The requested status change is not allowed from the current status."""
+
+
+class OrderManagedByBooking(Exception):
+    """The owner workflow controls an order after its booking handoff."""
 
 
 def _admin_view(order):
@@ -482,6 +503,11 @@ def _find_in_database(order_id):
 def _update_status_in_memory(order_id, version, status):
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
+        automation_store = current_app.extensions.get("automation_store")
+        if automation_store:
+            with automation_store.transaction() as tx:
+                if tx.get_order_link(order_id):
+                    raise OrderManagedByBooking
         updated = _apply_status(store["by_id"].get(order_id), version, status)
         store["by_id"][order_id] = updated
     return updated
@@ -493,9 +519,14 @@ def _update_status_in_database(order_id, version, status):
     try:
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT response_json FROM orders WHERE public_id = %s FOR UPDATE", (order_id,)
+                "SELECT o.response_json, l.booking_id FROM orders o "
+                "LEFT JOIN automation_order_links l ON l.order_id=o.public_id "
+                "WHERE o.public_id = %s FOR UPDATE",
+                (order_id,),
             )
             row = cursor.fetchone()
+            if row and len(row) > 1 and row[1]:
+                raise OrderManagedByBooking
             current = _admin_view(json.loads(row[0])) if row else None
             updated = _apply_status(current, version, status)
             if updated is not current:
@@ -645,6 +676,8 @@ def update_order_status(order_id):
         return _error(409, "stale_version", "Refresh the order before applying this change.")
     except InvalidTransition:
         return _error(409, "invalid_transition", "The requested status transition is not allowed.")
+    except OrderManagedByBooking:
+        return _error(409, "booking_managed", "Manage this order through its linked owner booking.")
     except (pymysql.MySQLError, OSError):
         return _service_unavailable()
     return jsonify(data=order, meta={"request_id": g.request_id})

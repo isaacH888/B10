@@ -65,10 +65,6 @@
 .btn-primary:hover {
   background: #b82030;
 }
-.btn-primary:focus-visible {
-  outline: 3px solid #ffcc4b;
-  outline-offset: 3px;
-}
 
 /* ----- How it works section ----- */
 .catering-info {
