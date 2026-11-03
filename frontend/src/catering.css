@@ -16,7 +16,7 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #293CA2;
+  background: #293ca2;
 }
 .catering-hero-image {
   position: absolute;
@@ -44,14 +44,14 @@
 .catering-hero-content p {
   margin: 0 0 1.5rem;
   font-size: 1.1rem;
-  color: #FFF3D9;
+  color: #fff3d9;
 }
 
 /* ----- Primary button ----- */
 .btn-primary {
   display: inline-block;
   padding: 0.7rem 1.75rem;
-  background: #D82C37;
+  background: #d82c37;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -66,19 +66,19 @@
   background: #b82030;
 }
 .btn-primary:focus-visible {
-  outline: 3px solid #FFCC4B;
+  outline: 3px solid #ffcc4b;
   outline-offset: 3px;
 }
 
 /* ----- How it works section ----- */
 .catering-info {
-  background: #FFF3D9;
+  background: #fff3d9;
   padding: 2.5rem 2rem;
 }
 .catering-info h2 {
   margin: 0 0 1rem;
   font-family: "Anton", sans-serif;
-  color: #293CA2;
+  color: #293ca2;
   letter-spacing: 0.02em;
 }
 .catering-info ol,
@@ -93,7 +93,7 @@
 }
 .catering-info ul li::before {
   content: "- ";
-  color: #D82C37;
+  color: #d82c37;
   font-weight: 600;
 }
 
@@ -111,7 +111,7 @@
 
 /* ----- Modal card: image left, form right ----- */
 .modal {
-  background: #FFCC4B;
+  background: #ffcc4b;
   width: 820px;
   height: 580px;
   display: flex;
@@ -139,7 +139,7 @@
 /* Step counter overlaid top-left on the image */
 .step-indicator-overlay {
   font-size: 0.72rem;
-  color: #293CA2;
+  color: #293ca2;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -148,7 +148,7 @@
 .modal-close {
   background: none;
   border: none;
-  color: #293CA2;
+  color: #293ca2;
   font-size: 1.3rem;
   line-height: 1;
   width: 1.8rem;
@@ -164,7 +164,7 @@
   background: rgba(0, 0, 0, 0.08);
 }
 .modal-close:focus-visible {
-  outline: 2px solid #293CA2;
+  outline: 2px solid #293ca2;
   outline-offset: 2px;
 }
 
@@ -174,7 +174,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #FFCC4B;
+  background: #ffcc4b;
 }
 .modal-form-area {
   flex: 1;
@@ -194,7 +194,7 @@
 .modal-step-title {
   font-family: "Anton", sans-serif;
   font-size: 1.6rem;
-  color: #293CA2;
+  color: #293ca2;
   margin: 0 0 0.1rem;
   letter-spacing: 0.02em;
   line-height: 1.1;
@@ -261,12 +261,12 @@ legend {
 .field-group-label {
   font-weight: 700;
   font-size: 0.78rem;
-  color: #293CA2;
+  color: #293ca2;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 .required-mark {
-  color: #D82C37;
+  color: #d82c37;
   margin-left: 2px;
 }
 .form-field input,
@@ -279,13 +279,13 @@ legend {
   font-size: 0.9rem;
   border: none;
   border-radius: 6px;
-  background: #FFF3D9;
+  background: #fff3d9;
   color: #222;
 }
 .form-field input:focus,
 .form-field select:focus,
 .form-field textarea:focus {
-  outline: 2px solid #293CA2;
+  outline: 2px solid #293ca2;
   outline-offset: 1px;
 }
 .form-field input::placeholder,
@@ -303,7 +303,7 @@ legend {
 }
 .field-error {
   margin: 0;
-  color: #D82C37;
+  color: #d82c37;
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -324,7 +324,7 @@ legend {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  background: #FFF3D9;
+  background: #fff3d9;
   border-radius: 8px;
   padding: 0.7rem 0.85rem;
   cursor: pointer;
@@ -332,18 +332,18 @@ legend {
   transition: border-color 0.12s;
 }
 .service-option:has(input:checked) {
-  border-color: #293CA2;
+  border-color: #293ca2;
 }
 .service-option input[type="radio"] {
   width: auto;
   margin-top: 0.15rem;
-  accent-color: #293CA2;
+  accent-color: #293ca2;
   flex-shrink: 0;
 }
 .service-option-text strong {
   display: block;
   font-size: 0.88rem;
-  color: #293CA2;
+  color: #293ca2;
   font-weight: 700;
 }
 .service-option-text span {
@@ -361,7 +361,7 @@ legend {
 }
 .btn-back {
   padding: 0.55rem 1.4rem;
-  background: #293CA2;
+  background: #293ca2;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -376,7 +376,7 @@ legend {
 }
 .btn-next {
   padding: 0.55rem 1.6rem;
-  background: #D82C37;
+  background: #d82c37;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -397,7 +397,7 @@ legend {
 .btn-next:focus-visible,
 .btn-back:focus-visible,
 .btn-primary:focus-visible {
-  outline: 3px solid #293CA2;
+  outline: 3px solid #293ca2;
   outline-offset: 3px;
 }
 
@@ -406,20 +406,20 @@ legend {
   margin-top: 0.75rem;
   padding: 0.85rem;
   background: #fff;
-  border: 2px solid #293CA2;
+  border: 2px solid #293ca2;
   border-radius: 8px;
 }
 .quote-result h3 {
   margin: 0 0 0.4rem;
   font-family: "Anton", sans-serif;
-  color: #293CA2;
+  color: #293ca2;
   font-size: 1rem;
   letter-spacing: 0.02em;
 }
 .quote-total {
   font-size: 1rem;
   font-weight: 700;
-  color: #293CA2;
+  color: #293ca2;
   margin: 0.2rem 0;
 }
 .quote-deposit {
@@ -432,8 +432,8 @@ legend {
 .catering-notice {
   margin: 0.75rem 0;
   padding: 0.7rem 0.85rem;
-  background: #F8BFCB;
-  border-left: 3px solid #D82C37;
+  background: #f8bfcb;
+  border-left: 3px solid #d82c37;
   border-radius: 4px;
 }
 .catering-notice p {

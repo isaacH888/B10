@@ -1,5 +1,4 @@
 // DEV ONLY - synthetic responses for building the catering form without a live backend.
-// When Anh's API endpoints are ready, replace the calls in CateringModal.jsx:
 //   import { mockGetQuote, mockSubmitOrder } from "./mockApi.js";
 // with:
 //   import { apiRequest } from "./auth/api.js";
@@ -23,7 +22,8 @@ export async function mockGetQuote(_requestBody) {
       line_items: [
         {
           code: "synthetic_fixture",
-          description: "Synthetic total only - not a client rate or pricing tier.",
+          description:
+            "Synthetic total only - not a client rate or pricing tier.",
           amount_cents: 20000,
         },
       ],
@@ -88,7 +88,8 @@ export async function mockSubmitOrder(_requestBody) {
       line_items: [
         {
           code: "synthetic_fixture",
-          description: "Synthetic total only - not a client rate or pricing tier.",
+          description:
+            "Synthetic total only - not a client rate or pricing tier.",
           amount_cents: 20000,
         },
       ],

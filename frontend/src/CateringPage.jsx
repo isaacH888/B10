@@ -102,7 +102,10 @@ function StepContact({ form, onChange, errors }) {
 
       <div className="form-field">
         <label htmlFor="cf-name">
-          Full name <span className="required-mark" aria-hidden="true">*</span>
+          Full name{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="cf-name"
@@ -114,13 +117,18 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.name && (
-          <p className="field-error" role="alert">{errors.name}</p>
+          <p className="field-error" role="alert">
+            {errors.name}
+          </p>
         )}
       </div>
 
       <div className="form-field">
         <label htmlFor="cf-email">
-          Email address <span className="required-mark" aria-hidden="true">*</span>
+          Email address{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="cf-email"
@@ -132,13 +140,18 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.email && (
-          <p className="field-error" role="alert">{errors.email}</p>
+          <p className="field-error" role="alert">
+            {errors.email}
+          </p>
         )}
       </div>
 
       <div className="form-field">
         <label htmlFor="cf-phone">
-          Phone number <span className="required-mark" aria-hidden="true">*</span>
+          Phone number{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="cf-phone"
@@ -150,7 +163,9 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.phone && (
-          <p className="field-error" role="alert">{errors.phone}</p>
+          <p className="field-error" role="alert">
+            {errors.phone}
+          </p>
         )}
       </div>
     </fieldset>
@@ -169,7 +184,10 @@ function StepEvent({ form, onChange, errors }) {
         aria-labelledby="service-type-label"
       >
         <span id="service-type-label" className="field-group-label">
-          Event style <span className="required-mark" aria-hidden="true">*</span>
+          Event style{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </span>
         <div className="service-options">
           <label className="service-option">
@@ -203,7 +221,10 @@ function StepEvent({ form, onChange, errors }) {
 
       <div className="form-field">
         <label htmlFor="cf-line1">
-          Event address <span className="required-mark" aria-hidden="true">*</span>
+          Event address{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="cf-line1"
@@ -215,14 +236,19 @@ function StepEvent({ form, onChange, errors }) {
           required
         />
         {errors.location_line1 && (
-          <p className="field-error" role="alert">{errors.location_line1}</p>
+          <p className="field-error" role="alert">
+            {errors.location_line1}
+          </p>
         )}
       </div>
 
       <div className="form-row">
         <div className="form-field">
           <label htmlFor="cf-city">
-            City <span className="required-mark" aria-hidden="true">*</span>
+            City{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="cf-city"
@@ -233,13 +259,18 @@ function StepEvent({ form, onChange, errors }) {
             required
           />
           {errors.location_city && (
-            <p className="field-error" role="alert">{errors.location_city}</p>
+            <p className="field-error" role="alert">
+              {errors.location_city}
+            </p>
           )}
         </div>
 
         <div className="form-field">
           <label htmlFor="cf-region">
-            State <span className="required-mark" aria-hidden="true">*</span>
+            State{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="cf-region"
@@ -252,13 +283,18 @@ function StepEvent({ form, onChange, errors }) {
             required
           />
           {errors.location_region && (
-            <p className="field-error" role="alert">{errors.location_region}</p>
+            <p className="field-error" role="alert">
+              {errors.location_region}
+            </p>
           )}
         </div>
 
         <div className="form-field">
           <label htmlFor="cf-postal">
-            Postal code <span className="required-mark" aria-hidden="true">*</span>
+            Postal code{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="cf-postal"
@@ -286,7 +322,10 @@ function StepEventDetails({ form, onChange, errors }) {
 
       <div className="form-field">
         <label htmlFor="cf-event-type">
-          Event type <span className="required-mark" aria-hidden="true">*</span>
+          Event type{" "}
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="cf-event-type"
@@ -297,14 +336,19 @@ function StepEventDetails({ form, onChange, errors }) {
           required
         />
         {errors.event_type && (
-          <p className="field-error" role="alert">{errors.event_type}</p>
+          <p className="field-error" role="alert">
+            {errors.event_type}
+          </p>
         )}
       </div>
 
       <div className="form-row">
         <div className="form-field">
           <label htmlFor="cf-starts-at">
-            Event date <span className="required-mark" aria-hidden="true">*</span>
+            Event date{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="cf-starts-at"
@@ -314,7 +358,9 @@ function StepEventDetails({ form, onChange, errors }) {
             required
           />
           {errors.event_starts_at && (
-            <p className="field-error" role="alert">{errors.event_starts_at}</p>
+            <p className="field-error" role="alert">
+              {errors.event_starts_at}
+            </p>
           )}
         </div>
 
@@ -327,7 +373,9 @@ function StepEventDetails({ form, onChange, errors }) {
             onChange={(e) => onChange("event_ends_at", e.target.value)}
           />
           {errors.event_ends_at && (
-            <p className="field-error" role="alert">{errors.event_ends_at}</p>
+            <p className="field-error" role="alert">
+              {errors.event_ends_at}
+            </p>
           )}
         </div>
       </div>
@@ -355,7 +403,10 @@ function StepOrderDetails({ form, onChange, errors }) {
       <div className="form-row">
         <div className="form-field">
           <label htmlFor="cf-quantity">
-            Number of popsicles <span className="required-mark" aria-hidden="true">*</span>
+            Number of popsicles{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
           </label>
           <input
             id="cf-quantity"
@@ -368,7 +419,9 @@ function StepOrderDetails({ form, onChange, errors }) {
           />
           <p className="field-hint">Minimum 50.</p>
           {errors.quantity && (
-            <p className="field-error" role="alert">{errors.quantity}</p>
+            <p className="field-error" role="alert">
+              {errors.quantity}
+            </p>
           )}
         </div>
 
@@ -413,7 +466,9 @@ function StepOrderDetails({ form, onChange, errors }) {
         />
         <p className="field-hint">$15 per block.</p>
         {errors.dry_ice_blocks && (
-          <p className="field-error" role="alert">{errors.dry_ice_blocks}</p>
+          <p className="field-error" role="alert">
+            {errors.dry_ice_blocks}
+          </p>
         )}
       </div>
     </fieldset>
@@ -450,8 +505,8 @@ function StepSummary({
           </dd>
           <dt>Address</dt>
           <dd>
-            {form.location_line1}, {form.location_city},{" "}
-            {form.location_region} {form.location_postal_code}
+            {form.location_line1}, {form.location_city}, {form.location_region}{" "}
+            {form.location_postal_code}
           </dd>
           <dt>Event</dt>
           <dd>{form.event_type}</dd>
@@ -504,7 +559,10 @@ function StepSummary({
         <div className="quote-result">
           <h3>Your quote</h3>
           {quote.pricing.line_items.map((item) => (
-            <p key={item.code} style={{ margin: "0.2rem 0", fontSize: "0.88rem" }}>
+            <p
+              key={item.code}
+              style={{ margin: "0.2rem 0", fontSize: "0.88rem" }}
+            >
               {item.description}: {formatCents(item.amount_cents)}
             </p>
           ))}
@@ -817,60 +875,69 @@ function CateringModal({ onClose }) {
               {stepSubtitles[currentStep - 1]}
             </p>
             <div className="modal-body">
-            {currentStep === 1 && (
-              <StepContact form={form} onChange={handleChange} errors={errors} />
+              {currentStep === 1 && (
+                <StepContact
+                  form={form}
+                  onChange={handleChange}
+                  errors={errors}
+                />
+              )}
+              {currentStep === 2 && (
+                <StepEvent
+                  form={form}
+                  onChange={handleChange}
+                  errors={errors}
+                />
+              )}
+              {currentStep === 3 && (
+                <StepEventDetails
+                  form={form}
+                  onChange={handleChange}
+                  errors={errors}
+                />
+              )}
+              {currentStep === 4 && (
+                <StepOrderDetails
+                  form={form}
+                  onChange={handleChange}
+                  errors={errors}
+                />
+              )}
+              {currentStep === 5 && (
+                <StepSummary
+                  form={form}
+                  quoteStatus={quoteStatus}
+                  quote={quote}
+                  onGetQuote={handleGetQuote}
+                  onSubmitOrder={handleSubmitOrder}
+                  submitError={submitError}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Back/Next navigation sits at the bottom of the right form panel */}
+          <div className="modal-footer">
+            {currentStep > 1 && (
+              <button
+                type="button"
+                className="btn-back"
+                onClick={handleBack}
+                disabled={
+                  quoteStatus === "loading" || quoteStatus === "submitting"
+                }
+              >
+                Back
+              </button>
             )}
-            {currentStep === 2 && (
-              <StepEvent form={form} onChange={handleChange} errors={errors} />
-            )}
-            {currentStep === 3 && (
-              <StepEventDetails
-                form={form}
-                onChange={handleChange}
-                errors={errors}
-              />
-            )}
-            {currentStep === 4 && (
-              <StepOrderDetails
-                form={form}
-                onChange={handleChange}
-                errors={errors}
-              />
-            )}
-            {currentStep === 5 && (
-              <StepSummary
-                form={form}
-                quoteStatus={quoteStatus}
-                quote={quote}
-                onGetQuote={handleGetQuote}
-                onSubmitOrder={handleSubmitOrder}
-                submitError={submitError}
-              />
+            {currentStep < TOTAL_STEPS && (
+              <button type="button" className="btn-next" onClick={handleNext}>
+                Next
+              </button>
             )}
           </div>
         </div>
-
-        {/* Back/Next navigation sits at the bottom of the right form panel */}
-        <div className="modal-footer">
-          {currentStep > 1 && (
-            <button
-              type="button"
-              className="btn-back"
-              onClick={handleBack}
-              disabled={
-                quoteStatus === "loading" || quoteStatus === "submitting"
-              }
-            >
-              Back
-            </button>
-          )}
-          {currentStep < TOTAL_STEPS && (
-            <button type="button" className="btn-next" onClick={handleNext}>
-              Next
-            </button>
-          )}
-        </div>
-        </div>{/* end modal-form-panel */}
+        {/* end modal-form-panel */}
       </div>
     </div>
   );
@@ -911,9 +978,7 @@ export function CateringPage() {
           <li>Fill out the short catering form with your event details.</li>
           <li>Get an instant quote based on your order.</li>
           <li>Place your order and pay the 50% deposit to confirm.</li>
-          <li>
-            We handle the rest - delivery or full-service staff included.
-          </li>
+          <li>We handle the rest - delivery or full-service staff included.</li>
         </ol>
         <ul>
           <li>Minimum order: 50 popsicles</li>

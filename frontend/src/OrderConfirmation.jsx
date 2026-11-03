@@ -26,7 +26,8 @@ export function OrderConfirmation() {
     return <Navigate to="/order" replace />;
   }
 
-  const depositDue = order.deposit?.amount_due_cents ?? order.pricing?.deposit_due_cents;
+  const depositDue =
+    order.deposit?.amount_due_cents ?? order.pricing?.deposit_due_cents;
   const total = order.pricing?.total_cents;
 
   return (
@@ -86,7 +87,9 @@ export function OrderConfirmation() {
           </li>
           <li>
             Once confirmed, you will receive an email with a link to pay the 50%
-            deposit ({depositDue != null ? formatCents(depositDue) : "50% of your total"}).
+            deposit (
+            {depositDue != null ? formatCents(depositDue) : "50% of your total"}
+            ).
           </li>
           <li>
             Payment can be made via Square, PayPal, or Venmo using the link
