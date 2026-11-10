@@ -11,6 +11,11 @@ import {
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboard } from "./AdminDashboard.jsx";
+import { AdminDashboardPage } from "./admin/AdminDashboardPage.jsx";
+import { CalendarPage } from "./admin/CalendarPage.jsx";
+import { InventoryPage } from "./admin/InventoryPage.jsx";
+import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
+import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import { CateringPage } from "./CateringPage.jsx";
@@ -378,37 +383,53 @@ function NotFound() {
   );
 }
 
+// Wraps the dev test shell layout around child routes via <Outlet>.
+function LayoutRoute() {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/account"
+          element={<ProtectedPage area="customer" />}
+        />
+        <Route path="/admin/login" element={<AdminPasswordLogin />} />
+        <Route
+          path="/admin/mfa"
+          element={<Navigate to="/admin/login?reauth=1" replace />}
+        />
+        <Route path="/admin" element={<ProtectedPage area="admin" />} />
+        <Route
+          path="/admin/automation"
+          element={<ProtectedPage area="admin" />}
+        />
+        <Route
+          path="/admin/bookings/:bookingId"
+          element={<ProtectedPage area="admin" />}
+        />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Layout>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/order" element={<CateringPage />} />
-            <Route path="/order/confirm" element={<OrderConfirmation />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/account"
-              element={<ProtectedPage area="customer" />}
-            />
-            <Route path="/admin/login" element={<AdminPasswordLogin />} />
-            <Route
-              path="/admin/mfa"
-              element={<Navigate to="/admin/login?reauth=1" replace />}
-            />
-            <Route path="/admin" element={<ProtectedPage area="admin" />} />
-            <Route
-              path="/admin/automation"
-              element={<ProtectedPage area="admin" />}
-            />
-            <Route
-              path="/admin/bookings/:bookingId"
-              element={<ProtectedPage area="admin" />}
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* Full-page routes rendered without the dev test shell */}
+          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/admin/orders"    element={<OrdersPage />} />
+          <Route path="/admin/orders/:orderId" element={<OrderDetailPage />} />
+          <Route path="/admin/calendar"  element={<CalendarPage />} />
+          <Route path="/admin/inventory" element={<InventoryPage />} />
+          <Route path="/order"           element={<CateringPage />} />
+          <Route path="/order/confirm"   element={<OrderConfirmation />} />
+          {/* All other routes get the test-shell layout */}
+          <Route path="/*" element={<LayoutRoute />} />
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );

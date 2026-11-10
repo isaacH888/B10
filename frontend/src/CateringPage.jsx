@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
+import logoImage from "./assets/logo.png";
 import venueImage from "./assets/Venue.webp";
 import { apiRequest } from "./auth/api.js";
 
@@ -974,43 +975,236 @@ export function CateringPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
-    <section aria-labelledby="catering-heading">
-      {/* Hero - full bleed image with title and CTA overlaid */}
-      <div className="catering-hero">
-        <img src={heroImage} alt="" className="catering-hero-image" />
-        <div className="catering-hero-content">
-          <h1 id="catering-heading">Bring the Chill to Your Event</h1>
-          <p>
-            From weddings to corporate events, our popsicles make every moment
-            sweeter.
+    <div className="cat-shell">
+      {/* ---- Status bar: dark purple strip at very top ---- */}
+      <div className="cat-status-bar" aria-label="Site announcement">
+        <p className="cat-status-bar__text">Mexican Paletas. Endless Popssibilities.</p>
+      </div>
+
+      {/* ---- Navbar: hot pink ---- */}
+      <header className="cat-nav">
+        <a href="/" className="cat-nav__brand" aria-label="Popssibilities home">
+          <img
+            src={logoImage}
+            alt="Popssibilities"
+            className="cat-nav__logo"
+            width={58}
+            height={58}
+          />
+        </a>
+        <nav className="cat-nav__links" aria-label="Site navigation">
+          <a href="/#menu">The paleta life</a>
+          <a href="/#about">Our story</a>
+          <a href="/#contact">Stay in the loop</a>
+          <a href="/order">Catering</a>
+        </nav>
+        <button
+          type="button"
+          className="cat-btn cat-btn--red cat-nav__login"
+          onClick={() => setModalOpen(true)}
+        >
+          Get pop updates ↗
+        </button>
+      </header>
+
+      <main id="main-content">
+        {/* ---- Hero: full-bleed image, text overlaid at bottom ---- */}
+        <section className="cat-hero" aria-labelledby="cat-hero-heading">
+          <img
+            src={heroImage}
+            alt="Colorful paletas at a catering event"
+            className="cat-hero__image"
+          />
+          <div className="cat-hero__overlay" aria-hidden="true" />
+          <div className="cat-hero__content">
+            <h1 id="cat-hero-heading" className="cat-hero__heading">
+              Bring the Chill
+              <br />
+              to Your Event
+            </h1>
+            <p className="cat-hero__sub">
+              From weddings to corporate events, our hand-crafted paletas
+              make every moment sweeter. Delivery or full service within
+              30 miles of Houston.
+            </p>
+            <button
+              type="button"
+              className="cat-btn cat-btn--red"
+              onClick={() => setModalOpen(true)}
+            >
+              Book now
+            </button>
+          </div>
+        </section>
+
+        {/* ---- Features: yellow background ---- */}
+        <section
+          className="cat-features"
+          aria-labelledby="cat-features-heading"
+        >
+          <h2 id="cat-features-heading" className="cat-section-title">
+            Why Popssibilities?
+          </h2>
+          <p className="cat-section-sub">
+            Everything you need for a sweet, stress-free event.
+          </p>
+          <div className="cat-features__grid">
+            <div className="cat-feature-card">
+              <div className="cat-feature-card__icon" aria-hidden="true">
+                🍭
+              </div>
+              <h3>Premium Paletas</h3>
+              <p>
+                Hand-crafted with real fruit and natural ingredients.
+                Every paleta is made fresh for your event.
+              </p>
+            </div>
+            <div className="cat-feature-card">
+              <div className="cat-feature-card__icon" aria-hidden="true">
+                ✨
+              </div>
+              <h3>Custom Flavors</h3>
+              <p>
+                Choose from our signature menu or work with us on a
+                custom flavor made just for your event.
+              </p>
+            </div>
+            <div className="cat-feature-card">
+              <div className="cat-feature-card__icon" aria-hidden="true">
+                📅
+              </div>
+              <h3>Full Event Service</h3>
+              <p>
+                Delivery or full-service staff included. We show up
+                ready so you can enjoy every moment.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ---- How it works: white background, red numbers ---- */}
+        <section className="cat-how" aria-labelledby="cat-how-heading">
+          <h2 id="cat-how-heading" className="cat-section-title">
+            How it works
+          </h2>
+          <p className="cat-section-sub">
+            From quote to delivery in just a few steps.
+          </p>
+          <ol className="cat-how__steps">
+            <li className="cat-how__step">
+              <span className="cat-how__step-num" aria-hidden="true">
+                01
+              </span>
+              <div>
+                <h3>Fill out the form</h3>
+                <p>
+                  Tell us about your event, how many paletas you need,
+                  and any flavor requests.
+                </p>
+              </div>
+            </li>
+            <li className="cat-how__step">
+              <span className="cat-how__step-num" aria-hidden="true">
+                02
+              </span>
+              <div>
+                <h3>Get your quote</h3>
+                <p>
+                  Receive an instant price. Delivery within 30 miles:
+                  $25&ndash;$75.
+                </p>
+              </div>
+            </li>
+            <li className="cat-how__step">
+              <span className="cat-how__step-num" aria-hidden="true">
+                03
+              </span>
+              <div>
+                <h3>Confirm with a deposit</h3>
+                <p>
+                  Lock in your date with a 50% deposit via Square,
+                  PayPal, or Venmo.
+                </p>
+              </div>
+            </li>
+            <li className="cat-how__step">
+              <span className="cat-how__step-num" aria-hidden="true">
+                04
+              </span>
+              <div>
+                <h3>We handle the rest</h3>
+                <p>
+                  Delivery or full-service staff&mdash;we show up ready
+                  so you can enjoy your event.
+                </p>
+              </div>
+            </li>
+          </ol>
+          <div className="cat-how__rules" aria-label="Pricing quick facts">
+            <span>Minimum 50 paletas</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>Delivery within 30 miles: $25&ndash;$75</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>Dry ice: $15 per block</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>50% deposit to confirm</span>
+          </div>
+        </section>
+
+        {/* ---- CTA: red background, white text ---- */}
+        <section className="cat-cta" aria-labelledby="cat-cta-heading">
+          <h2 id="cat-cta-heading" className="cat-cta__heading">
+            Ready to book?
+          </h2>
+          <p className="cat-cta__sub">
+            Fill out the form in just a few minutes and get your instant
+            quote.
           </p>
           <button
             type="button"
-            className="btn-primary"
+            className="cat-btn cat-btn--outline-white"
             onClick={() => setModalOpen(true)}
           >
             Request a quote
           </button>
-        </div>
-      </div>
+        </section>
+      </main>
 
-      {/* How it works */}
-      <section className="catering-info" aria-labelledby="how-it-works-heading">
-        <h2 id="how-it-works-heading">How it works</h2>
-        <ol>
-          <li>Fill out the short catering form with your event details.</li>
-          <li>Get an instant quote based on your order.</li>
-          <li>Place your order and pay the 50% deposit to confirm.</li>
-          <li>We handle the rest - delivery or full-service staff included.</li>
-        </ol>
-        <ul>
-          <li>Minimum order: 50 popsicles</li>
-          <li>Delivery within 30 miles: $25 - $75</li>
-          <li>Dry ice available: $15 per block</li>
-        </ul>
-      </section>
+      {/* ---- Footer ---- */}
+      <footer className="cat-footer">
+        <div className="cat-footer__inner">
+          <div className="cat-footer__brand">
+            <img
+              src={logoImage}
+              alt=""
+              aria-hidden="true"
+              className="cat-footer__logo"
+              width={36}
+              height={36}
+            />
+            <span className="cat-footer__name">POPSSIBILITIES</span>
+          </div>
+          <p className="cat-footer__tagline">
+            Houston, TX &middot; info@popssibilities.com &middot;
+            281-248-7514
+          </p>
+          <nav
+            className="cat-footer__links"
+            aria-label="Footer navigation"
+          >
+            <a href="/#menu">Menu</a>
+            <a href="/order">Catering</a>
+            <a href="/#about">About</a>
+            <a href="/#contact">Contact</a>
+          </nav>
+          <p className="cat-footer__copy">
+            &copy; {new Date().getFullYear()} Popssibilities. All rights
+            reserved.
+          </p>
+        </div>
+      </footer>
 
       {modalOpen && <CateringModal onClose={() => setModalOpen(false)} />}
-    </section>
+    </div>
   );
 }

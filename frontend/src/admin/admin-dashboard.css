@@ -1,0 +1,1353 @@
+/*
+  Popssibilities Admin Dashboard
+  ================================
+  Brand palette (from Figma design tokens):
+    Cream     #fff7dc  --  page background
+    Pink      #ff59a5  --  nav sidebar, accent stat cards
+    Soft Pink #ffadd2  --  softer accent cards
+    Yellow    #ffed00  --  event date badges, attention panel
+    Ink       #3b003d  --  primary text, borders
+    Red       #4b004b  --  headings, links, primary button
+    Dark Red  #330033  --  secondary link accent, confirmed status
+
+  Fonts:
+    Anton     — display headings
+    DM Sans   — body, labels, buttons
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;700&display=swap");
+
+/* -------------------------------------------------------------------------
+   Shell layout: sidebar + main
+   ------------------------------------------------------------------------- */
+
+.adm-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #fff7dc;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Sidebar navigation
+   ------------------------------------------------------------------------- */
+
+.adm-nav {
+  width: 240px;
+  min-height: 100vh;
+  background: #ff59a5;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+}
+
+/* Brand block */
+.adm-nav__brand {
+  padding: 24px 24px 0;
+}
+
+.adm-nav__logo {
+  display: block;
+  width: 64px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.adm-nav__site-name {
+  margin: 14px 0 0;
+  font-family: "Anton", sans-serif;
+  font-size: 24px;
+  line-height: 31px;
+  color: #3b003d;
+}
+
+.adm-nav__area {
+  margin: 8px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: #3b003d;
+}
+
+/* Nav list */
+.adm-nav__list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+}
+
+.adm-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 16px;
+  padding: 14px 16px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3b003d;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: background 0.12s;
+}
+
+.adm-nav__link:hover {
+  background: rgba(59, 0, 61, 0.08);
+}
+
+.adm-nav__link--active {
+  background: #4b004b;
+  color: #fff7dc;
+}
+
+.adm-nav__link--active:hover {
+  background: #4b004b;
+}
+
+.adm-nav__icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+/* Active icon: invert so it shows on dark bg */
+.adm-nav__link--active .adm-nav__icon {
+  filter: brightness(0) invert(1) sepia(1) saturate(0) hue-rotate(0deg);
+  filter: brightness(10);
+}
+
+/* Bottom sidebar note */
+.adm-nav__note {
+  margin: auto 16px 24px;
+  background: #ffadd2;
+  border-radius: 24px;
+  padding: 18px 16px 16px;
+}
+
+.adm-nav__note-heading {
+  margin: 0;
+  font-family: "Anton", sans-serif;
+  font-size: 23px;
+  line-height: 30px;
+  color: #3b003d;
+}
+
+.adm-nav__note-sub {
+  margin: 14px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 23px;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Main area (header + scrollable content)
+   ------------------------------------------------------------------------- */
+
+.adm-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -------------------------------------------------------------------------
+   Page header bar
+   ------------------------------------------------------------------------- */
+
+.adm-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 96px;
+  padding: 0 32px;
+  background: #fff7dc;
+  border-bottom: 1px solid #3b003d;
+  flex-shrink: 0;
+}
+
+.adm-page-header__title {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3b003d;
+}
+
+.adm-page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.adm-page-header__view-site {
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #4b004b;
+  text-decoration: none;
+}
+
+.adm-page-header__view-site:hover {
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------------- */
+
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
+  border-radius: 999px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.12s;
+  white-space: nowrap;
+}
+
+.adm-btn:hover {
+  opacity: 0.88;
+}
+
+.adm-btn--primary {
+  background: #4b004b;
+  color: #fff7dc;
+}
+
+.adm-btn--outline {
+  background: transparent;
+  border: 1.5px solid #4b004b;
+  color: #4b004b;
+}
+
+/* -------------------------------------------------------------------------
+   Page content area
+   ------------------------------------------------------------------------- */
+
+.adm-content {
+  padding: 32px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* -------------------------------------------------------------------------
+   Hero heading row
+   ------------------------------------------------------------------------- */
+
+.adm-hero-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.adm-hero-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.adm-hero-row__heading {
+  margin: 0;
+  font-family: "Anton", sans-serif;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 44px;
+  color: #4b004b;
+}
+
+.adm-hero-row__sub {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 23px;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Stat cards grid
+   ------------------------------------------------------------------------- */
+
+.adm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.adm-stat-card {
+  border-radius: 24px;
+  padding: 16px 20px 20px;
+  overflow: hidden;
+  min-height: 140px;
+}
+
+.adm-stat-card--pink {
+  background: #ff59a5;
+}
+
+.adm-stat-card--yellow {
+  background: #ffed00;
+}
+
+.adm-stat-card--softpink {
+  background: #ffadd2;
+}
+
+.adm-stat-card__label {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: #3b003d;
+}
+
+.adm-stat-card__value {
+  margin: 6px 0 0;
+  font-family: "Anton", sans-serif;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 49px;
+  color: #3b003d;
+}
+
+.adm-stat-card--softpink .adm-stat-card__value {
+  color: #330033;
+}
+
+.adm-stat-card__sub {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Mid row: events + attention side-by-side
+   ------------------------------------------------------------------------- */
+
+.adm-mid-row {
+  display: grid;
+  grid-template-columns: 1fr 392px;
+  gap: 24px;
+}
+
+/* -------------------------------------------------------------------------
+   Shared card base
+   ------------------------------------------------------------------------- */
+
+.adm-card {
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.adm-card--outlined {
+  background: #fff7dc;
+  border: 1px solid #3b003d;
+}
+
+.adm-card--yellow {
+  background: #ffed00;
+}
+
+.adm-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.adm-card__title {
+  margin: 0;
+  font-family: "Anton", sans-serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 31px;
+  color: #3b003d;
+}
+
+.adm-card__link {
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: #4b004b;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.adm-card__link:hover {
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   Upcoming events card
+   ------------------------------------------------------------------------- */
+
+.adm-card--events {
+  padding-bottom: 20px;
+}
+
+.adm-event-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.adm-event-row {
+  position: relative;
+}
+
+.adm-event-row__divider {
+  height: 1px;
+  background: #3b003d;
+  margin: 0 0 0 -1px;
+  width: calc(100% + 2px);
+}
+
+.adm-event-row__inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 24px;
+}
+
+.adm-event-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  min-height: 48px;
+  background: #ffed00;
+  border-radius: 4px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+  flex-shrink: 0;
+  padding: 4px;
+  text-align: center;
+}
+
+.adm-event-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.adm-event-info__name {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3b003d;
+}
+
+.adm-event-info__detail {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #3b003d;
+}
+
+.adm-event-time {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.adm-card__more-link {
+  margin: 8px 24px 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #4b004b;
+}
+
+/* -------------------------------------------------------------------------
+   Attention / needs love card
+   ------------------------------------------------------------------------- */
+
+.adm-card--attention {
+  padding: 20px 24px 24px;
+}
+
+.adm-attention-list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.adm-attention-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adm-attention-item__count-label {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 17px;
+  color: #3b003d;
+}
+
+.adm-attention-item__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-attention-item__link {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #330033;
+  text-decoration: none;
+}
+
+.adm-attention-item__link:hover {
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   Recent orders table card
+   ------------------------------------------------------------------------- */
+
+.adm-card--orders {
+  padding-bottom: 20px;
+}
+
+.adm-table-wrap {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.adm-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "DM Sans", sans-serif;
+}
+
+.adm-orders-table thead tr {
+  border-top: 1px solid #3b003d;
+  border-bottom: 1px solid #3b003d;
+}
+
+.adm-orders-table th {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #3b003d;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.adm-orders-table th:first-child {
+  padding-left: 24px;
+}
+
+.adm-orders-table td {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #3b003d;
+  border-bottom: 1px solid #3b003d;
+}
+
+.adm-orders-table td:first-child {
+  padding-left: 24px;
+}
+
+.adm-orders-table__customer {
+  font-weight: 700 !important;
+}
+
+.adm-orders-table__note {
+  margin: 12px 24px 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Order status badge
+   ------------------------------------------------------------------------- */
+
+.adm-status {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 14px;
+}
+
+.adm-status--pending {
+  color: #330033;
+}
+
+.adm-status--confirmed {
+  color: #4b004b;
+  font-weight: 700;
+}
+
+/* -------------------------------------------------------------------------
+   Content footer row (note + action button)
+   ------------------------------------------------------------------------- */
+
+.adm-content__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.adm-content__footer-note {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive: collapse to single-column at narrower widths
+   ------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .adm-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .adm-mid-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .adm-shell {
+    flex-direction: column;
+  }
+
+  .adm-nav {
+    width: 100%;
+    min-height: auto;
+    position: relative;
+  }
+
+  .adm-nav__note {
+    display: none;
+  }
+
+  .adm-stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .adm-page-header {
+    height: auto;
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .adm-content {
+    padding: 16px;
+  }
+
+  .adm-hero-row {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .adm-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================================
+   INVENTORY PAGE
+   ========================================================================= */
+
+.adm-stats-grid--4col {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.adm-stat-card__value--dark {
+  color: #330033;
+}
+
+/* Low-stock alert banner */
+.inv-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #ffed00;
+  border-radius: 24px;
+  padding: 14px 24px;
+  min-height: 76px;
+}
+
+.inv-alert__text {
+  flex: 1;
+}
+
+.inv-alert__heading {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: #3b003d;
+}
+
+.inv-alert__body {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #3b003d;
+}
+
+.inv-alert__link {
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #330033;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.inv-alert__link:hover {
+  text-decoration: underline;
+}
+
+/* Search + filters toolbar */
+.inv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inv-search {
+  height: 60px;
+  padding: 0 24px;
+  border: 1px solid #3b003d;
+  border-radius: 999px;
+  background: #fff7dc;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  color: #3b003d;
+  width: 350px;
+  outline: none;
+}
+
+.inv-search:focus {
+  box-shadow: 0 0 0 2px #4b004b;
+}
+
+.inv-search::placeholder {
+  color: #3b003d;
+  opacity: 0.6;
+}
+
+.inv-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.inv-filter-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: #fff7dc;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.inv-filter-btn--active {
+  background: #4b004b;
+  color: #fff7dc;
+}
+
+.inv-filter-btn--yellow {
+  background: #ffed00;
+}
+
+.inv-filter-btn--yellow.inv-filter-btn--active {
+  background: #4b004b;
+  color: #fff7dc;
+}
+
+.inv-filter-btn--pink {
+  background: #ff59a5;
+}
+
+.inv-filter-btn--right {
+  margin-left: auto;
+}
+
+/* Inventory table card */
+.inv-table-card {
+  padding-bottom: 20px;
+}
+
+/* Inventory-specific table tweaks */
+.inv-table th:first-child,
+.inv-table td:first-child {
+  width: 260px;
+}
+
+.inv-table__flavor-name {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3b003d;
+}
+
+.inv-table__flavor-sku {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 14px;
+  color: #3b003d;
+}
+
+.inv-table__available--low {
+  color: #330033 !important;
+}
+
+.inv-table__action {
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 17px;
+  color: #4b004b;
+  text-decoration: none;
+}
+
+.inv-table__action:hover {
+  text-decoration: underline;
+}
+
+/* Status badges */
+.inv-badge {
+  display: inline-block;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 30px;
+  white-space: nowrap;
+}
+
+.inv-badge--low {
+  background: #ffed00;
+  color: #3b003d;
+}
+
+.inv-badge--ok {
+  background: #ff59a5;
+  color: #3b003d;
+}
+
+/* Visually hidden utility */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* =========================================================================
+   ORDERS PAGE
+   ========================================================================= */
+
+/* Attention banner */
+.ord-alert {
+  background: #ffed00;
+  border-radius: 24px;
+  padding: 20px 24px 16px;
+}
+
+.ord-alert__main {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  color: #3b003d;
+}
+
+.ord-alert__sub {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* Filters panel */
+.ord-filters-panel {
+  background: #ffadd2;
+  border-radius: 24px;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ord-filters-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ord-count-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 16px;
+  background: #fff7dc;
+  border-radius: 999px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+  white-space: nowrap;
+}
+
+.ord-filter-breakdown {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+.ord-filters-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.ord-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ord-filter-label {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #3b003d;
+}
+
+.ord-select {
+  height: 60px;
+  padding: 0 24px;
+  border: 1px solid #3b003d;
+  border-radius: 999px;
+  background: #fff7dc;
+  font-family: "DM Sans", sans-serif;
+  font-size: 15px;
+  color: #3b003d;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.ord-select:focus {
+  box-shadow: 0 0 0 2px #4b004b;
+}
+
+/* Orders table */
+.ord-table th,
+.ord-table td {
+  vertical-align: top;
+}
+
+.ord-status {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.ord-status--pending {
+  color: #330033;
+}
+
+.ord-status--confirmed {
+  color: #3b003d;
+}
+
+.ord-payment {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+
+.ord-payment--unpaid {
+  color: #3b003d;
+}
+
+.ord-payment--partial {
+  color: #3b003d;
+}
+
+.ord-payment--review {
+  color: #330033;
+}
+
+.ord-payment--paid {
+  color: #3b003d;
+}
+
+.ord-payment-sub {
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* =========================================================================
+   CALENDAR PAGE
+   ========================================================================= */
+
+/* Google Calendar banner */
+.cal-gcal-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: #ffadd2;
+  border-radius: 24px;
+  padding: 16px 24px;
+  min-height: 100px;
+}
+
+.cal-gcal-banner__info {
+  flex: 1;
+}
+
+.cal-gcal-banner__title {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+.cal-gcal-banner__account {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #3b003d;
+}
+
+.cal-gcal-banner__sync {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+/* Month nav row */
+.cal-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cal-month-heading {
+  margin: 0;
+  font-family: "Anton", sans-serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 31px;
+  color: #3b003d;
+  margin-right: 8px;
+}
+
+.cal-nav-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.cal-view-toggle {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Calendar grid card */
+.cal-grid-card {
+  overflow: hidden;
+}
+
+.cal-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 0.5px solid #3b003d;
+}
+
+.cal-dow-label {
+  padding: 12px 12px 8px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #3b003d;
+}
+
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-cell {
+  border: 0.5px solid #3b003d;
+  min-height: 160px;
+  padding: 8px 6px 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.cal-cell--empty {
+  background: #f5f0d0;
+}
+
+.cal-cell__date {
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #3b003d;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cal-cell__date--today {
+  background: #4b004b;
+  color: #fff7dc;
+}
+
+/* Event block inside a cell */
+.cal-event {
+  margin-top: 4px;
+  border-radius: 4px;
+  padding: 6px 8px;
+  overflow: hidden;
+}
+
+.cal-event--yellow {
+  background: #ffed00;
+}
+
+.cal-event--pink {
+  background: #ff59a5;
+}
+
+.cal-event--cream {
+  background: #fff7dc;
+  border: 1px dashed #3b003d;
+}
+
+.cal-event__name {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  color: #3b003d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-event__time,
+.cal-event__service {
+  margin: 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  color: #3b003d;
+}
+
+.cal-event__status {
+  margin: 4px 0 0;
+  font-family: "DM Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.cal-event__status--confirmed {
+  color: #3b003d;
+}
+
+.cal-event__status--confirmed-warn {
+  color: #330033;
+}
+
+.cal-event__status--pending {
+  color: #330033;
+}
+
+/* Legend */
+.cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.cal-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  color: #3b003d;
+}
+
+.cal-legend__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cal-legend__dot--yellow { background: #ffed00; }
+.cal-legend__dot--pink   { background: #ff59a5; }
+.cal-legend__dot--cream  { background: #fff7dc; border: 1px dashed #3b003d; }
+
+/* =========================================================================
+   Responsive overrides for new pages
+   ========================================================================= */
+
+@media (max-width: 1100px) {
+  .adm-stats-grid--4col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ord-filters-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .cal-cell {
+    min-height: 100px;
+  }
+}
+
+@media (max-width: 720px) {
+  .adm-stats-grid--4col {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ord-filters-row {
+    grid-template-columns: 1fr;
+  }
+  .inv-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inv-search {
+    width: 100%;
+  }
+  .cal-cell {
+    min-height: 60px;
+    padding: 4px 2px;
+  }
+  .cal-event__time,
+  .cal-event__service,
+  .cal-event__status {
+    display: none;
+  }
+}
