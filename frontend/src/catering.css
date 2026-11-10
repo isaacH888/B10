@@ -108,7 +108,9 @@
   font-weight: 700;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
-  transition: background 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
 }
 .cat-btn--red {
   background: #4b004b;
@@ -155,7 +157,7 @@
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(5, 10, 40, 0.80) 0%,
+    rgba(5, 10, 40, 0.8) 0%,
     rgba(5, 10, 40, 0.25) 50%,
     rgba(75, 0, 75, 0.35) 100%
   );
@@ -171,7 +173,7 @@
   font-family: "Anton", sans-serif;
   font-size: clamp(3.5rem, 7vw, 6.5rem);
   color: #ffcc4b;
-  line-height: 1.0;
+  line-height: 1;
   letter-spacing: 0.02em;
   margin: 0 0 1.25rem;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);

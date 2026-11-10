@@ -390,10 +390,7 @@ function LayoutRoute() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/account"
-          element={<ProtectedPage area="customer" />}
-        />
+        <Route path="/account" element={<ProtectedPage area="customer" />} />
         <Route path="/admin/login" element={<AdminPasswordLogin />} />
         <Route
           path="/admin/mfa"
@@ -421,12 +418,12 @@ export default function App() {
         <Routes>
           {/* Full-page routes rendered without the dev test shell */}
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/orders"    element={<OrdersPage />} />
+          <Route path="/admin/orders" element={<OrdersPage />} />
           <Route path="/admin/orders/:orderId" element={<OrderDetailPage />} />
-          <Route path="/admin/calendar"  element={<CalendarPage />} />
+          <Route path="/admin/calendar" element={<CalendarPage />} />
           <Route path="/admin/inventory" element={<InventoryPage />} />
-          <Route path="/order"           element={<CateringPage />} />
-          <Route path="/order/confirm"   element={<OrderConfirmation />} />
+          <Route path="/order" element={<CateringPage />} />
+          <Route path="/order/confirm" element={<OrderConfirmation />} />
           {/* All other routes get the test-shell layout */}
           <Route path="/*" element={<LayoutRoute />} />
         </Routes>

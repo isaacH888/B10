@@ -14,11 +14,23 @@
   cursor: pointer;
   transition: filter 0.1s;
 }
-.cal-event:hover  { filter: brightness(0.93); }
-.cal-event:focus-visible { outline: 2px solid #4b004b; outline-offset: 2px; }
-.cal-event--yellow { background: #ffed00; }
-.cal-event--pink   { background: #ff59a5; }
-.cal-event--cream  { background: #fff7dc; border: 1px dashed #3b003d; }
+.cal-event:hover {
+  filter: brightness(0.93);
+}
+.cal-event:focus-visible {
+  outline: 2px solid #4b004b;
+  outline-offset: 2px;
+}
+.cal-event--yellow {
+  background: #ffed00;
+}
+.cal-event--pink {
+  background: #ff59a5;
+}
+.cal-event--cream {
+  background: #fff7dc;
+  border: 1px dashed #3b003d;
+}
 
 .cal-event__name {
   margin: 0;
@@ -46,12 +58,20 @@
   font-weight: 700;
   line-height: 14px;
 }
-.cal-event__status--confirmed      { color: #3b003d; }
-.cal-event__status--confirmed-warn { color: #330033; }
-.cal-event__status--pending        { color: #330033; }
+.cal-event__status--confirmed {
+  color: #3b003d;
+}
+.cal-event__status--confirmed-warn {
+  color: #330033;
+}
+.cal-event__status--pending {
+  color: #330033;
+}
 
 /* Upcoming table */
-.cal-upcoming-card { overflow: hidden; }
+.cal-upcoming-card {
+  overflow: hidden;
+}
 
 .cal-upcoming-banner {
   background: #ffadd2;
@@ -67,9 +87,16 @@
   color: #3b003d;
 }
 
-.cal-upcoming-table { width: 100%; }
-.cal-upcoming-row--pending td { opacity: 0.75; }
-.cal-upcoming__sync--failed { color: #330033; font-weight: 700; }
+.cal-upcoming-table {
+  width: 100%;
+}
+.cal-upcoming-row--pending td {
+  opacity: 0.75;
+}
+.cal-upcoming__sync--failed {
+  color: #330033;
+  font-weight: 700;
+}
 
 /* Event detail drawer */
 .cal-drawer-backdrop {
@@ -135,7 +162,9 @@
   padding: 4px;
   border-radius: 4px;
 }
-.cal-drawer__close:focus-visible { outline: 2px solid #4b004b; }
+.cal-drawer__close:focus-visible {
+  outline: 2px solid #4b004b;
+}
 
 .cal-drawer__status-row {
   display: grid;
@@ -222,7 +251,11 @@
   white-space: pre-line;
 }
 
-.cal-drawer__detail-row { display: flex; flex-direction: column; gap: 4px; }
+.cal-drawer__detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .cal-drawer__detail-label {
   margin: 0;
   font-family: "DM Sans", sans-serif;
@@ -264,7 +297,13 @@
 
 /* visually-hidden utility if not already defined */
 .visually-hidden {
-  position: absolute; width: 1px; height: 1px; padding: 0;
-  margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
-  white-space: nowrap; border: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

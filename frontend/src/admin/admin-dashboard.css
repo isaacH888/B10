@@ -1307,9 +1307,16 @@
   flex-shrink: 0;
 }
 
-.cal-legend__dot--yellow { background: #ffed00; }
-.cal-legend__dot--pink   { background: #ff59a5; }
-.cal-legend__dot--cream  { background: #fff7dc; border: 1px dashed #3b003d; }
+.cal-legend__dot--yellow {
+  background: #ffed00;
+}
+.cal-legend__dot--pink {
+  background: #ff59a5;
+}
+.cal-legend__dot--cream {
+  background: #fff7dc;
+  border: 1px dashed #3b003d;
+}
 
 /* =========================================================================
    Responsive overrides for new pages

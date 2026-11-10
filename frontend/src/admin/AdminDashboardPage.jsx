@@ -140,8 +140,8 @@ const RECENT_ORDERS = [
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders",    icon: iconOrders,    href: "/admin/orders" },
-  { label: "Calendar",  icon: iconCalendar,  href: "/admin/calendar" },
+  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
+  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
   { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
 ];
 
@@ -173,7 +173,9 @@ function AdminNav({ activeRoute }) {
                 <Link
                   to={item.href}
                   className={
-                    isActive ? "adm-nav__link adm-nav__link--active" : "adm-nav__link"
+                    isActive
+                      ? "adm-nav__link adm-nav__link--active"
+                      : "adm-nav__link"
                   }
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -210,9 +212,15 @@ function AdminNav({ activeRoute }) {
 
 function StatCard({ label, value, sub, color }) {
   return (
-    <div className={`adm-stat-card adm-stat-card--${color}`} role="region" aria-label={label}>
+    <div
+      className={`adm-stat-card adm-stat-card--${color}`}
+      role="region"
+      aria-label={label}
+    >
       <p className="adm-stat-card__label">{label}</p>
-      <p className="adm-stat-card__value" aria-live="polite">{value}</p>
+      <p className="adm-stat-card__value" aria-live="polite">
+        {value}
+      </p>
       <p className="adm-stat-card__sub">{sub}</p>
     </div>
   );
@@ -309,7 +317,12 @@ function RecentOrdersTable() {
         </Link>
       </div>
 
-      <div className="adm-table-wrap" role="region" aria-label="Recent orders table" tabIndex={0}>
+      <div
+        className="adm-table-wrap"
+        role="region"
+        aria-label="Recent orders table"
+        tabIndex={0}
+      >
         <table className="adm-orders-table">
           <thead>
             <tr>
@@ -325,7 +338,10 @@ function RecentOrdersTable() {
             {RECENT_ORDERS.map((order) => (
               <tr key={order.id}>
                 <td>
-                  <Link to={`/admin/orders/${encodeURIComponent(order.id)}`} className="adm-card__link">
+                  <Link
+                    to={`/admin/orders/${encodeURIComponent(order.id)}`}
+                    className="adm-card__link"
+                  >
                     {order.id}
                   </Link>
                 </td>
@@ -404,7 +420,11 @@ export function AdminDashboardPage() {
                 {dateStr} · Here&rsquo;s what needs your attention.
               </p>
             </div>
-            <button type="button" className="adm-btn adm-btn--primary" onClick={() => navigate("/admin/orders")}>
+            <button
+              type="button"
+              className="adm-btn adm-btn--primary"
+              onClick={() => navigate("/admin/orders")}
+            >
               Review orders ↗
             </button>
           </div>
@@ -431,7 +451,11 @@ export function AdminDashboardPage() {
               Inventory is reserved for confirmed events only. New requests do
               not reduce available stock.
             </p>
-            <button type="button" className="adm-btn adm-btn--outline" onClick={() => navigate("/admin/inventory")}>
+            <button
+              type="button"
+              className="adm-btn adm-btn--outline"
+              onClick={() => navigate("/admin/inventory")}
+            >
               Update inventory ↗
             </button>
           </div>

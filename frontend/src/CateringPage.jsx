@@ -978,7 +978,9 @@ export function CateringPage() {
     <div className="cat-shell">
       {/* ---- Status bar: dark purple strip at very top ---- */}
       <div className="cat-status-bar" aria-label="Site announcement">
-        <p className="cat-status-bar__text">Mexican Paletas. Endless Popssibilities.</p>
+        <p className="cat-status-bar__text">
+          Mexican Paletas. Endless Popssibilities.
+        </p>
       </div>
 
       {/* ---- Navbar: hot pink ---- */}
@@ -1023,9 +1025,9 @@ export function CateringPage() {
               to Your Event
             </h1>
             <p className="cat-hero__sub">
-              From weddings to corporate events, our hand-crafted paletas
-              make every moment sweeter. Delivery or full service within
-              30 miles of Houston.
+              From weddings to corporate events, our hand-crafted paletas make
+              every moment sweeter. Delivery or full service within 30 miles of
+              Houston.
             </p>
             <button
               type="button"
@@ -1051,32 +1053,32 @@ export function CateringPage() {
           <div className="cat-features__grid">
             <div className="cat-feature-card">
               <div className="cat-feature-card__icon" aria-hidden="true">
-                🍭
+                &bull;
               </div>
               <h3>Premium Paletas</h3>
               <p>
-                Hand-crafted with real fruit and natural ingredients.
-                Every paleta is made fresh for your event.
+                Hand-crafted with real fruit and natural ingredients. Every
+                paleta is made fresh for your event.
               </p>
             </div>
             <div className="cat-feature-card">
               <div className="cat-feature-card__icon" aria-hidden="true">
-                ✨
+                &bull;
               </div>
               <h3>Custom Flavors</h3>
               <p>
-                Choose from our signature menu or work with us on a
-                custom flavor made just for your event.
+                Choose from our signature menu or work with us on a custom
+                flavor made just for your event.
               </p>
             </div>
             <div className="cat-feature-card">
               <div className="cat-feature-card__icon" aria-hidden="true">
-                📅
+                &bull;
               </div>
               <h3>Full Event Service</h3>
               <p>
-                Delivery or full-service staff included. We show up
-                ready so you can enjoy every moment.
+                Delivery or full-service staff included. We show up ready so you
+                can enjoy every moment.
               </p>
             </div>
           </div>
@@ -1098,8 +1100,8 @@ export function CateringPage() {
               <div>
                 <h3>Fill out the form</h3>
                 <p>
-                  Tell us about your event, how many paletas you need,
-                  and any flavor requests.
+                  Tell us about your event, how many paletas you need, and any
+                  flavor requests.
                 </p>
               </div>
             </li>
@@ -1122,8 +1124,8 @@ export function CateringPage() {
               <div>
                 <h3>Confirm with a deposit</h3>
                 <p>
-                  Lock in your date with a 50% deposit via Square,
-                  PayPal, or Venmo.
+                  Lock in your date with a 50% deposit via Square, PayPal, or
+                  Venmo.
                 </p>
               </div>
             </li>
@@ -1134,8 +1136,8 @@ export function CateringPage() {
               <div>
                 <h3>We handle the rest</h3>
                 <p>
-                  Delivery or full-service staff&mdash;we show up ready
-                  so you can enjoy your event.
+                  Delivery or full-service staff&mdash;we show up ready so you
+                  can enjoy your event.
                 </p>
               </div>
             </li>
@@ -1157,8 +1159,7 @@ export function CateringPage() {
             Ready to book?
           </h2>
           <p className="cat-cta__sub">
-            Fill out the form in just a few minutes and get your instant
-            quote.
+            Fill out the form in just a few minutes and get your instant quote.
           </p>
           <button
             type="button"
@@ -1185,13 +1186,9 @@ export function CateringPage() {
             <span className="cat-footer__name">POPSSIBILITIES</span>
           </div>
           <p className="cat-footer__tagline">
-            Houston, TX &middot; info@popssibilities.com &middot;
-            281-248-7514
+            Houston, TX &middot; info@popssibilities.com &middot; 281-248-7514
           </p>
-          <nav
-            className="cat-footer__links"
-            aria-label="Footer navigation"
-          >
+          <nav className="cat-footer__links" aria-label="Footer navigation">
             <a href="/#menu">Menu</a>
             <a href="/order">Catering</a>
             <a href="/#about">About</a>
