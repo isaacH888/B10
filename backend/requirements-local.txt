@@ -1,0 +1,4 @@
+# Optional support for local AWS console-login credential profiles.
+# Lambda deployments continue to use requirements.txt and execution-role credentials.
+-r requirements.txt
+botocore[crt]==1.43.109

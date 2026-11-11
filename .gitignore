@@ -7,6 +7,7 @@
 !**/.env.example
 !**/.env.*.example
 .aws/
+.aws-sam/
 credentials/
 secrets/
 *.pem
@@ -24,6 +25,8 @@ __pycache__/
 dist/
 build/
 coverage/
+frontend/test-results/
+frontend/playwright-report/
 .coverage
 htmlcov/
 *.log

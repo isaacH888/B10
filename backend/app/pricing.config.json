@@ -13,7 +13,7 @@
         "tier_name": "Tier 1",
         "min_quantity": 50,
         "max_quantity": 99,
-        "unit_price": 3.50
+        "unit_price": 3.5
       },
       {
         "tier_name": "Tier 2",
@@ -25,27 +25,27 @@
         "tier_name": "Tier 3",
         "min_quantity": 200,
         "max_quantity": null,
-        "unit_price": 3.00
+        "unit_price": 3.0
       }
     ],
     "customizations": {
-      "heart_shaped_surcharge_per_unit": 0.50
+      "heart_shaped_surcharge_per_unit": 0.5
     },
     "logistics": {
       "dry_ice": {
-        "price_per_block": 15.00
+        "price_per_block": 15.0
       },
       "delivery": {
         "origin_facility_name": "Wingman Kitchens Houston",
         "origin_facility_address": "4783 Lexington Blvd, Missouri City, TX 77459",
         "max_radius_miles": 30.0,
-        "base_fee": 25.00,
-        "max_fee": 75.00,
+        "base_fee": 25.0,
+        "max_fee": 75.0,
         "formula": "base_fee + ((max_fee - base_fee) / max_radius_miles) * distance",
         "exceeded_radius_action": "REDIRECT_CONTACT_FORM"
       },
       "full_service": {
-        "flat_fee": 150.00,
+        "flat_fee": 150.0,
         "replaces_delivery_fee": true,
         "total_duration_hours": 3.5,
         "setup_duration_hours": 0.5,
@@ -55,11 +55,11 @@
         "notes": "Covers 3.5 hours total with 1-2 staff. Terms populated in service contract."
       },
       "pickup": {
-        "service_fee": 0.00
+        "service_fee": 0.0
       }
     },
     "payments": {
-      "deposit_rate": 0.50,
+      "deposit_rate": 0.5,
       "deposit_rule": "RoundUp(total_amount * 0.50, 2)",
       "payment_reminder_days_before_event": 7,
       "primary_payment_gateway": "SQUARE",

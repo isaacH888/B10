@@ -1,0 +1,410 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Popssibilities booking automation using existing MySQL, Cognito and frontend.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+  RuntimeSecretArn:
+    Type: String
+    Description: Existing Secrets Manager JSON containing existing DB/auth/environment settings.
+  GoogleClientSecretArn:
+    Type: String
+    Description: Existing Secrets Manager JSON with Google client_id and client_secret.
+  GoogleTokenSecretPrefix:
+    Type: String
+    Default: popssibilities/google
+    AllowedPattern: '[A-Za-z0-9/_+=.@-]+'
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Existing private subnets with NAT access to Google, Cognito and AWS APIs.
+  SecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: Existing Lambda groups allowed to reach the current MySQL TLS port.
+  FrontendOrigin:
+    Type: String
+    AllowedPattern: 'https://[A-Za-z0-9.-]+(:443)?'
+    Description: Existing exact HTTPS browser origin; proxy /api/v1/* to this API.
+  OwnerEmail:
+    Type: String
+  FromEmail:
+    Type: String
+  SesIdentityArn:
+    Type: String
+    Description: Existing verified SES email/domain identity ARN in this region.
+  ExistingGoogleCalendarId:
+    Type: String
+    Default: ''
+  CountReminderDays:
+    Type: Number
+    Default: 7
+    MinValue: 0
+    MaxValue: 365
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    CodeUri: ../backend/
+    MemorySize: 256
+    Timeout: 30
+    VpcConfig:
+      SubnetIds: !Ref SubnetIds
+      SecurityGroupIds: !Ref SecurityGroupIds
+    Environment:
+      Variables:
+        APP_ENV: !Ref Environment
+        AUTOMATION_ENABLED: 'true'
+        AUTOMATION_MODE: aws
+        AUTOMATION_RUNTIME_SECRET_ARN: !Ref RuntimeSecretArn
+        AUTOMATION_QUEUE_URL: !Ref WorkQueue
+        AUTOMATION_QUEUE_ARN: !GetAtt WorkQueue.Arn
+        AUTOMATION_DLQ_URL: !Ref WorkDLQ
+        AUTOMATION_SCHEDULER_GROUP: !Sub '${AWS::StackName}-reminders'
+        AUTOMATION_SCHEDULER_ROLE_ARN: !GetAtt SchedulerRole.Arn
+        AUTOMATION_SCHEDULER_DLQ_ARN: !GetAtt SchedulerDLQ.Arn
+        AUTOMATION_FROM_EMAIL: !Ref FromEmail
+        AUTOMATION_OWNER_EMAIL: !Ref OwnerEmail
+        AUTOMATION_DASHBOARD_URL: !Sub '${FrontendOrigin}/admin/bookings'
+        AUTOMATION_COUNT_REMINDER_DAYS: !Ref CountReminderDays
+        AUTOMATION_LEASE_SECONDS: '240'
+        AUTOMATION_MAX_ATTEMPTS: '6'
+        FRONTEND_ORIGIN: !Ref FrontendOrigin
+        CORS_ALLOWED_ORIGINS: !Ref FrontendOrigin
+        AUTH_ENABLED: 'true'
+        AUTH_TRUSTED_PROXY_HOPS: '0'
+        GOOGLE_CLIENT_SECRET_ARN: !Ref GoogleClientSecretArn
+        GOOGLE_TOKEN_SECRET_PREFIX: !Ref GoogleTokenSecretPrefix
+        GOOGLE_REDIRECT_URI: !Sub '${FrontendOrigin}/api/v1/admin/automation/google/callback'
+        GOOGLE_EXISTING_CALENDAR_ID: !Ref ExistingGoogleCalendarId
+
+Resources:
+  WorkDLQ:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 180
+  WorkQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      # Required for the EventBridge Scheduler FIFO templated target.
+      ContentBasedDeduplication: true
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 1080
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt WorkDLQ.Arn
+        maxReceiveCount: 15
+  SchedulerDLQ:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+  ReminderGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Sub '${AWS::StackName}-reminders'
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: scheduler.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !GetAtt ReminderGroup.Arn
+      Policies:
+        - PolicyName: reminder-queue-only
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: [!GetAtt WorkQueue.Arn, !GetAtt SchedulerDLQ.Arn]
+  # AWS Lambda's VPC ENI operations require Resource '*'. Other grants below are scoped.
+  NetworkPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:CreateNetworkInterface
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeSubnets
+              - ec2:DeleteNetworkInterface
+              - ec2:AssignPrivateIpAddresses
+              - ec2:UnassignPrivateIpAddresses
+            Resource: '*'
+  RuntimePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref RuntimeSecretArn
+          - Effect: Allow
+            Action: [logs:CreateLogStream, logs:PutLogEvents]
+            Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-automation-*:log-stream:*'
+  GooglePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref GoogleClientSecretArn
+          - Effect: Allow
+            Action: [secretsmanager:GetSecretValue, secretsmanager:PutSecretValue, secretsmanager:CreateSecret]
+            Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GoogleTokenSecretPrefix}/*'
+  GoogleWorkerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref GoogleClientSecretArn
+          - Effect: Allow
+            Action: [secretsmanager:GetSecretValue, secretsmanager:PutSecretValue]
+            Resource: !Sub 'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GoogleTokenSecretPrefix}/*'
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref NetworkPolicy, !Ref RuntimePolicy, !Ref GooglePolicy]
+  DispatcherRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref NetworkPolicy, !Ref RuntimePolicy]
+      Policies:
+        - PolicyName: committed-outbox-only
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt WorkQueue.Arn
+  WorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref NetworkPolicy, !Ref RuntimePolicy, !Ref GoogleWorkerPolicy]
+      Policies:
+        - PolicyName: automation-effects-only
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt WorkQueue.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt WorkDLQ.Arn
+              - Effect: Allow
+                Action: [scheduler:CreateSchedule, scheduler:DeleteSchedule]
+                Resource: !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${AWS::StackName}-reminders/pops-*'
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt SchedulerRole.Arn
+                Condition:
+                  StringEquals: {iam:PassedToService: scheduler.amazonaws.com}
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Ref SesIdentityArn
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Ref FromEmail
+  DlqRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns: [!Ref NetworkPolicy, !Ref RuntimePolicy]
+      Policies:
+        - PolicyName: persist-dead-letter-status
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
+                Resource: !GetAtt WorkDLQ.Arn
+  BookingApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: live
+      EndpointConfiguration: {Type: REGIONAL}
+      OpenApiVersion: 3.0.1
+      # Authorization remains in the existing session, MFA, role and CSRF guards.
+      MethodSettings:
+        - HttpMethod: '*'
+          ResourcePath: '/*'
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingRateLimit: 20
+          ThrottlingBurstLimit: 40
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: ApiLogs
+    Metadata: {BuildMethod: makefile}
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-automation-api'
+      Handler: app.automation.runtime.api_handler
+      Role: !GetAtt ApiRole.Arn
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BookingApi
+            Path: /api/v1/{proxy+}
+            Method: ANY
+  DispatcherFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: DispatcherLogs
+    Metadata: {BuildMethod: makefile}
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-automation-dispatcher'
+      Handler: app.automation.runtime.dispatch_handler
+      Role: !GetAtt DispatcherRole.Arn
+      ReservedConcurrentExecutions: 1
+      Events:
+        Tick:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled: true
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: WorkerLogs
+    Metadata: {BuildMethod: makefile}
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-automation-worker'
+      Handler: app.automation.runtime.queue_handler
+      Role: !GetAtt WorkerRole.Arn
+      Timeout: 180
+      ReservedConcurrentExecutions: 10
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt WorkQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes: [ReportBatchItemFailures]
+            ScalingConfig: {MaximumConcurrency: 5}
+  DlqFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: DlqLogs
+    Metadata: {BuildMethod: makefile}
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-automation-dlq'
+      Handler: app.automation.runtime.dlq_handler
+      Role: !GetAtt DlqRole.Arn
+      Events:
+        DeadLetters:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt WorkDLQ.Arn
+            BatchSize: 10
+            FunctionResponseTypes: [ReportBatchItemFailures]
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-automation-api'
+      RetentionInDays: 30
+  DispatcherLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-automation-dispatcher'
+      RetentionInDays: 30
+  WorkerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-automation-worker'
+      RetentionInDays: 30
+  DlqLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-automation-dlq'
+      RetentionInDays: 30
+  SchedulerFailuresAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Connect alarm actions to the existing operator notification channel before launch.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt SchedulerDLQ.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Unprocessed booking automation is older than 15 minutes; inspect jobs and workers.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt WorkQueue.QueueName
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 900
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  ApiOrigin:
+    Value: !Sub 'https://${BookingApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/live'
+  QueueUrl:
+    Value: !Ref WorkQueue
+  WorkDeadLetterQueueUrl:
+    Value: !Ref WorkDLQ
+  SchedulerDeadLetterQueueUrl:
+    Value: !Ref SchedulerDLQ
+  ReminderGroupName:
+    Value: !Sub '${AWS::StackName}-reminders'

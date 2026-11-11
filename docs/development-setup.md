@@ -1,14 +1,16 @@
 # Development setup and command status
 
-Updated October 5, 2026. React/Vite + Flask + MySQL scaffolding is approved.
-Shared shells exist; pricing/orders/auth/schema/provider features remain unimplemented.
+Updated October 29, 2026. React/Vite + Flask + MySQL scaffolding, authentication,
+pricing/quote/order APIs and customer sample email are combined locally. Real order
+persistence, catering UI and order-triggered integrations remain incomplete. See
+[integration validation](integration-validation.md) before testing business flows.
 
 ## Prerequisites
 
 Use Node 22 (at least 22.12) and Python 3.12 for the team/CI baseline. Local checks
-used available Node 25.9.0 and Python 3.9.6; that does not verify the target CI runtimes.
+used Node 25.9.0 and Python 3.12.16; Node 22 CI results must be checked in GitHub Actions.
 Docker with Compose, or an independently installed MySQL 8.4, is needed for the DB
-probe. Neither Docker nor MySQL is available on the current machine. Source:
+probe. The application requires its database server to remain running. Source:
 [Vite requirements](https://vite.dev/guide/) and [Flask installation](https://flask.palletsprojects.com/en/stable/installation/).
 
 The following commands are for macOS/Linux. Windows users use their Python launcher
@@ -17,8 +19,8 @@ and `backend\.venv\Scripts\python.exe` for the equivalent virtual-environment co
 ## Install from the repository root
 
 ```sh
-python3 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
+python3.12 -m venv backend/.venv
+backend/.venv/bin/python -m pip install -r backend/requirements.txt -r requirements-validation.txt
 npm ci --prefix frontend
 
 # Keep existing private settings; templates contain no working credentials.
@@ -47,10 +49,18 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173` and select Check backend connection. This is a development
-shell, not the customer website or dashboard. `/api/v1/live` is process liveness;
+Open `http://localhost:5173`. Customer login is `/login`; team login is `/admin/login`.
+The frontend is a minimal authentication test interface; its appearance is not a
+final website design. The backend connection control checks Flask/MySQL and authentication storage readiness separately.
+Authentication shows unavailable until its private configuration is supplied;
+account screens contain no business orders. `/api/v1/live` is process liveness;
 `/api/v1/health` checks MySQL connectivity and returns 503 while unconfigured/unavailable.
 A 200 DB probe does not establish that Bryson's domain migrations have run.
+
+Use `VITE_API_BASE_URL=/api/v1`; Vite proxies requests to Flask and preserves login cookies.
+Cognito callbacks must use `http://localhost:5173/api/v1/<area>/callback`, not port 5000.
+See [authentication setup](authentication-deployment.md) before enabling AUTH_ENABLED.
+Run `.venv/bin/python -m app.migrations` from backend after creating the disposable DB.
 
 Backend loads only `backend/.env` without overriding process variables. Vite loads
 only its frontend environment; expose only `VITE_API_BASE_URL` there. Origins are
@@ -74,17 +84,44 @@ The port is loopback-only and the named volume persists data. These variables
 initialize a fresh volume; changing them later does not rotate an existing MySQL user.
 Do not delete a volume to repair credentials without agreeing on data preservation.
 
-Compose creates only the server and empty development database/user. Bryson's ERD,
-migrations, models, seeds and migration command are still required. No schema or
-real customer data is provided by this scaffold. Docker commands were not executable
-on the current host and are not recorded as passed.
+Compose creates the server and empty development database/user. The shared authentication
+migration runner creates auth tables; domain migrations/models/seeds remain Bryson's work.
+No real customer data or default accounts are included.
+
+## Troubleshoot a stopped development database
+
+If the site says the backend is reachable but the database is unavailable, check
+the existing container before changing credentials or creating another database:
+
+```sh
+docker compose ps --all
+docker compose start mysql
+docker compose ps
+curl -i http://localhost:5173/api/v1/health
+```
+
+Allow MySQL to finish starting until its health is `healthy`, then repeat the
+website's connection check. `start mysql` starts the existing container with its
+current data volume; it does not replace that volume or initialize new credentials.
+For a new installation without a container, use the setup steps above instead.
+Do not delete the volume or reset database credentials to repair a stopped server.
+
+The homepage distinguishes an unreachable backend, database failure, unavailable
+authentication storage and disabled sign-in. A response with `database: ok` and
+`authentication: ready` confirms local configuration/schema readiness; live Cognito
+login still requires separate provider verification.
 
 ## Checks available now
 
 ```sh
 backend/.venv/bin/python scripts/check_foundation.py
+backend/.venv/bin/python -m ruff format --check backend scripts
+backend/.venv/bin/python -m ruff check backend scripts
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
+npm run format:check --prefix frontend
 npm run build --prefix frontend
+npx --prefix frontend playwright install chromium
+npm run test:browser --prefix frontend
 git diff --check
 curl --fail-with-body http://localhost:5000/api/v1/live
 curl -i http://localhost:5000/api/v1/health
@@ -101,9 +138,19 @@ That test reads process DB settings, so export the private values in the test te
 rather than assuming the test loads backend/.env. Normal shell startup does load it.
 The default test run skips this check when no disposable DB is provided.
 
-The shared CI workflow runs standards/example/link/template checks, backend tests
-with disposable MySQL and the frontend build. Check actual results in GitHub Actions;
-there is no deployment job. See [foundation-validation.md](foundation-validation.md).
+To apply the shared formatting locally:
+
+```sh
+backend/.venv/bin/python -m ruff check --fix backend scripts
+backend/.venv/bin/python -m ruff format backend scripts
+npm run format --prefix frontend
+```
+
+The shared CI workflow checks Python lint/formatting, frontend/configuration
+formatting, standards/examples/links/templates, backend tests with disposable MySQL,
+frontend build/browser tests and infrastructure templates. Check actual results in
+GitHub Actions; there is no deployment job. Historical Node reference files under
+`docs/reference/legacy-node` remain unchanged.
 
 ## Remaining owner commands
 

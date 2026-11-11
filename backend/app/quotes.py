@@ -59,8 +59,12 @@ _DEFAULT_BUSINESS_RULES = {
     "customizations": {"heart_shaped_surcharge_per_unit": 0.50},
     "logistics": {
         "dry_ice": {"price_per_block": 15.00},
-        "delivery": {"base_fee": 25.00, "max_fee": 75.00, "max_radius_miles": 30.0,
-                     "exceeded_radius_action": "REDIRECT_CONTACT_FORM"},
+        "delivery": {
+            "base_fee": 25.00,
+            "max_fee": 75.00,
+            "max_radius_miles": 30.0,
+            "exceeded_radius_action": "REDIRECT_CONTACT_FORM",
+        },
         "full_service": {"flat_fee": 150.00},
     },
     "payments": {"deposit_rate": 0.50},
@@ -70,6 +74,7 @@ _DEFAULT_BUSINESS_RULES = {
 # --------------------------------------------------------------------------- #
 # Errors and small numeric helpers
 # --------------------------------------------------------------------------- #
+
 
 class QuoteError(Exception):
     """A validation/calculation failure (legacy ``error.code/field/rejectedValue``)."""
@@ -127,6 +132,7 @@ def _safe_text(value, limit=100):
 # Configuration (configLoader.js)
 # --------------------------------------------------------------------------- #
 
+
 @dataclass(frozen=True)
 class Tier:
     name: str
@@ -136,7 +142,11 @@ class Tier:
 
     @property
     def label(self):
-        span = f"{self.min_quantity}+" if self.max_quantity is None else f"{self.min_quantity}-{self.max_quantity}"
+        span = (
+            f"{self.min_quantity}+"
+            if self.max_quantity is None
+            else f"{self.min_quantity}-{self.max_quantity}"
+        )
         return f"{self.name} ({span})"
 
 
@@ -168,12 +178,20 @@ def _merge(defaults, override):
 def parse_business_rules(business_rules, version=None):
     """Turn the ``business_rules`` JSON object (dollars) into cents-based rules."""
     rules = _merge(_DEFAULT_BUSINESS_RULES, business_rules)
-    tiers = tuple(sorted(
-        (Tier(name=str(t.get("tier_name", f"Tier {i}")), min_quantity=int(t["min_quantity"]),
-              max_quantity=None if t.get("max_quantity") is None else int(t["max_quantity"]),
-              unit_price_cents=_dollars_to_cents(t["unit_price"], "volume_tiers.unit_price"))
-         for i, t in enumerate(rules["volume_tiers"], start=1)),
-        key=lambda tier: tier.min_quantity))
+    tiers = tuple(
+        sorted(
+            (
+                Tier(
+                    name=str(t.get("tier_name", f"Tier {i}")),
+                    min_quantity=int(t["min_quantity"]),
+                    max_quantity=None if t.get("max_quantity") is None else int(t["max_quantity"]),
+                    unit_price_cents=_dollars_to_cents(t["unit_price"], "volume_tiers.unit_price"),
+                )
+                for i, t in enumerate(rules["volume_tiers"], start=1)
+            ),
+            key=lambda tier: tier.min_quantity,
+        )
+    )
     if not tiers:
         raise ValueError("pricing config must define at least one volume tier")
     delivery = rules["logistics"]["delivery"]
@@ -187,17 +205,23 @@ def parse_business_rules(business_rules, version=None):
         minimum_order_quantity=rules["moq"]["minimum_order_quantity"],
         tiers=tiers,
         heart_surcharge_cents=_dollars_to_cents(
-            rules["customizations"]["heart_shaped_surcharge_per_unit"], "heart_shaped_surcharge_per_unit"),
+            rules["customizations"]["heart_shaped_surcharge_per_unit"],
+            "heart_shaped_surcharge_per_unit",
+        ),
         dry_ice_block_cents=_dollars_to_cents(
-            rules["logistics"]["dry_ice"]["price_per_block"], "dry_ice.price_per_block"),
+            rules["logistics"]["dry_ice"]["price_per_block"], "dry_ice.price_per_block"
+        ),
         delivery_base_cents=_dollars_to_cents(delivery["base_fee"], "delivery.base_fee"),
         delivery_max_cents=_dollars_to_cents(delivery["max_fee"], "delivery.max_fee"),
         delivery_max_radius_miles=radius,
         exceeded_radius_action=str(delivery["exceeded_radius_action"]),
         full_service_flat_cents=_dollars_to_cents(
-            rules["logistics"]["full_service"]["flat_fee"], "full_service.flat_fee"),
+            rules["logistics"]["full_service"]["flat_fee"], "full_service.flat_fee"
+        ),
         deposit_rate=_fraction(deposit_rate),
-        revision=f"pricing_config_{version}" if isinstance(version, str) and version else "pricing_config",
+        revision=f"pricing_config_{version}"
+        if isinstance(version, str) and version
+        else "pricing_config",
     )
 
 
@@ -225,19 +249,30 @@ def _load_rules_on_registration(state):
 # Fee calculation (feeCalculator.js); returns integer cents
 # --------------------------------------------------------------------------- #
 
+
 def calculate_heart_shape_surcharge(rules, total_qty, heart_qty=0):
     if not _is_number(heart_qty) or heart_qty < 0:
-        raise QuoteError("Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE",
-                         "heart_shaped_quantity", heart_qty)
+        raise QuoteError(
+            "Quantities cannot be negative.",
+            "ERR_INVALID_DATA_TYPE",
+            "heart_shaped_quantity",
+            heart_qty,
+        )
     if heart_qty > total_qty:
-        raise QuoteError("Heart-shaped popsicle quantity cannot exceed total quantity.",
-                         "ERR_HEART_EXCEEDS_TOTAL", "heart_shaped_quantity", heart_qty)
+        raise QuoteError(
+            "Heart-shaped popsicle quantity cannot exceed total quantity.",
+            "ERR_HEART_EXCEEDS_TOTAL",
+            "heart_shaped_quantity",
+            heart_qty,
+        )
     return _round_half_up(_fraction(heart_qty) * rules.heart_surcharge_cents)
 
 
 def calculate_dry_ice_fee(rules, blocks=0):
     if not _is_number(blocks) or blocks < 0:
-        raise QuoteError("Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE", "dry_ice_blocks", blocks)
+        raise QuoteError(
+            "Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE", "dry_ice_blocks", blocks
+        )
     return _round_half_up(_fraction(blocks) * rules.dry_ice_block_cents)
 
 
@@ -250,20 +285,31 @@ def calculate_logistics_fees(rules, service_type="PICKUP", distance_miles=0):
     if service_type == "DELIVERY":
         max_radius = rules.delivery_max_radius_miles
         if not _is_number(distance_miles) or distance_miles < 0 or distance_miles > max_radius:
-            raise QuoteError(f"Delivery distance must be between 0 and {_fmt(max_radius)} miles.",
-                             "ERR_DISTANCE_OUT_OF_RANGE", "delivery_distance_miles", distance_miles)
+            raise QuoteError(
+                f"Delivery distance must be between 0 and {_fmt(max_radius)} miles.",
+                "ERR_DISTANCE_OUT_OF_RANGE",
+                "delivery_distance_miles",
+                distance_miles,
+            )
         # base_fee + ((max_fee - base_fee) / max_radius_miles) * distance
         fee = rules.delivery_base_cents + (
             Fraction(rules.delivery_max_cents - rules.delivery_base_cents)
-            / _fraction(max_radius) * _fraction(distance_miles))
+            / _fraction(max_radius)
+            * _fraction(distance_miles)
+        )
         return _round_half_up(fee), 0
-    raise QuoteError(f"Invalid service type: {_safe_text(service_type)}", "ERR_INVALID_DATA_TYPE",
-                     "service_type", service_type)
+    raise QuoteError(
+        f"Invalid service type: {_safe_text(service_type)}",
+        "ERR_INVALID_DATA_TYPE",
+        "service_type",
+        service_type,
+    )
 
 
 # --------------------------------------------------------------------------- #
 # Validation (quoteValidator.js); first failure wins, same order as legacy
 # --------------------------------------------------------------------------- #
+
 
 def _js_falsy(value):
     return value is None or value is False or value == 0 or value == ""
@@ -274,12 +320,18 @@ def _flavor_quantity_sum(flavors):
     for item in flavors:
         if item is None:
             # JS: ``null.quantity`` throws TypeError -> legacy ERR_CALCULATION_FAILED.
-            raise QuoteError("Each flavor entry must be an object.", "ERR_CALCULATION_FAILED", "flavors", None)
-        quantity = item.get("quantity") if isinstance(item, dict) else None  # other JS values: undefined
+            raise QuoteError(
+                "Each flavor entry must be an object.", "ERR_CALCULATION_FAILED", "flavors", None
+            )
+        quantity = (
+            item.get("quantity") if isinstance(item, dict) else None
+        )  # other JS values: undefined
         if _js_falsy(quantity):
             continue
         if not _is_number(quantity):
-            raise QuoteError("Flavor quantities must be numbers.", "ERR_INVALID_DATA_TYPE", "flavors", None)
+            raise QuoteError(
+                "Flavor quantities must be numbers.", "ERR_INVALID_DATA_TYPE", "flavors", None
+            )
         total += quantity
     return total
 
@@ -288,7 +340,9 @@ def validate_quote_payload(rules, payload):
     """Return the sanitized payload or raise QuoteError."""
     data = payload if isinstance(payload, dict) else {}
     total_quantity = data.get("total_quantity")
-    heart_shaped_quantity = data.get("heart_shaped_quantity", 0)  # default only when absent, not null
+    heart_shaped_quantity = data.get(
+        "heart_shaped_quantity", 0
+    )  # default only when absent, not null
     service_type = data.get("service_type", "PICKUP")
     delivery_distance_miles = data.get("delivery_distance_miles")
     dry_ice_blocks = data.get("dry_ice_blocks", 0)
@@ -296,44 +350,78 @@ def validate_quote_payload(rules, payload):
 
     # 1. Presence
     if total_quantity is None:
-        raise QuoteError('Field "total_quantity" is required.', "ERR_MISSING_FIELD", "total_quantity", None)
+        raise QuoteError(
+            'Field "total_quantity" is required.', "ERR_MISSING_FIELD", "total_quantity", None
+        )
 
     # 2. Integer type (JSON ``50.0`` is an integer in JS, so it is accepted here too)
-    if not _is_number(total_quantity) or (isinstance(total_quantity, float) and not total_quantity.is_integer()):
-        raise QuoteError('Field "total_quantity" must be an integer.', "ERR_INVALID_DATA_TYPE",
-                         "total_quantity", total_quantity)
+    if not _is_number(total_quantity) or (
+        isinstance(total_quantity, float) and not total_quantity.is_integer()
+    ):
+        raise QuoteError(
+            'Field "total_quantity" must be an integer.',
+            "ERR_INVALID_DATA_TYPE",
+            "total_quantity",
+            total_quantity,
+        )
     total_quantity = int(total_quantity)
 
     # 3. Minimum order quantity
     if total_quantity < rules.minimum_order_quantity:
-        raise QuoteError(f"Minimum order quantity is {rules.minimum_order_quantity} popsicles.",
-                         "ERR_BELOW_MINIMUM_ORDER", "total_quantity", total_quantity)
+        raise QuoteError(
+            f"Minimum order quantity is {rules.minimum_order_quantity} popsicles.",
+            "ERR_BELOW_MINIMUM_ORDER",
+            "total_quantity",
+            total_quantity,
+        )
 
     # 4. Negative / non-numeric add-on quantities
     if not _is_number(heart_shaped_quantity) or heart_shaped_quantity < 0:
-        raise QuoteError("Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE",
-                         "heart_shaped_quantity", heart_shaped_quantity)
+        raise QuoteError(
+            "Quantities cannot be negative.",
+            "ERR_INVALID_DATA_TYPE",
+            "heart_shaped_quantity",
+            heart_shaped_quantity,
+        )
     if not _is_number(dry_ice_blocks) or dry_ice_blocks < 0:
-        raise QuoteError("Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE",
-                         "dry_ice_blocks", dry_ice_blocks)
+        raise QuoteError(
+            "Quantities cannot be negative.",
+            "ERR_INVALID_DATA_TYPE",
+            "dry_ice_blocks",
+            dry_ice_blocks,
+        )
 
     # 5. Heart-shaped cannot exceed total
     if heart_shaped_quantity > total_quantity:
-        raise QuoteError("Heart-shaped popsicle quantity cannot exceed total quantity.",
-                         "ERR_HEART_EXCEEDS_TOTAL", "heart_shaped_quantity", heart_shaped_quantity)
+        raise QuoteError(
+            "Heart-shaped popsicle quantity cannot exceed total quantity.",
+            "ERR_HEART_EXCEEDS_TOTAL",
+            "heart_shaped_quantity",
+            heart_shaped_quantity,
+        )
 
     # 6. service_type enum
     if not isinstance(service_type, str) or service_type not in VALID_SERVICE_TYPES:
-        raise QuoteError(f"Invalid service type: {_safe_text(service_type)}", "ERR_INVALID_DATA_TYPE",
-                         "service_type", service_type)
+        raise QuoteError(
+            f"Invalid service type: {_safe_text(service_type)}",
+            "ERR_INVALID_DATA_TYPE",
+            "service_type",
+            service_type,
+        )
 
     # 7. Distance required and bounded for DELIVERY only (ignored otherwise)
     sanitized_distance = 0
     if service_type == "DELIVERY":
         max_radius = rules.delivery_max_radius_miles
-        out_of_range = QuoteError(f"Delivery distance must be between 0 and {_fmt(max_radius)} miles.",
-                                  "ERR_DISTANCE_OUT_OF_RANGE", "delivery_distance_miles", delivery_distance_miles)
-        is_real = isinstance(delivery_distance_miles, (int, float)) and not isinstance(delivery_distance_miles, bool)
+        out_of_range = QuoteError(
+            f"Delivery distance must be between 0 and {_fmt(max_radius)} miles.",
+            "ERR_DISTANCE_OUT_OF_RANGE",
+            "delivery_distance_miles",
+            delivery_distance_miles,
+        )
+        is_real = isinstance(delivery_distance_miles, (int, float)) and not isinstance(
+            delivery_distance_miles, bool
+        )
         if not is_real or delivery_distance_miles < 0:
             raise out_of_range
         if delivery_distance_miles > max_radius:  # includes JSON 1e999 (inf)
@@ -341,7 +429,8 @@ def validate_quote_payload(rules, payload):
                 raise out_of_range
             raise OutsideDeliveryRadius(
                 f"Delivery beyond {_fmt(max_radius)} miles requires a custom event inquiry.",
-                delivery_distance_miles)
+                delivery_distance_miles,
+            )
         sanitized_distance = delivery_distance_miles
 
     # 8. Flavor integrity; only checked for a non-empty list, otherwise ignored
@@ -351,7 +440,10 @@ def validate_quote_payload(rules, payload):
         if flavor_sum != total_quantity:
             raise QuoteError(
                 f"Sum of flavor quantities ({_fmt(flavor_sum)}) does not match total quantity ({total_quantity}).",
-                "ERR_FLAVOR_SUM_MISMATCH", "flavors", flavor_sum)
+                "ERR_FLAVOR_SUM_MISMATCH",
+                "flavors",
+                flavor_sum,
+            )
         sanitized_flavors = flavors
 
     return {
@@ -368,6 +460,7 @@ def validate_quote_payload(rules, payload):
 # Pricing engine (pricingEngine.js)
 # --------------------------------------------------------------------------- #
 
+
 def select_tier(rules, total_quantity):
     """Highest tier whose minimum is met (legacy: >=200, >=100, else tier 1)."""
     applied = rules.tiers[0]
@@ -383,10 +476,13 @@ def calculate_order_quote(rules, payload):
     tier = select_tier(rules, total_quantity)
     base_cents = total_quantity * tier.unit_price_cents
 
-    heart_cents = calculate_heart_shape_surcharge(rules, total_quantity, payload.get("heart_shaped_quantity", 0))
+    heart_cents = calculate_heart_shape_surcharge(
+        rules, total_quantity, payload.get("heart_shaped_quantity", 0)
+    )
     dry_ice_cents = calculate_dry_ice_fee(rules, payload.get("dry_ice_blocks", 0))
     delivery_cents, full_service_cents = calculate_logistics_fees(
-        rules, payload.get("service_type", "PICKUP"), payload.get("delivery_distance_miles", 0))
+        rules, payload.get("service_type", "PICKUP"), payload.get("delivery_distance_miles", 0)
+    )
 
     total_cents = base_cents + heart_cents + dry_ice_cents + delivery_cents + full_service_cents
     # RoundUp(total_amount * deposit_rate, 2): always round the deposit up to a whole cent.
@@ -445,7 +541,9 @@ def normalize_quote_payload(raw_payload):
     """
     if not is_contract_payload(raw_payload):
         return raw_payload
-    catering = raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
+    catering = (
+        raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
+    )
     event = raw_payload.get("event") if isinstance(raw_payload.get("event"), dict) else {}
 
     flat = {"total_quantity": catering.get("quantity")}
@@ -455,12 +553,18 @@ def normalize_quote_payload(raw_payload):
     if shape == "heart":
         flat["heart_shaped_quantity"] = catering.get("quantity")  # every unit is heart-shaped
     elif shape not in (None, "standard"):
-        raise QuoteError("Popsicle shape must be standard or heart.", "ERR_INVALID_DATA_TYPE",
-                         "popsicle_shape", shape)
+        raise QuoteError(
+            "Popsicle shape must be standard or heart.",
+            "ERR_INVALID_DATA_TYPE",
+            "popsicle_shape",
+            shape,
+        )
 
     if "service_type" in catering:
         service_type = catering["service_type"]
-        flat["service_type"] = service_type.strip().upper() if isinstance(service_type, str) else service_type
+        flat["service_type"] = (
+            service_type.strip().upper() if isinstance(service_type, str) else service_type
+        )
 
     dry_ice = catering.get("dry_ice_blocks")
     flat["dry_ice_blocks"] = 0 if dry_ice is None else dry_ice
@@ -481,6 +585,7 @@ def normalize_quote_payload(raw_payload):
 # OpenAPI Quote response
 # --------------------------------------------------------------------------- #
 
+
 def _money(cents):
     return f"${cents // 100}.{cents % 100:02d}"
 
@@ -488,22 +593,37 @@ def _money(cents):
 def _line_items(rules, payload, calculation):
     breakdown = calculation["breakdown"]
     tier = calculation["tier_applied"]
-    items = [{
-        "code": "popsicles",
-        "description": f"{payload['total_quantity']} popsicles, {tier['name']}, {_money(tier['unit_price_cents'])} each",
-        "amount_cents": breakdown["base_popsicles_cents"],
-    }]
+    items = [
+        {
+            "code": "popsicles",
+            "description": f"{payload['total_quantity']} popsicles, {tier['name']}, {_money(tier['unit_price_cents'])} each",
+            "amount_cents": breakdown["base_popsicles_cents"],
+        }
+    ]
     optional = [
-        ("heart_shaped_surcharge", f"Heart-shaped surcharge, {_fmt(payload['heart_shaped_quantity'])} units at "
-                                   f"{_money(rules.heart_surcharge_cents)}", breakdown["heart_shaped_surcharge_cents"]),
-        ("dry_ice", f"Dry ice, {_fmt(payload['dry_ice_blocks'])} blocks at {_money(rules.dry_ice_block_cents)}",
-         breakdown["dry_ice_cents"]),
-        ("delivery_fee", f"Delivery, {_fmt(payload['delivery_distance_miles'])} miles",
-         breakdown["delivery_fee_cents"]),
+        (
+            "heart_shaped_surcharge",
+            f"Heart-shaped surcharge, {_fmt(payload['heart_shaped_quantity'])} units at "
+            f"{_money(rules.heart_surcharge_cents)}",
+            breakdown["heart_shaped_surcharge_cents"],
+        ),
+        (
+            "dry_ice",
+            f"Dry ice, {_fmt(payload['dry_ice_blocks'])} blocks at {_money(rules.dry_ice_block_cents)}",
+            breakdown["dry_ice_cents"],
+        ),
+        (
+            "delivery_fee",
+            f"Delivery, {_fmt(payload['delivery_distance_miles'])} miles",
+            breakdown["delivery_fee_cents"],
+        ),
         ("full_service_fee", "Full service flat fee", breakdown["full_service_fee_cents"]),
     ]
-    items.extend({"code": code, "description": text, "amount_cents": cents}
-                 for code, text, cents in optional if cents)
+    items.extend(
+        {"code": code, "description": text, "amount_cents": cents}
+        for code, text, cents in optional
+        if cents
+    )
     return items
 
 
@@ -511,8 +631,11 @@ def _contract_quote(raw_payload, status, pricing, rules, unresolved_decisions, n
     expires_at = datetime.now(timezone.utc) + QUOTE_VALIDITY
     event = raw_payload.get("event")
     # delivery_distance_miles is accepted as input but is not part of the schema's Event, so do not echo it.
-    event = {key: value for key, value in event.items() if key != "delivery_distance_miles"} \
-        if isinstance(event, dict) else {}
+    event = (
+        {key: value for key, value in event.items() if key != "delivery_distance_miles"}
+        if isinstance(event, dict)
+        else {}
+    )
     return {
         "id": f"quote_{uuid.uuid4().hex}",  # not persisted yet; order creation will bind a stored quote
         "status": status,
@@ -541,19 +664,32 @@ def contract_priced_quote(rules, raw_payload, payload, calculation):
 def contract_review_quote(rules, raw_payload, message):
     """OpenAPI ``Quote`` for an out-of-area delivery: null pricing plus the inquiry action."""
     review = requires_review_quote(message)
-    return _contract_quote(raw_payload, "requires_review", None, rules,
-                           review["unresolved_decisions"], review["next_action"])
+    return _contract_quote(
+        raw_payload,
+        "requires_review",
+        None,
+        rules,
+        review["unresolved_decisions"],
+        review["next_action"],
+    )
 
 
 # --------------------------------------------------------------------------- #
 # HTTP layer: POST /api/v1/quotes
 # --------------------------------------------------------------------------- #
 
+
 def _inquiry_url():
     """Approved Custom Event Inquiry destination; null until CUSTOM_EVENT_INQUIRY_URL is set."""
-    url = str(current_app.config.get("CUSTOM_EVENT_INQUIRY_URL", os.getenv("CUSTOM_EVENT_INQUIRY_URL", ""))).strip()
+    url = str(
+        current_app.config.get(
+            "CUSTOM_EVENT_INQUIRY_URL", os.getenv("CUSTOM_EVENT_INQUIRY_URL", "")
+        )
+    ).strip()
     parsed = urlsplit(url)
-    return url if parsed.scheme in {"http", "https"} and parsed.hostname and len(url) <= 2000 else None
+    return (
+        url if parsed.scheme in {"http", "https"} and parsed.hostname and len(url) <= 2000 else None
+    )
 
 
 def requires_review_quote(message):
@@ -580,8 +716,14 @@ def _reject_json_constant(name):
 
 def _validation_error(message, field=None):
     fields = [{"field": field, "message": message}] if field else []
-    return jsonify(error={"code": "validation_error", "message": message, "fields": fields,
-                          "request_id": g.request_id}), 422
+    return jsonify(
+        error={
+            "code": "validation_error",
+            "message": message,
+            "fields": fields,
+            "request_id": g.request_id,
+        }
+    ), 422
 
 
 @quotes_bp.post("/quotes")
@@ -596,9 +738,17 @@ def create_quote():
         flat = normalize_quote_payload(payload)
         validated = validate_quote_payload(rules, flat)
         calculation = calculate_order_quote(rules, validated)
-        quote = contract_priced_quote(rules, payload, validated, calculation) if contract else calculation
+        quote = (
+            contract_priced_quote(rules, payload, validated, calculation)
+            if contract
+            else calculation
+        )
     except OutsideDeliveryRadius as error:
-        quote = contract_review_quote(rules, payload, error.message) if contract else requires_review_quote(error.message)
+        quote = (
+            contract_review_quote(rules, payload, error.message)
+            if contract
+            else requires_review_quote(error.message)
+        )
     except QuoteError as error:
         field, message = error.field, error.message
         if contract and field in _CONTRACT_FIELD_PATHS:

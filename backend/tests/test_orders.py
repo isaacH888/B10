@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pymysql
 import pytest
-
-from app import create_app
+from test_auth import ORIGIN, invite, sign_in
+from test_auth import auth_app as auth_app
 
 OPENAPI_PATH = Path(__file__).resolve().parents[2] / "docs/api/openapi.json"
 IDEMPOTENCY_KEY = "test-key-0123456789"
@@ -27,32 +27,55 @@ REMOVE = object()
 # Fixtures and helpers
 # --------------------------------------------------------------------------- #
 
+
 @pytest.fixture
-def app(monkeypatch):
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
-    monkeypatch.setenv("DB_USER", "")
-    monkeypatch.setenv("DB_PASSWORD", "")
-    return create_app({"TESTING": True})
+def app(auth_app):
+    # Authentication uses its injected test store; orders use their memory store.
+    auth_app.config.update(DB_USER="", DB_PASSWORD="")
+    return auth_app
 
 
 @pytest.fixture
 def client(app):
-    return app.test_client()
+    client = app.test_client()
+    invite(app)
+    sign_in(client, "admin")
+    session = client.get("/api/v1/admin/session")
+    client.admin_headers = {"Origin": ORIGIN, "X-CSRF-Token": session.json["data"]["csrf_token"]}
+    return client
 
 
 def order_payload(**catering):
-    request = {"quantity": 50, "popsicle_shape": "standard", "flavor_requests": "", "add_ons": [],
-               "service_type": "delivery", "dry_ice_blocks": None}
+    request = {
+        "quantity": 50,
+        "popsicle_shape": "standard",
+        "flavor_requests": "",
+        "add_ons": [],
+        "service_type": "delivery",
+        "dry_ice_blocks": None,
+    }
     request.update(catering)
     return {
-        "customer": {"name": "Example Customer", "email": "customer@example.invalid", "phone": "+1-202-555-0100"},
+        "customer": {
+            "name": "Example Customer",
+            "email": "customer@example.invalid",
+            "phone": "+1-202-555-0100",
+        },
         "catering_request": request,
-        "event": {"type": "Example celebration",
-                  "location": {"line1": "100 Example Street", "city": "Houston", "region": "TX",
-                               "postal_code": "77000", "country_code": "US"},
-                  "starts_at": "2099-01-15T15:00:00-06:00", "ends_at": "2099-01-15T17:00:00-06:00",
-                  "timezone": "America/Chicago", "notes": "Synthetic fixture - not a real event."},
+        "event": {
+            "type": "Example celebration",
+            "location": {
+                "line1": "100 Example Street",
+                "city": "Houston",
+                "region": "TX",
+                "postal_code": "77000",
+                "country_code": "US",
+            },
+            "starts_at": "2099-01-15T15:00:00-06:00",
+            "ends_at": "2099-01-15T17:00:00-06:00",
+            "timezone": "America/Chicago",
+            "notes": "Synthetic fixture - not a real event.",
+        },
         "quote_id": "quote_example_001",
     }
 
@@ -72,7 +95,9 @@ def mutated(path, value):
 
 
 def post_order(client, payload=None, headers=HEADERS):
-    return client.post("/api/v1/orders", json=order_payload() if payload is None else payload, headers=headers)
+    return client.post(
+        "/api/v1/orders", json=order_payload() if payload is None else payload, headers=headers
+    )
 
 
 def assert_validation_error(response, field):
@@ -89,11 +114,16 @@ def assert_matches_openapi_order_response(body, schema_name="OrderResponse"):
     referencing = pytest.importorskip("referencing")
     spec = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
     uri = "urn:popssibilities:contract"
-    registry = referencing.Registry().with_resource(uri, referencing.Resource.from_contents(
-        spec, default_specification=referencing.jsonschema.DRAFT202012))
+    registry = referencing.Registry().with_resource(
+        uri,
+        referencing.Resource.from_contents(
+            spec, default_specification=referencing.jsonschema.DRAFT202012
+        ),
+    )
     schema = {"$ref": uri + "#/components/schemas/" + schema_name}
-    jsonschema.Draft202012Validator(schema, registry=registry,
-                                    format_checker=jsonschema.FormatChecker()).validate(body)
+    jsonschema.Draft202012Validator(
+        schema, registry=registry, format_checker=jsonschema.FormatChecker()
+    ).validate(body)
 
 
 def cents_values(node):
@@ -112,6 +142,7 @@ def cents_values(node):
 # Happy path and envelope
 # --------------------------------------------------------------------------- #
 
+
 def test_valid_order_returns_201_with_data_and_meta_envelope(client):
     response = post_order(client)
     assert response.status_code == 201
@@ -125,8 +156,12 @@ def test_valid_order_returns_201_with_data_and_meta_envelope(client):
     assert data["quote_id"] == "quote_example_001"
     assert data["pricing_revision"] == "pricing_config_1.1.0"
     assert data["payment_links"] == []
-    assert data["workflow"] == {"customer_email": "pending", "business_email": "pending",
-                                "calendar": "not_scheduled", "contract_email": "waiting_for_deposit"}
+    assert data["workflow"] == {
+        "customer_email": "pending",
+        "business_email": "pending",
+        "calendar": "not_scheduled",
+        "contract_email": "waiting_for_deposit",
+    }
     assert data["created_at"] == data["updated_at"]
     assert "admin_notes" not in data
 
@@ -164,11 +199,18 @@ def test_optional_fields_default_to_contract_values(client):
 # Money: exact, server-calculated, non-negative integer cents
 # --------------------------------------------------------------------------- #
 
+
 def test_every_cents_field_is_a_nonnegative_integer(client):
-    payloads = (order_payload(), order_payload(quantity=250, popsicle_shape="heart", dry_ice_blocks=3,
-                                               service_type="full_service"))
+    payloads = (
+        order_payload(),
+        order_payload(
+            quantity=250, popsicle_shape="heart", dry_ice_blocks=3, service_type="full_service"
+        ),
+    )
     for index, payload in enumerate(payloads):
-        response = post_order(client, payload, headers={"Idempotency-Key": f"cents-key-0123456789-{index}"})
+        response = post_order(
+            client, payload, headers={"Idempotency-Key": f"cents-key-0123456789-{index}"}
+        )
         values = list(cents_values(response.json["data"]))
         assert values
         assert all(type(value) is int and value >= 0 for value in values)
@@ -180,10 +222,20 @@ def test_line_items_sum_to_total_and_deposit_matches_summary(client):
     assert pricing["currency"] == "USD"
     # 50 popsicles at $3.50 plus the $25.00 delivery base fee.
     assert {item["code"]: item["amount_cents"] for item in pricing["line_items"]} == {
-        "popsicles": 17500, "delivery_fee": 2500}
-    assert sum(item["amount_cents"] for item in pricing["line_items"]) == pricing["total_cents"] == 20000
+        "popsicles": 17500,
+        "delivery_fee": 2500,
+    }
+    assert (
+        sum(item["amount_cents"] for item in pricing["line_items"])
+        == pricing["total_cents"]
+        == 20000
+    )
     assert pricing["deposit_due_cents"] == 10000
-    assert data["deposit"] == {"status": "pending", "amount_due_cents": 10000, "amount_confirmed_cents": 0}
+    assert data["deposit"] == {
+        "status": "pending",
+        "amount_due_cents": 10000,
+        "amount_confirmed_cents": 0,
+    }
 
 
 def test_deposit_rounds_up_to_a_whole_cent(client):
@@ -194,9 +246,13 @@ def test_deposit_rounds_up_to_a_whole_cent(client):
 
 
 def test_order_price_equals_the_quote_endpoint_price(client):
-    payload = order_payload(quantity=120, popsicle_shape="heart", dry_ice_blocks=2, service_type="full_service")
-    quote = client.post("/api/v1/quotes", json={"catering_request": payload["catering_request"],
-                                                "event": payload["event"]})
+    payload = order_payload(
+        quantity=120, popsicle_shape="heart", dry_ice_blocks=2, service_type="full_service"
+    )
+    quote = client.post(
+        "/api/v1/quotes",
+        json={"catering_request": payload["catering_request"], "event": payload["event"]},
+    )
     assert post_order(client, payload).json["data"]["pricing"] == quote.json["data"]["pricing"]
 
 
@@ -211,46 +267,95 @@ def test_client_supplied_totals_are_rejected(client, path):
 # Validation: 422 validation_error with a fields array
 # --------------------------------------------------------------------------- #
 
-@pytest.mark.parametrize("path", [
-    "customer", "catering_request", "event", "quote_id",
-    "customer.name", "customer.email", "customer.phone",
-    "catering_request.quantity", "catering_request.popsicle_shape", "catering_request.service_type",
-    "event.type", "event.location", "event.starts_at", "event.timezone",
-    "event.location.line1", "event.location.city", "event.location.region",
-    "event.location.postal_code", "event.location.country_code",
-])
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "customer",
+        "catering_request",
+        "event",
+        "quote_id",
+        "customer.name",
+        "customer.email",
+        "customer.phone",
+        "catering_request.quantity",
+        "catering_request.popsicle_shape",
+        "catering_request.service_type",
+        "event.type",
+        "event.location",
+        "event.starts_at",
+        "event.timezone",
+        "event.location.line1",
+        "event.location.city",
+        "event.location.region",
+        "event.location.postal_code",
+        "event.location.country_code",
+    ],
+)
 def test_missing_required_field_is_422(client, path):
     assert_validation_error(post_order(client, mutated(path, REMOVE)), path)
 
 
-@pytest.mark.parametrize("path,value", [
-    ("customer.name", ""), ("customer.name", "   "), ("customer.name", 7), ("customer.name", "x" * 151),
-    ("customer.email", "not-an-email"), ("customer.email", "a@b"), ("customer.email", "a b@example.com"),
-    ("customer.email", "a@@example.com"), ("customer.email", ""),
-    ("customer.phone", "call me"), ("customer.phone", "12345"), ("customer.phone", "1" * 31),
-    ("catering_request.quantity", 49), ("catering_request.quantity", 100001), ("catering_request.quantity", "50"),
-    ("catering_request.quantity", 50.5), ("catering_request.quantity", True), ("catering_request.quantity", None),
-    ("catering_request.popsicle_shape", "round"), ("catering_request.popsicle_shape", "Heart"),
-    ("catering_request.service_type", "pickup"), ("catering_request.service_type", "DELIVERY"),
-    ("catering_request.dry_ice_blocks", -1), ("catering_request.dry_ice_blocks", 1001),
-    ("catering_request.dry_ice_blocks", 1.5), ("catering_request.dry_ice_blocks", "2"),
-    ("catering_request.flavor_requests", 5), ("catering_request.flavor_requests", "x" * 2001),
-    ("catering_request.add_ons", "ice"), ("catering_request.add_ons", ["a", "a"]), ("catering_request.add_ons", [str(n) for n in range(21)]),
-    ("event.type", ""), ("event.location", "Houston"), ("event.location.country_code", "us"),
-    ("event.location.country_code", "USA"), ("event.timezone", "not a zone"), ("event.notes", "x" * 2001),
-    ("event.starts_at", "tomorrow"), ("event.starts_at", "2099-01-15T15:00:00"),
-    ("event.starts_at", "2020-01-15T15:00:00-06:00"),
-    ("event.ends_at", "2099-01-15T14:00:00-06:00"), ("event.ends_at", "2099-01-15T15:00:00-06:00"),
-    ("event.ends_at", "2099-01-15T17:00:00"),
-    ("quote_id", ""), ("quote_id", "bad id!"), ("quote_id", "q" * 101), ("quote_id", 7),
-])
+@pytest.mark.parametrize(
+    "path,value",
+    [
+        ("customer.name", ""),
+        ("customer.name", "   "),
+        ("customer.name", 7),
+        ("customer.name", "x" * 151),
+        ("customer.email", "not-an-email"),
+        ("customer.email", "a@b"),
+        ("customer.email", "a b@example.com"),
+        ("customer.email", "a@@example.com"),
+        ("customer.email", ""),
+        ("customer.phone", "call me"),
+        ("customer.phone", "12345"),
+        ("customer.phone", "1" * 31),
+        ("catering_request.quantity", 49),
+        ("catering_request.quantity", 100001),
+        ("catering_request.quantity", "50"),
+        ("catering_request.quantity", 50.5),
+        ("catering_request.quantity", True),
+        ("catering_request.quantity", None),
+        ("catering_request.popsicle_shape", "round"),
+        ("catering_request.popsicle_shape", "Heart"),
+        ("catering_request.service_type", "pickup"),
+        ("catering_request.service_type", "DELIVERY"),
+        ("catering_request.dry_ice_blocks", -1),
+        ("catering_request.dry_ice_blocks", 1001),
+        ("catering_request.dry_ice_blocks", 1.5),
+        ("catering_request.dry_ice_blocks", "2"),
+        ("catering_request.flavor_requests", 5),
+        ("catering_request.flavor_requests", "x" * 2001),
+        ("catering_request.add_ons", "ice"),
+        ("catering_request.add_ons", ["a", "a"]),
+        ("catering_request.add_ons", [str(n) for n in range(21)]),
+        ("event.type", ""),
+        ("event.location", "Houston"),
+        ("event.location.country_code", "us"),
+        ("event.location.country_code", "USA"),
+        ("event.timezone", "not a zone"),
+        ("event.notes", "x" * 2001),
+        ("event.starts_at", "tomorrow"),
+        ("event.starts_at", "2099-01-15T15:00:00"),
+        ("event.starts_at", "2020-01-15T15:00:00-06:00"),
+        ("event.ends_at", "2099-01-15T14:00:00-06:00"),
+        ("event.ends_at", "2099-01-15T15:00:00-06:00"),
+        ("event.ends_at", "2099-01-15T17:00:00"),
+        ("quote_id", ""),
+        ("quote_id", "bad id!"),
+        ("quote_id", "q" * 101),
+        ("quote_id", 7),
+    ],
+)
 def test_invalid_field_value_is_422(client, path, value):
     assert_validation_error(post_order(client, mutated(path, value)), path)
 
 
 def test_blank_add_on_is_reported_by_index(client):
-    assert_validation_error(post_order(client, mutated("catering_request.add_ons", [""])),
-                            "catering_request.add_ons[0]")
+    assert_validation_error(
+        post_order(client, mutated("catering_request.add_ons", [""])), "catering_request.add_ons[0]"
+    )
 
 
 def test_unknown_fields_are_rejected_at_every_level(client):
@@ -260,7 +365,12 @@ def test_unknown_fields_are_rejected_at_every_level(client):
     payload["catering_request"]["discount"] = 1
     payload["event"]["location"]["floor"] = 2
     response = post_order(client, payload)
-    for field in ("unexpected", "customer.nickname", "catering_request.discount", "event.location.floor"):
+    for field in (
+        "unexpected",
+        "customer.nickname",
+        "catering_request.discount",
+        "event.location.floor",
+    ):
         assert_validation_error(response, field)
 
 
@@ -274,13 +384,16 @@ def test_all_failures_are_reported_together(client):
 
 @pytest.mark.parametrize("body", [[], "text", 7, None])
 def test_non_object_body_is_422(client, body):
-    response = client.post("/api/v1/orders", data=json.dumps(body), content_type="application/json",
-                           headers=HEADERS)
+    response = client.post(
+        "/api/v1/orders", data=json.dumps(body), content_type="application/json", headers=HEADERS
+    )
     assert_validation_error(response, "body")
 
 
 def test_malformed_json_is_400_bad_request(client):
-    response = client.post("/api/v1/orders", data="{", content_type="application/json", headers=HEADERS)
+    response = client.post(
+        "/api/v1/orders", data="{", content_type="application/json", headers=HEADERS
+    )
     assert response.status_code == 400
     assert response.json["error"]["code"] == "bad_request"
     assert response.json["error"]["fields"] == []
@@ -301,8 +414,17 @@ def test_a_failed_validation_does_not_store_the_idempotency_key(client):
 # Idempotency
 # --------------------------------------------------------------------------- #
 
-@pytest.mark.parametrize("headers", [{}, {"Idempotency-Key": ""}, {"Idempotency-Key": "short"},
-                                     {"Idempotency-Key": "has spaces in it!!"}, {"Idempotency-Key": "k" * 129}])
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},
+        {"Idempotency-Key": ""},
+        {"Idempotency-Key": "short"},
+        {"Idempotency-Key": "has spaces in it!!"},
+        {"Idempotency-Key": "k" * 129},
+    ],
+)
 def test_missing_or_malformed_idempotency_key_is_422(client, headers):
     assert_validation_error(post_order(client, headers=headers), "Idempotency-Key")
 
@@ -325,13 +447,16 @@ def test_same_key_with_different_payload_is_409_conflict(client):
 
 def test_different_keys_create_different_orders(client):
     first = post_order(client).json["data"]["id"]
-    second = post_order(client, headers={"Idempotency-Key": "another-key-0123456789"}).json["data"]["id"]
+    second = post_order(client, headers={"Idempotency-Key": "another-key-0123456789"}).json["data"][
+        "id"
+    ]
     assert first != second
 
 
 # --------------------------------------------------------------------------- #
 # Database path: parameterized inserts in one atomic transaction
 # --------------------------------------------------------------------------- #
+
 
 class FakeCursor:
     lastrowid = 0
@@ -421,8 +546,10 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
     assert json.loads(orders_params[-3]) == json.loads(orders_params[-1]) == response.json["data"]
     _, item_rows = inserts(connection)[2]
     # order_id is the orders BIGINT key (the second insert), never the public id.
-    assert item_rows == [(2, "popsicles", "50 popsicles, Tier 1 (50-99), $3.50 each", 17500),
-                         (2, "delivery_fee", "Delivery, 0 miles", 2500)]
+    assert item_rows == [
+        (2, "popsicles", "50 popsicles, Tier 1 (50-99), $3.50 each", 17500),
+        (2, "delivery_fee", "Delivery, 0 miles", 2500),
+    ]
 
 
 def test_database_statements_are_parameterized(client, database):
@@ -445,6 +572,7 @@ def test_database_error_rolls_back_and_returns_503_without_leaking_details(clien
 def test_connection_failure_returns_503(client, database, monkeypatch):
     def refuse(**options):
         raise pymysql.err.OperationalError(2003, "secret-host.internal refused the connection")
+
     monkeypatch.setattr(pymysql, "connect", refuse)
     response = post_order(client)
     assert response.status_code == 503
@@ -476,6 +604,7 @@ def test_database_key_reuse_with_a_different_payload_is_409(client, database):
 def test_mock_mode_never_opens_a_database_connection(client, monkeypatch):
     def forbidden(**options):
         raise AssertionError("no database credentials are configured")
+
     monkeypatch.setattr(pymysql, "connect", forbidden)
     assert post_order(client).status_code == 201
 
@@ -484,11 +613,13 @@ def test_mock_mode_never_opens_a_database_connection(client, monkeypatch):
 # retrieveOrder and updateOrderStatus
 # --------------------------------------------------------------------------- #
 
+
 def create_order(client, quantity=50):
     return post_order(client, order_payload(quantity=quantity)).json["data"]
 
 
 def patch_status(client, order_id, body, **options):
+    options.setdefault("headers", client.admin_headers)
     return client.patch(f"/api/v1/orders/{order_id}/status", json=body, **options)
 
 
@@ -509,7 +640,9 @@ def test_retrieve_existing_order_returns_200_with_the_stored_fields(client):
     assert response.headers["Cache-Control"] == "no-store"
     data = response.json["data"]
     assert data == {**created, "admin_notes": ""}
-    assert data["id"] == created["id"] and data["status"] == "pending_review" and data["version"] == 1
+    assert (
+        data["id"] == created["id"] and data["status"] == "pending_review" and data["version"] == 1
+    )
     assert data["pricing"]["total_cents"] == 20000 and data["deposit"]["amount_due_cents"] == 10000
     assert_matches_openapi_order_response(response.json, "AdminOrderResponse")
 
@@ -522,16 +655,25 @@ def test_retrieve_missing_order_returns_404_not_found(client, order_id):
 
 def test_status_update_returns_the_updated_admin_order(client):
     created = create_order(client)
-    response = patch_status(client, created["id"], {"version": 1, "status": "confirmed", "reason": "Accepted."})
+    response = patch_status(
+        client, created["id"], {"version": 1, "status": "confirmed", "reason": "Accepted."}
+    )
     assert response.status_code == 200
     assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
     data = response.json["data"]
     assert data["status"] == "confirmed" and data["version"] == 2
-    assert data["updated_at"] >= created["updated_at"] and data["created_at"] == created["created_at"]
+    assert (
+        data["updated_at"] >= created["updated_at"] and data["created_at"] == created["created_at"]
+    )
     assert_matches_openapi_order_response(response.json, "AdminOrderResponse")
-    unchanged = {key: value for key, value in data.items() if key not in ("status", "version", "updated_at")}
-    assert unchanged == {key: value for key, value in created.items()
-                         if key not in ("status", "version", "updated_at")} | {"admin_notes": ""}
+    unchanged = {
+        key: value for key, value in data.items() if key not in ("status", "version", "updated_at")
+    }
+    assert unchanged == {
+        key: value
+        for key, value in created.items()
+        if key not in ("status", "version", "updated_at")
+    } | {"admin_notes": ""}
 
 
 def test_status_update_is_visible_to_later_retrieval(client):
@@ -541,11 +683,14 @@ def test_status_update_is_visible_to_later_retrieval(client):
     assert data["status"] == "cancelled" and data["version"] == 2
 
 
-@pytest.mark.parametrize("path", [
-    ["confirmed", "fulfilled"],
-    ["confirmed", "cancelled"],
-    ["cancelled"],
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        ["confirmed", "fulfilled"],
+        ["confirmed", "cancelled"],
+        ["cancelled"],
+    ],
+)
 def test_valid_transition_chains_increment_the_version_each_time(client, path):
     order_id = create_order(client)["id"]
     for version, status in enumerate(path, start=1):
@@ -569,7 +714,11 @@ def test_same_status_is_a_noop_after_a_valid_version_check(client):
     assert response.status_code == 200
     assert response.json["data"]["version"] == 1
     assert response.json["data"]["updated_at"] == created["updated_at"]
-    assert_error(patch_status(client, created["id"], {"version": 2, "status": "pending_review"}), 409, "stale_version")
+    assert_error(
+        patch_status(client, created["id"], {"version": 2, "status": "pending_review"}),
+        409,
+        "stale_version",
+    )
 
 
 def test_status_update_does_not_alter_the_idempotent_post_replay(client):
@@ -592,16 +741,23 @@ def test_terminal_orders_only_accept_their_own_status(client, terminal, target):
         assert client.get(f"/api/v1/orders/{order_id}").json["data"]["status"] == terminal
 
 
-@pytest.mark.parametrize("current,target", [
-    ("pending_review", "fulfilled"),
-    ("confirmed", "pending_review"),
-])
+@pytest.mark.parametrize(
+    "current,target",
+    [
+        ("pending_review", "fulfilled"),
+        ("confirmed", "pending_review"),
+    ],
+)
 def test_other_illegal_transitions_are_409_invalid_transition(client, current, target):
     order_id = create_order(client)["id"]
     if current == "confirmed":
         patch_status(client, order_id, {"version": 1, "status": "confirmed"})
     version = 2 if current == "confirmed" else 1
-    assert_error(patch_status(client, order_id, {"version": version, "status": target}), 409, "invalid_transition")
+    assert_error(
+        patch_status(client, order_id, {"version": version, "status": target}),
+        409,
+        "invalid_transition",
+    )
 
 
 def test_stale_version_is_409_stale_version_and_changes_nothing(client):
@@ -617,25 +773,34 @@ def test_stale_version_is_409_stale_version_and_changes_nothing(client):
 
 def test_stale_version_is_checked_before_the_transition_rule(client):
     order_id = create_order(client)["id"]
-    assert_error(patch_status(client, order_id, {"version": 5, "status": "fulfilled"}), 409, "stale_version")
+    assert_error(
+        patch_status(client, order_id, {"version": 5, "status": "fulfilled"}), 409, "stale_version"
+    )
 
 
-@pytest.mark.parametrize("status", ["submitted", "in_preparation", "completed", "Confirmed", "", 7, None, ["confirmed"]])
+@pytest.mark.parametrize(
+    "status", ["submitted", "in_preparation", "completed", "Confirmed", "", 7, None, ["confirmed"]]
+)
 def test_invalid_status_value_is_422_validation_error(client, status):
     order_id = create_order(client)["id"]
-    assert_validation_error(patch_status(client, order_id, {"version": 1, "status": status}), "status")
+    assert_validation_error(
+        patch_status(client, order_id, {"version": 1, "status": status}), "status"
+    )
 
 
-@pytest.mark.parametrize("body,field", [
-    ({"status": "confirmed"}, "version"),
-    ({"version": 1}, "status"),
-    ({"version": "1", "status": "confirmed"}, "version"),
-    ({"version": 1.5, "status": "confirmed"}, "version"),
-    ({"version": True, "status": "confirmed"}, "version"),
-    ({"version": 1, "status": "confirmed", "reason": 5}, "reason"),
-    ({"version": 1, "status": "confirmed", "reason": "r" * 501}, "reason"),
-    ({"version": 1, "status": "confirmed", "total_cents": 1}, "total_cents"),
-])
+@pytest.mark.parametrize(
+    "body,field",
+    [
+        ({"status": "confirmed"}, "version"),
+        ({"version": 1}, "status"),
+        ({"version": "1", "status": "confirmed"}, "version"),
+        ({"version": 1.5, "status": "confirmed"}, "version"),
+        ({"version": True, "status": "confirmed"}, "version"),
+        ({"version": 1, "status": "confirmed", "reason": 5}, "reason"),
+        ({"version": 1, "status": "confirmed", "reason": "r" * 501}, "reason"),
+        ({"version": 1, "status": "confirmed", "total_cents": 1}, "total_cents"),
+    ],
+)
 def test_invalid_status_body_is_422_validation_error(client, body, field):
     order_id = create_order(client)["id"]
     assert_validation_error(patch_status(client, order_id, body), field)
@@ -643,21 +808,40 @@ def test_invalid_status_body_is_422_validation_error(client, body, field):
 
 @pytest.mark.parametrize("body", [[], "text", 7, None])
 def test_non_object_status_body_is_422(client, body):
-    response = client.patch("/api/v1/orders/order_x/status", data=json.dumps(body), content_type="application/json")
+    response = client.patch(
+        "/api/v1/orders/order_x/status",
+        data=json.dumps(body),
+        content_type="application/json",
+        headers=client.admin_headers,
+    )
     assert_validation_error(response, "body")
 
 
 def test_status_update_of_a_missing_order_is_404(client):
-    assert_error(patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}), 404, "not_found")
+    assert_error(
+        patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}),
+        404,
+        "not_found",
+    )
 
 
 def test_status_update_with_malformed_json_is_400(client):
-    response = client.patch("/api/v1/orders/order_x/status", data="{", content_type="application/json")
+    response = client.patch(
+        "/api/v1/orders/order_x/status",
+        data="{",
+        content_type="application/json",
+        headers=client.admin_headers,
+    )
     assert_error(response, 400, "bad_request")
 
 
 def test_status_update_with_non_json_content_type_is_415(client):
-    response = client.patch("/api/v1/orders/order_x/status", data="x", content_type="text/plain")
+    response = client.patch(
+        "/api/v1/orders/order_x/status",
+        data="x",
+        content_type="text/plain",
+        headers=client.admin_headers,
+    )
     assert_error(response, 415, "unsupported_media_type")
 
 
@@ -668,6 +852,7 @@ def test_status_route_rejects_other_methods(client):
 # --------------------------------------------------------------------------- #
 # retrieveOrder and updateOrderStatus: database path
 # --------------------------------------------------------------------------- #
+
 
 def stored_row(client, database):
     """Create an order in database mode and return the ``(response_json,)`` row it stored."""
@@ -684,7 +869,9 @@ def test_database_retrieve_reads_the_order_by_public_id(client, database):
     connection = database.connection
     assert response.status_code == 200
     assert response.json["data"] == {**json.loads(row[0]), "admin_notes": ""}
-    assert connection.statements == [("SELECT response_json FROM orders WHERE public_id = %s", (order_id,))]
+    assert connection.statements == [
+        ("SELECT response_json FROM orders WHERE public_id = %s", (order_id,))
+    ]
     assert connection.closed
 
 
@@ -705,7 +892,10 @@ def test_database_status_update_locks_the_row_then_updates_in_one_transaction(cl
     assert connection.committed and connection.closed and not connection.rolled_back
     (select_sql, select_params), (update_sql, update_params) = connection.statements
     assert select_sql.endswith("FOR UPDATE") and select_params == (order["id"],)
-    assert update_sql.startswith("UPDATE orders SET") and update_sql.count("%s") == len(update_params) == 4
+    assert (
+        update_sql.startswith("UPDATE orders SET")
+        and update_sql.count("%s") == len(update_params) == 4
+    )
     assert update_params[:2] == ("confirmed", 2) and update_params[3] == order["id"]
     assert json.loads(update_params[2]) == response.json["data"]
 
@@ -713,15 +903,20 @@ def test_database_status_update_locks_the_row_then_updates_in_one_transaction(cl
 def test_database_noop_status_update_writes_nothing(client, database):
     row = stored_row(client, database)
     database.connection = FakeConnection(existing=row)
-    response = patch_status(client, json.loads(row[0])["id"], {"version": 1, "status": "pending_review"})
+    response = patch_status(
+        client, json.loads(row[0])["id"], {"version": 1, "status": "pending_review"}
+    )
     assert response.status_code == 200 and response.json["data"]["version"] == 1
     assert len(database.connection.statements) == 1 and database.connection.committed
 
 
-@pytest.mark.parametrize("body,status,code", [
-    ({"version": 2, "status": "confirmed"}, 409, "stale_version"),
-    ({"version": 1, "status": "fulfilled"}, 409, "invalid_transition"),
-])
+@pytest.mark.parametrize(
+    "body,status,code",
+    [
+        ({"version": 2, "status": "confirmed"}, 409, "stale_version"),
+        ({"version": 1, "status": "fulfilled"}, 409, "invalid_transition"),
+    ],
+)
 def test_database_conflicts_roll_back_without_writing(client, database, body, status, code):
     row = stored_row(client, database)
     database.connection = FakeConnection(existing=row)
@@ -733,7 +928,11 @@ def test_database_conflicts_roll_back_without_writing(client, database, body, st
 
 def test_database_status_update_of_a_missing_order_is_404(client, database):
     database.connection = FakeConnection(existing=None)
-    assert_error(patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}), 404, "not_found")
+    assert_error(
+        patch_status(client, "order_missing", {"version": 1, "status": "confirmed"}),
+        404,
+        "not_found",
+    )
     assert database.connection.rolled_back and database.connection.closed
 
 
@@ -867,6 +1066,12 @@ def test_page_size_bounds_are_accepted(client):
 def test_all_list_query_failures_are_reported_together(client):
     fields = [item["field"] for item in list_orders(client, page="0", page_size="500", status="x").json["error"]["fields"]]
     assert {"page", "page_size", "status"} <= set(fields)
+
+
+def test_list_requires_an_admin_session(app):
+    response = app.test_client().get("/api/v1/orders")
+    assert response.status_code == 401
+    assert "items" not in response.get_data(as_text=True)
 
 
 def test_list_route_rejects_other_methods(client):

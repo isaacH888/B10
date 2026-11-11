@@ -53,12 +53,7 @@
       },
       "pricing": null,
       "pricing_revision": null,
-      "unresolved_decisions": [
-        "D01",
-        "D04",
-        "D06",
-        "D07"
-      ],
+      "unresolved_decisions": ["D01", "D04", "D06", "D07"],
       "next_action": null
     },
     "meta": {
@@ -323,9 +318,7 @@
       },
       "pricing": null,
       "pricing_revision": null,
-      "unresolved_decisions": [
-        "D04"
-      ],
+      "unresolved_decisions": ["D04"],
       "next_action": {
         "type": "contact_inquiry",
         "reason_code": "outside_delivery_radius",

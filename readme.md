@@ -2,19 +2,65 @@
 
 Digital Modernization & Catering Management System. Lead Developer: Isaac Hernandez.
 
+## Booking and Google Calendar automation
+
+The catering automation extends the existing React/Vite, Flask, MySQL and Cognito
+foundation. Owners can approve availability, reserve capacity, verify external
+payments, and operate calendar synchronization at `/admin/automation`. A verified
+50% deposit confirms a booking and queues its calendar event, confirmation emails,
+and reminders while the remaining balance stays visible. Full payment is not a
+prerequisite for the calendar event.
+
+See [setup, deployment, operations and staging checks](docs/calendar-automation.md),
+[Google OAuth details and recovery](docs/google-calendar-reference.md), and
+[the AWS SAM configuration](infra/automation.yaml). Automation is opt-in through
+`AUTOMATION_ENABLED`; external payment verification requires an authenticated owner
+to check the actual provider account. No live deployment or Google/SES verification
+is implied by the automated mock tests. The older authentication demo at `/admin`
+retains its labeled synthetic sample data and links owners to the real workspace.
+
 ## Current status
 
-Updated October 5, 2026. Isaac approved React/Vite + Flask + MySQL scaffolding.
-The shared frontend/backend shells, configuration, local DB definition, contracts,
-review guidance and CI checks exist. The frontend build and backend foundation tests
-pass locally. No customer website, catering form, pricing/order/auth/provider features,
-domain migrations or staging service are implemented by this foundation.
+Updated November 3, 2026. Branch `dev` combines the shared foundation, backend,
+authentication/automation and catering-form work. The catering form calls the real
+quote/order APIs, invalidates edited quotes and validates whole-number quantities.
+Migration 0008 supplies customer/order/item storage and an atomic handoff into the
+existing owner booking workflow. See the
+[customer-order intake guide](docs/customer-order-intake.md) for the mapping,
+session/CSRF protections, migration and operational limits. The previous
+[integration validation report](docs/integration-validation.md) records the October baseline.
+The [DEV/TST/PROD workflow](docs/release-workflow.md) includes owner handoff tickets
+and the proposed release gates.
+The [October DEV publication review](docs/dev-review.md) records that earlier integration.
 
-The supplied dated plan puts Week 4 on October 5-9: form/pricing/DB integration,
-first staging build and team demo. Those runtime milestones remain blocked on owner
-handoffs and decisions. Calendar is Week 5; reminders/deposit-contract automation
-Week 6. Feature freeze October 23, release lock November 6, submission November 9.
-The [original charter](docs/project-charter.md) is preserved verbatim.
+Customers use
+Cognito email/password or Google; invited Owners/Staff use password plus required
+Cognito TOTP. Administrator Google sign-in is disabled. A protected sample admin
+dashboard displays clearly labeled synthetic bookings after successful sign-in.
+The backend implements server-side sessions, revocation checks, audits, migrations,
+and private provisioning/recovery commands. React has basic login and session pages;
+the real customer catering form is at `/order`, and the owner booking workspace is
+at `/admin/automation` after authentication and automation setup.
+
+Order persistence uses `customers`, `orders` and `order_items` after applying all
+eight migrations. Without DB credentials, orders use temporary process memory.
+Quote persistence, server-side expiry/payload matching and trusted delivery-distance
+pricing remain release blockers. Browser quote checks do not replace server enforcement.
+
+Signed-in customers can request a sample order confirmation from `/account`.
+The backend sends through SES to their current verified Cognito email, with CSRF,
+rate limits, and durable duplicate protection. Email remains disabled until the
+[customer email setup](docs/customer-test-email.md) is completed. No actual order
+or payment is created by that sample action. Booking email automation has its own
+[setup and validation guide](docs/calendar-automation.md).
+
+Start with [authentication](docs/authentication.md),
+[deployment/configuration](docs/authentication-deployment.md), and
+[private account operations](docs/authentication-operations.md). Authentication remains
+unavailable until MySQL and both Cognito clients are configured; there are no default users.
+
+The [original charter](docs/project-charter.md) and dated planning documents are
+preserved; the integration report records the current implementation evidence.
 
 ## Start here
 
@@ -31,15 +77,25 @@ After installing dependencies using the setup guide:
 
 ```sh
 backend/.venv/bin/python scripts/check_foundation.py
+backend/.venv/bin/python -m ruff format --check backend scripts
+backend/.venv/bin/python -m ruff check backend scripts
 backend/.venv/bin/python -m pytest -c backend/pytest.ini -q
+npm run format:check --prefix frontend
 npm run build --prefix frontend
+npm run test:browser --prefix frontend
 git diff --check
 ```
 
-The real MySQL test skips without `RUN_DATABASE_INTEGRATION=1` and exported disposable
-DB settings. Local Docker/MySQL is unavailable; Compose is prepared but not run.
-[CI](.github/workflows/foundation-checks.yml) includes a disposable MySQL probe and
-frontend build. Review remote results in GitHub Actions; local evidence is in
+Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
+DB settings. November 3 integration validation passed 985 backend tests with
+isolated MySQL 8.4.13 and 85 Chromium browser tests. Cleanup verification passed
+82 browser cases initially; three external Google Fonts navigation timeouts passed
+unchanged on a targeted rerun. Order intake, replay and concurrency are exercised
+against real disposable MySQL. Browser tests otherwise use controlled API/provider
+responses. Local evidence does not establish live provider behavior or deployment.
+[CI](.github/workflows/foundation-checks.yml) includes MySQL migrations/persistence tests,
+frontend build/browser tests and offline Cognito template lint. Review remote results in GitHub Actions; local evidence is in
+[authentication validation](docs/authentication-validation.md) and
 [foundation validation](docs/foundation-validation.md). No external deployment has occurred.
 
 ## Shared deliverables
@@ -65,12 +121,18 @@ frontend build. Review remote results in GitHub Actions; local evidence is in
 | Shourya Sai Macha | Authentication, email, Google Calendar, reminders and automation |
 | Bryson Hawthorne | ERD/schema/migrations/models/queries, integrity and recovery |
 
-Shourya's research and Bryson's entity/attribute draft are recognized contributions;
-they do not establish implemented services. Docs are shared interface/review guidance,
+Shourya's research and Bryson's entity/attribute draft inform the implementation.
+Booking email and Calendar automation are implemented but require live provider
+configuration and verification; customer sample email has its own setup guide above.
+Docs are shared interface/review guidance,
 not a substitute for acceptance or an instruction to overwrite teammate designs.
 
 Keep new code free of emojis; use concise comments and standard hyphens. Do not
 commit credentials or real customer data. Teammate feature changes require Isaac's
-prior approval. Review this foundation on `feature/shared-foundation` through a PR
-to main. Branch protections remain unconfigured; external deployment and production
-release are separate reviewed and authorized actions.
+prior approval. Teammates keep their feature branches and review integration changes
+through PRs into `dev`. Accepted release candidates proceed from `dev` to `main`.
+Branch protections remain unconfigured; external deployment and production release
+are separate reviewed and authorized actions. The original feature branches are
+preserved. Ask Isaac before every commit or push. Initial DEV publication was
+approved October 29, 2026. Isaac approved the November 3 integration and cleanup
+commit/push to `dev`; future commits and pushes still require approval.

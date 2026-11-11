@@ -26,14 +26,9 @@ Known gaps, tracked in docs/decisions-and-blockers.md (T08):
   - Quotes are not persisted yet, so ``quote_id`` is validated and stored as the
     reference, but expiry/revision/equality lookups (409 ``quote_expired`` and
     ``quote_mismatch``) cannot be enforced until a quote store exists.
-  - The persistence code follows Bryson's migration 0008_customer_order_intake.sql
-    (``orders.id`` is the key, ``public_id`` the public identifier). That migration
-    is owned by T08 and is not part of this branch. Without database credentials the
-    order lives in a per-process memory store.
-  - The administrative routes need the ``popssibilities_admin`` session cookie and an
-    ``X-CSRF-Token`` (401/403 in the contract). No session mechanism exists yet (T02,
-    B06), so neither is enforced here; do not expose these routes beyond local
-    development until the auth owner wires them in.
+  - The persistence code follows migration 0008_customer_order_intake.sql
+    (``orders.id`` is the key, ``public_id`` the public identifier). Without database
+    credentials the order lives in a per-process memory store.
   - ``reason`` is validated but not stored: the order schema has no field for it and
     the audit table is not defined yet.
   - Status changes rewrite ``orders.response_json`` only; ``orders.submission_json``
@@ -50,6 +45,9 @@ from datetime import datetime, timezone
 import pymysql
 from flask import Blueprint, current_app, g, jsonify, request
 
+from .auth.errors import AuthError
+from .auth.guards import require_admin
+from .auth.service import PERMISSIONS
 from .health import connection_options, database_configured
 from .quotes import (
     _CONTRACT_FIELD_PATHS,
@@ -82,6 +80,7 @@ def _create_memory_store(state):
 # --------------------------------------------------------------------------- #
 # Validation (SubmitOrderRequest); collects every failure, never raises
 # --------------------------------------------------------------------------- #
+
 
 def _field(path, message):
     return {"field": path, "message": message}
@@ -192,8 +191,13 @@ def _add_ons(errors, data):
 
 def _catering_request(errors, value):
     path = "catering_request"
-    data = _object(errors, value, path, ("quantity", "popsicle_shape", "service_type"),
-                   ("flavor_requests", "add_ons", "dry_ice_blocks"))
+    data = _object(
+        errors,
+        value,
+        path,
+        ("quantity", "popsicle_shape", "service_type"),
+        ("flavor_requests", "add_ons", "dry_ice_blocks"),
+    )
     if data is None:
         return None
     dry_ice = data.get("dry_ice_blocks")
@@ -203,13 +207,17 @@ def _catering_request(errors, value):
         "flavor_requests": _string(errors, data, "flavor_requests", path, 2000, blank=True) or "",
         "add_ons": _add_ons(errors, data),
         "service_type": _choice(errors, data, "service_type", path, ("delivery", "full_service")),
-        "dry_ice_blocks": None if dry_ice is None else _integer(errors, data, "dry_ice_blocks", path, 0, 1000),
+        "dry_ice_blocks": None
+        if dry_ice is None
+        else _integer(errors, data, "dry_ice_blocks", path, 0, 1000),
     }
 
 
 def _location(errors, value):
     path = "event.location"
-    data = _object(errors, value, path, ("line1", "city", "region", "postal_code", "country_code"), ("line2",))
+    data = _object(
+        errors, value, path, ("line1", "city", "region", "postal_code", "country_code"), ("line2",)
+    )
     if data is None:
         return None
     location = {
@@ -222,13 +230,17 @@ def _location(errors, value):
     if "line2" in data:
         location["line2"] = _string(errors, data, "line2", path, 200, blank=True)
     if location["country_code"] and not _COUNTRY.match(location["country_code"]):
-        errors.append(_field("event.location.country_code", "must be an uppercase ISO 3166-1 alpha-2 code"))
+        errors.append(
+            _field("event.location.country_code", "must be an uppercase ISO 3166-1 alpha-2 code")
+        )
     return location
 
 
 def _event(errors, value):
     path = "event"
-    data = _object(errors, value, path, ("type", "location", "starts_at", "timezone"), ("ends_at", "notes"))
+    data = _object(
+        errors, value, path, ("type", "location", "starts_at", "timezone"), ("ends_at", "notes")
+    )
     if data is None:
         return None
     zone = _string(errors, data, "timezone", path, 100)
@@ -260,10 +272,14 @@ def validate_order_request(body):
         return None, errors
     quote_id = _string(errors, data, "quote_id", "", 100)
     if quote_id and not _IDENTIFIER.match(quote_id):
-        errors.append(_field("quote_id", "may contain only letters, digits, underscores and hyphens"))
+        errors.append(
+            _field("quote_id", "may contain only letters, digits, underscores and hyphens")
+        )
     clean = {
         "customer": _customer(errors, data["customer"]) if "customer" in data else None,
-        "catering_request": _catering_request(errors, data["catering_request"]) if "catering_request" in data else None,
+        "catering_request": _catering_request(errors, data["catering_request"])
+        if "catering_request" in data
+        else None,
         "event": _event(errors, data["event"]) if "event" in data else None,
         "quote_id": quote_id,
     }
@@ -273,6 +289,7 @@ def validate_order_request(body):
 # --------------------------------------------------------------------------- #
 # Pricing and order snapshot
 # --------------------------------------------------------------------------- #
+
 
 def _price(rules, clean):
     """Recompute the server price with the quote engine (integer cents, Fraction)."""
@@ -303,11 +320,18 @@ def _build_order(clean, quote):
         "quote_id": clean["quote_id"],
         "pricing_revision": quote["pricing_revision"],
         "pricing": pricing,
-        "deposit": {"status": "pending", "amount_due_cents": pricing["deposit_due_cents"],
-                    "amount_confirmed_cents": 0},
+        "deposit": {
+            "status": "pending",
+            "amount_due_cents": pricing["deposit_due_cents"],
+            "amount_confirmed_cents": 0,
+        },
         "payment_links": [],
-        "workflow": {"customer_email": "pending", "business_email": "pending",
-                     "calendar": "not_scheduled", "contract_email": "waiting_for_deposit"},
+        "workflow": {
+            "customer_email": "pending",
+            "business_email": "pending",
+            "calendar": "not_scheduled",
+            "contract_email": "waiting_for_deposit",
+        },
         "created_at": now,
         "updated_at": now,
     }
@@ -316,6 +340,7 @@ def _build_order(clean, quote):
 # --------------------------------------------------------------------------- #
 # Persistence: both savers return the stored order (the original one on replay)
 # --------------------------------------------------------------------------- #
+
 
 def _save_in_memory(key, digest, order):
     store = current_app.extensions["orders_memory"]
@@ -333,7 +358,10 @@ def _save_in_database(key, digest, order):
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s", (key,))
+            cursor.execute(
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+                (key,),
+            )
             row = cursor.fetchone()
             if row:
                 if row[0] != digest:
@@ -341,8 +369,10 @@ def _save_in_database(key, digest, order):
                 connection.rollback()
                 return json.loads(row[1])
             customer = order["customer"]
-            cursor.execute("INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
-                           (customer["name"], customer["email"], customer["phone"]))
+            cursor.execute(
+                "INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
+                (customer["name"], customer["email"], customer["phone"]),
+            )
             customer_id = cursor.lastrowid
             snapshot = json.dumps(order, separators=(",", ":"))
             cursor.execute(
@@ -350,17 +380,51 @@ def _save_in_database(key, digest, order):
                 " total_cents, deposit_due_cents, event_starts_at, event_timezone, idempotency_key,"
                 " response_json, request_hash, submission_json)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (order["id"], customer_id, order["status"], order["version"], order["quote_id"],
-                 order["pricing_revision"], order["pricing"]["total_cents"], order["pricing"]["deposit_due_cents"],
-                 _naive_utc(datetime.fromisoformat(order["event"]["starts_at"])), order["event"]["timezone"],
-                 key, snapshot, digest, snapshot))
+                (
+                    order["id"],
+                    customer_id,
+                    order["status"],
+                    order["version"],
+                    order["quote_id"],
+                    order["pricing_revision"],
+                    order["pricing"]["total_cents"],
+                    order["pricing"]["deposit_due_cents"],
+                    _naive_utc(datetime.fromisoformat(order["event"]["starts_at"])),
+                    order["event"]["timezone"],
+                    key,
+                    snapshot,
+                    digest,
+                    snapshot,
+                ),
+            )
             order_pk = cursor.lastrowid
             cursor.executemany(
                 "INSERT INTO order_items (order_id, code, description, amount_cents) VALUES (%s, %s, %s, %s)",
-                [(order_pk, item["code"], item["description"], item["amount_cents"])
-                 for item in order["pricing"]["line_items"]])
+                [
+                    (order_pk, item["code"], item["description"], item["amount_cents"])
+                    for item in order["pricing"]["line_items"]
+                ],
+            )
         connection.commit()
         return order
+    except pymysql.IntegrityError as error:
+        connection.rollback()
+        if error.args[0] != 1062:
+            raise
+        # A concurrent request may have won the unique idempotency-key insert.
+        # Read after rollback so REPEATABLE READ sees that committed submission.
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+                (key,),
+            )
+            row = cursor.fetchone()
+        connection.rollback()
+        if not row:
+            raise
+        if row[0] != digest:
+            raise IdempotencyConflict from None
+        return json.loads(row[1])
     except BaseException:
         connection.rollback()
         raise
@@ -393,6 +457,10 @@ class InvalidTransition(Exception):
     """The requested status change is not allowed from the current status."""
 
 
+class OrderManagedByBooking(Exception):
+    """The owner workflow controls an order after its booking handoff."""
+
+
 def _admin_view(order):
     """The administrative representation adds ``admin_notes`` to the stored order."""
     return {**order, "admin_notes": order.get("admin_notes", "")}
@@ -421,8 +489,12 @@ def _apply_status(current, version, status):
         return current
     if status not in _TRANSITIONS[current["status"]]:
         raise InvalidTransition
-    return {**current, "status": status, "version": current["version"] + 1,
-            "updated_at": _utc_text(datetime.now(timezone.utc))}
+    return {
+        **current,
+        "status": status,
+        "version": current["version"] + 1,
+        "updated_at": _utc_text(datetime.now(timezone.utc)),
+    }
 
 
 def _find_in_memory(order_id):
@@ -445,6 +517,11 @@ def _find_in_database(order_id):
 def _update_status_in_memory(order_id, version, status):
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
+        automation_store = current_app.extensions.get("automation_store")
+        if automation_store:
+            with automation_store.transaction() as tx:
+                if tx.get_order_link(order_id):
+                    raise OrderManagedByBooking
         updated = _apply_status(store["by_id"].get(order_id), version, status)
         store["by_id"][order_id] = updated
     return updated
@@ -455,15 +532,27 @@ def _update_status_in_database(order_id, version, status):
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT response_json FROM orders WHERE public_id = %s FOR UPDATE", (order_id,))
+            cursor.execute(
+                "SELECT o.response_json, l.booking_id FROM orders o "
+                "LEFT JOIN automation_order_links l ON l.order_id=o.public_id "
+                "WHERE o.public_id = %s FOR UPDATE",
+                (order_id,),
+            )
             row = cursor.fetchone()
+            if row and len(row) > 1 and row[1]:
+                raise OrderManagedByBooking
             current = _admin_view(json.loads(row[0])) if row else None
             updated = _apply_status(current, version, status)
             if updated is not current:
                 cursor.execute(
                     "UPDATE orders SET status = %s, version = %s, response_json = %s WHERE public_id = %s",
-                    (updated["status"], updated["version"], json.dumps(updated, separators=(",", ":")),
-                     order_id))
+                    (
+                        updated["status"],
+                        updated["version"],
+                        json.dumps(updated, separators=(",", ":")),
+                        order_id,
+                    ),
+                )
         connection.commit()
         return updated
     except BaseException:
@@ -530,9 +619,11 @@ def _list_in_memory(status, event_from, event_to, page, page_size):
 # HTTP layer
 # --------------------------------------------------------------------------- #
 
+
 def _error(status, code, message, fields=()):
-    return jsonify(error={"code": code, "message": message, "fields": list(fields),
-                          "request_id": g.request_id}), status
+    return jsonify(
+        error={"code": code, "message": message, "fields": list(fields), "request_id": g.request_id}
+    ), status
 
 
 def _not_found():
@@ -561,23 +652,36 @@ def submit_order():
     key = request.headers.get("Idempotency-Key", "").strip()
     clean, errors = validate_order_request(body)
     if not _IDEMPOTENCY_KEY.match(key):
-        errors.insert(0, _field("Idempotency-Key", "must be 16 to 128 letters, digits, underscores or hyphens"))
+        errors.insert(
+            0,
+            _field("Idempotency-Key", "must be 16 to 128 letters, digits, underscores or hyphens"),
+        )
     if errors:
         return _error(422, "validation_error", "One or more fields are invalid.", errors)
 
     try:
         quote = _price(current_app.extensions["pricing_rules"], clean)
     except QuoteError as error:
-        return _error(422, "validation_error", error.message,
-                      [_field(_CONTRACT_FIELD_PATHS.get(error.field, error.field or "body"), error.message)])
+        return _error(
+            422,
+            "validation_error",
+            error.message,
+            [_field(_CONTRACT_FIELD_PATHS.get(error.field, error.field or "body"), error.message)],
+        )
 
     order = _build_order(clean, quote)
-    digest = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     save = _save_in_database if database_configured(current_app.config) else _save_in_memory
     try:
         saved = save(key, digest, order)
     except IdempotencyConflict:
-        return _error(409, "idempotency_conflict", "The Idempotency-Key was already used with a different request.")
+        return _error(
+            409,
+            "idempotency_conflict",
+            "The Idempotency-Key was already used with a different request.",
+        )
     except (pymysql.MySQLError, OSError):
         return _service_unavailable()
 
@@ -613,6 +717,7 @@ def _query_instant(errors, name):
 
 
 @orders_bp.get("/orders")
+@require_admin("bookings:read")
 def list_orders():
     errors = []
     status = request.args.get("status")
@@ -638,6 +743,7 @@ def list_orders():
 
 
 @orders_bp.get("/orders/<order_id>")
+@require_admin("bookings:read")
 def retrieve_order(order_id):
     if not _valid_order_id(order_id):
         return _not_found()
@@ -652,6 +758,7 @@ def retrieve_order(order_id):
 
 
 @orders_bp.patch("/orders/<order_id>/status")
+@require_admin("bookings:read")
 def update_order_status(order_id):
     if not request.is_json:
         return _error(415, "unsupported_media_type", "Use application/json for this request.")
@@ -663,10 +770,22 @@ def update_order_status(order_id):
     clean, errors = validate_status_request(body)
     if errors:
         return _error(422, "validation_error", "One or more fields are invalid.", errors)
+    permission = {
+        "pending_review": "bookings:confirm",
+        "confirmed": "bookings:confirm",
+        "cancelled": "bookings:cancel",
+        "fulfilled": "bookings:fulfill",
+    }[clean["status"]]
+    if permission not in PERMISSIONS[g.principal["admin_role"]]:
+        raise AuthError("forbidden", "You do not have permission for this action.", 403)
     if not _valid_order_id(order_id):
         return _not_found()
 
-    update = _update_status_in_database if database_configured(current_app.config) else _update_status_in_memory
+    update = (
+        _update_status_in_database
+        if database_configured(current_app.config)
+        else _update_status_in_memory
+    )
     try:
         order = update(order_id, clean["version"], clean["status"])
     except OrderNotFound:
@@ -675,6 +794,8 @@ def update_order_status(order_id):
         return _error(409, "stale_version", "Refresh the order before applying this change.")
     except InvalidTransition:
         return _error(409, "invalid_transition", "The requested status transition is not allowed.")
+    except OrderManagedByBooking:
+        return _error(409, "booking_managed", "Manage this order through its linked owner booking.")
     except (pymysql.MySQLError, OSError):
         return _service_unavailable()
     return jsonify(data=order, meta={"request_id": g.request_id})
