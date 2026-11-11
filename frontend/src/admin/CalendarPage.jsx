@@ -103,109 +103,6 @@ function buildGrid(year, month) {
   return weeks;
 }
 
-// Upcoming events list data (derived from orders; shown in Upcoming view)
-const UPCOMING_EVENTS = [
-  {
-    date: "Sat, Nov 7",
-    time: "2:00–4:00 PM",
-    customer: "Elena Martinez",
-    qty: 150,
-    service: "Full Service",
-    booking: "Confirmed",
-    sync: "Sync failed",
-    syncType: "failed",
-    orderId: "#1045",
-  },
-  {
-    date: "Sun, Nov 8",
-    time: "11:00 AM",
-    customer: "Bayou Creative",
-    qty: 120,
-    service: "Delivery",
-    booking: "Confirmed",
-    sync: "Synced",
-    syncType: "synced",
-    orderId: "#1044",
-  },
-  {
-    date: "Tue, Nov 10",
-    time: "3:00–5:00 PM",
-    customer: "Priya Patel",
-    qty: 100,
-    service: "Full Service",
-    booking: "Confirmed",
-    sync: "Synced",
-    syncType: "synced",
-    orderId: "#1043",
-  },
-  {
-    date: "Thu, Nov 12",
-    time: "10:00 AM",
-    customer: "Northside School",
-    qty: 100,
-    service: "Delivery",
-    booking: "Confirmed",
-    sync: "Synced",
-    syncType: "synced",
-    orderId: "#1042",
-  },
-  {
-    date: "Sat, Nov 14",
-    time: "12:00 PM",
-    customer: "Museum District",
-    qty: 100,
-    service: "Delivery",
-    booking: "Confirmed",
-    sync: "Synced",
-    syncType: "synced",
-    orderId: "#1041",
-  },
-  {
-    date: "Sun, Nov 15",
-    time: "1:00–3:00 PM",
-    customer: "Greenway Co.",
-    qty: 110,
-    service: "Full Service",
-    booking: "Confirmed",
-    sync: "Synced",
-    syncType: "synced",
-    orderId: "#1040",
-  },
-  {
-    date: "Wed, Nov 18",
-    time: "2:00 PM",
-    customer: "James Wilson",
-    qty: 80,
-    service: "Delivery",
-    booking: "Pending request",
-    sync: "—",
-    syncType: "none",
-    orderId: "#1046",
-  },
-  {
-    date: "Fri, Nov 20",
-    time: "1:00–3:00 PM",
-    customer: "Oakwood PTA",
-    qty: 150,
-    service: "Full Service",
-    booking: "Pending request",
-    sync: "—",
-    syncType: "none",
-    orderId: "#1047",
-  },
-  {
-    date: "Sat, Nov 21",
-    time: "12:00 PM",
-    customer: "Sofia Ramirez",
-    qty: 200,
-    service: "Delivery",
-    booking: "Pending request",
-    sync: "—",
-    syncType: "none",
-    orderId: "#1048",
-  },
-];
-
 // Event detail data for the drawer (matches what backend would return)
 const EVENT_DETAILS = {
   "#1045": {
@@ -353,8 +250,13 @@ function EventDetailDrawer({ event, onClose }) {
                   type="button"
                   className="adm-btn adm-btn--outline"
                   style={{ marginTop: "16px" }}
+                  onClick={() =>
+                    navigate(
+                      `/admin/orders/${encodeURIComponent(event.orderId)}`,
+                    )
+                  }
                 >
-                  Retry sync
+                  Review sync in order details
                 </button>
               </div>
             )}
@@ -523,6 +425,23 @@ export function CalendarPage() {
     } else setMonth((m) => m + 1);
   }
 
+  const upcomingEvents = Object.entries(events).map(([day, event]) => ({
+    ...event,
+    date: new Date(year, month - 1, Number(day)).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }),
+    booking:
+      event.bookingStatus === "pending" ? "Pending request" : "Confirmed",
+    sync:
+      event.syncStatus === "synced"
+        ? "Synced"
+        : event.syncStatus === "failed"
+          ? "Sync failed"
+          : "Not eligible yet",
+    syncType: event.syncStatus,
+  }));
   const weeks = buildGrid(year, month);
   const todayDay =
     today.getFullYear() === year && today.getMonth() + 1 === month
@@ -540,9 +459,9 @@ export function CalendarPage() {
             <a href="/" className="adm-page-header__view-site">
               View website ↗
             </a>
-            <button type="button" className="adm-btn adm-btn--outline">
-              Owner account ⌄
-            </button>
+            <Link to="/admin" className="adm-btn adm-btn--outline">
+              Owner account
+            </Link>
           </div>
         </header>
 
@@ -573,9 +492,9 @@ export function CalendarPage() {
                 stay internal.
               </p>
             </div>
-            <button type="button" className="adm-btn adm-btn--outline">
+            <Link to="/admin/automation" className="adm-btn adm-btn--outline">
               Manage connection
-            </button>
+            </Link>
           </div>
 
           {/* Nav row */}
@@ -713,7 +632,7 @@ export function CalendarPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {UPCOMING_EVENTS.map((ev) => (
+                    {upcomingEvents.map((ev) => (
                       <tr
                         key={ev.orderId}
                         className={`cal-upcoming-row cal-upcoming-row--${ev.booking === "Pending request" ? "pending" : "confirmed"}`}

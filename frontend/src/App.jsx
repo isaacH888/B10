@@ -21,8 +21,30 @@ import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
+import {
+  CustomerSignInLayout,
+  PublicHome,
+  PublicLayout,
+} from "./PublicSite.jsx";
 
 function Layout({ children }) {
+  const { pathname } = useLocation();
+  if (
+    pathname === "/order" ||
+    /^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)
+  ) {
+    return children;
+  }
+  if (pathname === "/login") {
+    return <CustomerSignInLayout>{children}</CustomerSignInLayout>;
+  }
+  if (
+    pathname === "/" ||
+    pathname === "/account" ||
+    pathname === "/order/confirm"
+  ) {
+    return <PublicLayout>{children}</PublicLayout>;
+  }
   return (
     <div className="test-shell">
       <header>
@@ -36,6 +58,7 @@ function Layout({ children }) {
           <Link to="/account">Customer session</Link>
           <Link to="/admin/login">Admin login</Link>
           <Link to="/admin">Admin dashboard</Link>
+          <Link to="/diagnostics">Connection diagnostics</Link>
         </nav>
       </header>
       <main id="main-content">{children}</main>
@@ -47,7 +70,7 @@ function Layout({ children }) {
   );
 }
 
-function HomePage() {
+function DiagnosticsPage() {
   const [result, setResult] = useState("");
   const [checking, setChecking] = useState(false);
   async function checkConnection() {
@@ -80,7 +103,7 @@ function HomePage() {
   }
   return (
     <section>
-      <h1>Authentication test</h1>
+      <h1>Connection diagnostics</h1>
       <p>
         Use the navigation links to test customer login, administrator login,
         and protected sessions.
@@ -154,9 +177,10 @@ function LoginPage() {
       {session.status === "loading" ? (
         <p role="status">Checking your session…</p>
       ) : (
-        <div className="actions">
+        <div className="actions customer-login-actions">
           <button
             type="button"
+            className="pill red"
             disabled={Boolean(busy) || session.logoutPending}
             onClick={() => begin("password")}
           >
@@ -166,6 +190,7 @@ function LoginPage() {
           </button>
           <button
             type="button"
+            className="pill outline"
             disabled={Boolean(busy) || session.logoutPending}
             onClick={() => begin("google")}
           >
@@ -183,7 +208,7 @@ function LoginPage() {
   );
 }
 
-function ProtectedPage({ area }) {
+function ProtectedPage({ area, preview = false, children }) {
   const location = useLocation();
   const { sessions, refresh, expire, logout } = useAuth();
   const [now, setNow] = useState(Date.now());
@@ -247,6 +272,56 @@ function ProtectedPage({ area }) {
   const identity = session.data[admin ? "administrator" : "customer"];
   const deadline = new Date(sessionDeadline(session.data));
   const remaining = Math.max(0, Math.ceil((deadline.getTime() - now) / 60000));
+  if (preview) {
+    if (
+      identity.role !== "owner" ||
+      !identity.permissions.includes("bookings:read")
+    ) {
+      return (
+        <section className="test-shell">
+          <h1>Owner access required</h1>
+          <p>
+            Only an owner with booking access can open the admin design preview.
+          </p>
+          <Link to="/admin">Back to your team session</Link>
+        </section>
+      );
+    }
+    return (
+      <div className="admin-preview">
+        <aside
+          className="admin-preview-notice"
+          aria-label="Design preview notice"
+        >
+          <p>
+            <strong>Design preview: fictional sample data.</strong> Changes stay
+            in this browser tab and reset on reload. Use the booking workspace
+            for real orders, payments and Calendar. Inventory storage is not
+            connected.
+          </p>
+          <nav aria-label="Workspace controls">
+            <Link to="/admin/automation">
+              Manage live bookings and Calendar
+            </Link>
+            <Link to="/admin">Team session and permissions</Link>
+            <button
+              type="button"
+              onClick={() => logout(area, session.data.csrf_token)}
+            >
+              Sign out
+            </button>
+          </nav>
+          {remaining <= 5 && (
+            <p role="status">
+              Your session expires in {remaining || "less than a minute"}
+              {remaining ? " minutes" : ""}.
+            </p>
+          )}
+        </aside>
+        {children}
+      </div>
+    );
+  }
   return (
     <section>
       <h1>
@@ -274,6 +349,8 @@ function ProtectedPage({ area }) {
                 <Link to="/admin/automation">
                   Manage catering bookings and Calendar
                 </Link>
+                {" · "}
+                <Link to="/admin/dashboard">Open admin design preview</Link>
               </p>
             )}
             <AdminDashboard identity={identity} />
@@ -383,50 +460,78 @@ function NotFound() {
   );
 }
 
-// Wraps the dev test shell layout around child routes via <Outlet>.
-function LayoutRoute() {
-  return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/account" element={<ProtectedPage area="customer" />} />
-        <Route path="/admin/login" element={<AdminPasswordLogin />} />
-        <Route
-          path="/admin/mfa"
-          element={<Navigate to="/admin/login?reauth=1" replace />}
-        />
-        <Route path="/admin" element={<ProtectedPage area="admin" />} />
-        <Route
-          path="/admin/automation"
-          element={<ProtectedPage area="admin" />}
-        />
-        <Route
-          path="/admin/bookings/:bookingId"
-          element={<ProtectedPage area="admin" />}
-        />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Layout>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* Full-page routes rendered without the dev test shell */}
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-          <Route path="/admin/orders" element={<OrdersPage />} />
-          <Route path="/admin/orders/:orderId" element={<OrderDetailPage />} />
-          <Route path="/admin/calendar" element={<CalendarPage />} />
-          <Route path="/admin/inventory" element={<InventoryPage />} />
-          <Route path="/order" element={<CateringPage />} />
-          <Route path="/order/confirm" element={<OrderConfirmation />} />
-          {/* All other routes get the test-shell layout */}
-          <Route path="/*" element={<LayoutRoute />} />
-        </Routes>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<PublicHome />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
+            <Route path="/order" element={<CateringPage />} />
+            <Route path="/order/confirm" element={<OrderConfirmation />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/account"
+              element={<ProtectedPage area="customer" />}
+            />
+            <Route path="/admin/login" element={<AdminPasswordLogin />} />
+            <Route
+              path="/admin/mfa"
+              element={<Navigate to="/admin/login?reauth=1" replace />}
+            />
+            <Route path="/admin" element={<ProtectedPage area="admin" />} />
+            <Route
+              path="/admin/automation"
+              element={<ProtectedPage area="admin" />}
+            />
+            <Route
+              path="/admin/bookings/:bookingId"
+              element={<ProtectedPage area="admin" />}
+            />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedPage area="admin" preview>
+                  <AdminDashboardPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/orders"
+              element={
+                <ProtectedPage area="admin" preview>
+                  <OrdersPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/orders/:orderId"
+              element={
+                <ProtectedPage area="admin" preview>
+                  <OrderDetailPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/calendar"
+              element={
+                <ProtectedPage area="admin" preview>
+                  <CalendarPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/inventory"
+              element={
+                <ProtectedPage area="admin" preview>
+                  <InventoryPage />
+                </ProtectedPage>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Layout>
       </AuthProvider>
     </BrowserRouter>
   );

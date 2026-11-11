@@ -1,5 +1,6 @@
+import { useAuth } from "./auth/AuthContext.jsx";
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
 import logoImage from "./assets/logo.png";
@@ -972,6 +973,8 @@ function CateringModal({ onClose }) {
 // ---------------------------------------------------------------------------
 
 export function CateringPage() {
+  const { sessions } = useAuth();
+  const signedIn = sessions.customer.status === "authenticated";
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
@@ -994,19 +997,20 @@ export function CateringPage() {
             height={58}
           />
         </a>
-        <nav className="cat-nav__links" aria-label="Site navigation">
-          <a href="/#menu">The paleta life</a>
-          <a href="/#about">Our story</a>
-          <a href="/#contact">Stay in the loop</a>
-          <a href="/order">Catering</a>
+        <nav className="cat-nav__links" aria-label="Main navigation">
+          <a href="/#paleta-life">The paleta life</a>
+          <a href="/#our-story">Our story</a>
+          <a href="/#newsletter">Stay in the loop</a>
+          <a href="/order" aria-label="Catering order">
+            Catering
+          </a>
         </nav>
-        <button
-          type="button"
+        <Link
           className="cat-btn cat-btn--red cat-nav__login"
-          onClick={() => setModalOpen(true)}
+          to={signedIn ? "/account" : "/login"}
         >
-          Get pop updates ↗
-        </button>
+          {signedIn ? "My account" : "Sign in"}
+        </Link>
       </header>
 
       <main id="main-content">
@@ -1189,10 +1193,12 @@ export function CateringPage() {
             Houston, TX &middot; info@popssibilities.com &middot; 281-248-7514
           </p>
           <nav className="cat-footer__links" aria-label="Footer navigation">
-            <a href="/#menu">Menu</a>
-            <a href="/order">Catering</a>
-            <a href="/#about">About</a>
-            <a href="/#contact">Contact</a>
+            <a href="/#paleta-life">The paleta life</a>
+            <a href="/order" aria-label="Catering order">
+              Catering
+            </a>
+            <a href="/#our-story">About</a>
+            <a href="/#newsletter">Stay in the loop</a>
           </nav>
           <p className="cat-footer__copy">
             &copy; {new Date().getFullYear()} Popssibilities. All rights

@@ -1,23 +1,11 @@
 /**
- * Admin API layer — Popssibilities
- * =================================
- * All backend calls for the admin section go through this file.
- * The backend team should implement the endpoints listed below and update
- * the functions accordingly. Each function documents:
- *   - Expected HTTP method + path
- *   - Request body shape (where applicable)
- *   - Expected response shape
- *
- * During development, every function falls back to a mock that works
- * entirely in-memory so the UI can be built and demoed without a live API.
- *
- * To switch from mock → real API:
- *   1. Set  USE_MOCK_API = false
- *   2. Make sure the backend is running and the Vite proxy is configured
- *      (see vite.config.js — /api/v1 proxies to localhost:5000)
+ * Sample data for the protected admin design preview. All changes are temporary.
+ * The documented /admin/inventory, /admin/orders and /admin/calendar endpoints
+ * are proposed contracts, not implemented backend routes. Live booking actions
+ * use the existing /admin/automation workspace and its session/CSRF checks.
  */
 
-const USE_MOCK_API = true; // ← flip to false when the API is ready
+const USE_MOCK_API = true;
 
 // ---------------------------------------------------------------------------
 // Shared fetch helper (mirrors the existing apiRequest in src/auth/api.js)
@@ -912,43 +900,41 @@ export async function retryCalsync(id) {
 export async function fetchCalendar(year, month) {
   if (USE_MOCK_API) {
     await mockDelay(300);
-    // Derive from orders for the matching year/month
+    const matching = MOCK_ORDERS.filter(
+      (order) =>
+        order.dateIso.startsWith(
+          `${year}-${String(month).padStart(2, "0")}-`,
+        ) && order.orderStatus !== "cancelled",
+    );
     const events = {};
-    MOCK_ORDERS.forEach((o) => {
-      const d = new Date(o.dateIso);
-      if (d.getFullYear() === year && d.getMonth() + 1 === month) {
-        const day = d.getDate();
-        events[day] = {
-          orderId: o.id,
-          customer: o.customer,
-          service: o.service,
-          qty: o.qty,
-          bookingStatus: o.orderStatus,
-          syncStatus: o.calendarSync,
-          color:
-            o.orderStatus === "pending"
-              ? "cream"
-              : o.calendarSync === "failed"
-                ? "yellow"
-                : "pink",
-        };
-      }
-    });
-    const confirmed = MOCK_ORDERS.filter(
-      (o) =>
-        o.orderStatus === "confirmed" &&
-        new Date(o.dateIso).getMonth() + 1 === month,
+    for (const order of matching) {
+      // A date-only string is a calendar date, not midnight UTC.
+      const day = Number(order.dateIso.slice(8, 10));
+      events[day] = {
+        orderId: order.id,
+        customer: order.customer,
+        service: order.service,
+        qty: order.qty,
+        time: order.arrivalWindow,
+        bookingStatus: order.orderStatus,
+        syncStatus: order.calendarSync,
+        color:
+          order.orderStatus === "pending"
+            ? "cream"
+            : order.calendarSync === "failed"
+              ? "yellow"
+              : "pink",
+      };
+    }
+    const confirmed = matching.filter(
+      (order) => order.orderStatus === "confirmed",
     ).length;
-    const pending = MOCK_ORDERS.filter(
-      (o) =>
-        o.orderStatus === "pending" &&
-        new Date(o.dateIso).getMonth() + 1 === month,
+    const pending = matching.filter(
+      (order) => order.orderStatus === "pending",
     ).length;
-    const reserved = MOCK_ORDERS.filter(
-      (o) =>
-        o.orderStatus === "confirmed" &&
-        new Date(o.dateIso).getMonth() + 1 === month,
-    ).reduce((s, o) => s + o.qty, 0);
+    const reserved = matching
+      .filter((order) => order.orderStatus === "confirmed")
+      .reduce((sum, order) => sum + order.qty, 0);
     return { events, stats: { confirmed, pending, reserved } };
   }
   return adminRequest(`/admin/calendar?year=${year}&month=${month}`);

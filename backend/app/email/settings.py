@@ -3,6 +3,8 @@
 import os
 import re
 
+from ..auth.settings import authentication_enabled
+
 ADDRESS = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}\Z"
 )
@@ -41,7 +43,7 @@ def environment_settings():
 def validate_settings(settings):
     if not settings.get("EMAIL_ENABLED", False):
         return
-    if not settings.get("AUTH_ENABLED"):
+    if not authentication_enabled(settings, "customer"):
         raise ValueError("Email requires authenticated customer sessions")
     if settings.get("EMAIL_PROVIDER") != "ses":
         raise ValueError("EMAIL_PROVIDER must be ses")

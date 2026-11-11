@@ -979,9 +979,9 @@ export function InventoryPage() {
             <a href="/" className="adm-page-header__view-site">
               View website ↗
             </a>
-            <button type="button" className="adm-btn adm-btn--outline">
-              Owner account ⌄
-            </button>
+            <Link to="/admin" className="adm-btn adm-btn--outline">
+              Owner account
+            </Link>
           </div>
         </header>
 

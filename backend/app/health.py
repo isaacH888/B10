@@ -6,6 +6,7 @@ from time import monotonic
 import pymysql
 from flask import Blueprint, current_app, g, jsonify
 
+from .auth.settings import authentication_enabled
 from .auth.store import StoreUnavailable
 
 health = Blueprint("health", __name__)
@@ -86,8 +87,8 @@ def live():
 
 def probe_readiness():
     available = database_available()
-    authentication_ready = not current_app.config["AUTH_ENABLED"]
-    if available and current_app.config["AUTH_ENABLED"]:
+    authentication_ready = not authentication_enabled(current_app.config)
+    if available and authentication_enabled(current_app.config):
         try:
             authentication_ready = current_app.extensions["auth_store"].ready()
         except StoreUnavailable:
@@ -107,9 +108,9 @@ def readiness():
             "status": "ok" if ready else "degraded",
             "database": "ok" if available else "unavailable",
             "authentication": "ready"
-            if current_app.config["AUTH_ENABLED"] and authentication_ready
+            if authentication_enabled(current_app.config) and authentication_ready
             else "disabled"
-            if not current_app.config["AUTH_ENABLED"]
+            if not authentication_enabled(current_app.config)
             else "unavailable",
         },
         meta={"request_id": g.request_id},

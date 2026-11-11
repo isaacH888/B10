@@ -11,7 +11,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .auth.errors import AuthError, unavailable
-from .auth.settings import validate_settings
+from .auth.settings import authentication_enabled, validate_settings
 from .auth.store import Store, StoreUnavailable
 from .config import read_settings
 from .health import health
@@ -57,12 +57,17 @@ def create_app(test_config=None):
     from .auth.routes import auth
 
     app.extensions["auth_store"] = app.config.get("AUTH_STORE") or Store(app.config)
-    if app.config["AUTH_ENABLED"]:
+    if authentication_enabled(app.config):
         from .auth.provider import CognitoProvider
         from .auth.service import AuthService
 
-        providers = app.config.get("AUTH_PROVIDERS") or {
-            area: CognitoProvider(app.config, area) for area in ("customer", "admin")
+        configured_providers = app.config.get("AUTH_PROVIDERS")
+        providers = {
+            area: configured_providers[area]
+            if configured_providers
+            else CognitoProvider(app.config, area)
+            for area in ("customer", "admin")
+            if authentication_enabled(app.config, area)
         }
         app.extensions["auth_service"] = AuthService(
             app.config, app.extensions["auth_store"], providers, clock=app.config.get("AUTH_CLOCK")
@@ -98,7 +103,7 @@ def create_app(test_config=None):
     from .email.service import CustomerMailService
     from .email.store import MailStore
 
-    if app.config["AUTH_ENABLED"]:
+    if authentication_enabled(app.config, "customer"):
         app.extensions["customer_mail_service"] = CustomerMailService(
             app.config,
             app.extensions["auth_service"],

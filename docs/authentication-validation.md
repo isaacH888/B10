@@ -49,3 +49,33 @@ git diff --check
 ```
 
 For all database cases, export `RUN_DATABASE_INTEGRATION=1` and a genuinely disposable `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`. The database name must end in `_ci`/`_test` or start with `test_`; these tests mutate authentication tables. Apply migrations in that isolated environment before running the suite. Never point it at existing development or production users.
+
+## Customer-only development configuration - November 10, 2026
+
+The approved separation adds the optional `CUSTOMER_AUTH_ENABLED` override.
+`AUTH_ENABLED=false` with `CUSTOMER_AUTH_ENABLED=true` starts only the configured
+customer provider, without admin Cognito settings or an approved admin account.
+Admin HTTP endpoints remain unavailable, including native sign-in, sessions,
+booking automation and private order access. The shared defaults and hosted
+requirement for both authentication areas remain enforced.
+
+All 1,022 backend tests passed against disposable MySQL 8.4.13, including 37 new
+configuration/isolation cases and customer password/Google session persistence
+and logout. The 98 selected authentication, public UI, admin, automation and
+customer-email Chromium cases passed. Python lint/formatting, foundation checks
+and Git whitespace checks passed. Cognito/provider responses in these tests are
+controlled; they do not establish successful live provider authentication.
+
+The checks above initially ran without live customer configuration. On November 11,
+the owner supplied the existing private environment and confirmed successful Google
+customer sign-in against the running application. Docker/MySQL was initialized in
+a separate local volume and all eight migrations applied. No private environment,
+database credentials or provider secrets are included in source control.
+
+The administrator sign-in form now initializes with the supplied configuration,
+but the new local database has no approved admin grants. Completing that login
+still requires an authorized operator to verify the existing Cognito identity and
+approved role. No admin grant was created. Email and booking automation remain
+disabled in the current local runtime; live delivery and Calendar behavior are not
+established by the customer sign-in result. See
+[customer-only setup](authentication-deployment.md).

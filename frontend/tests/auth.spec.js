@@ -898,7 +898,7 @@ for (const scenario of [
       healthStatus: scenario.status,
       health: scenario.health,
     });
-    await page.goto("/");
+    await page.goto("/diagnostics");
     await page
       .getByRole("button", { name: "Check backend connection" })
       .click();
@@ -920,7 +920,7 @@ test("an unreachable backend is distinct from failed readiness", async ({
   page,
 }) => {
   const requests = await mockApi(page, { liveUnavailable: true });
-  await page.goto("/");
+  await page.goto("/diagnostics");
   await page.getByRole("button", { name: "Check backend connection" }).click();
   await expect(page.getByRole("status")).toHaveText(
     "The backend connection could not be verified. Check that the backend is running.",
@@ -942,7 +942,7 @@ test("malformed readiness data is not accepted as verified configuration", async
       detail: "private-driver-details",
     },
   });
-  await page.goto("/");
+  await page.goto("/diagnostics");
   await page.getByRole("button", { name: "Check backend connection" }).click();
   await expect(page.getByRole("status")).toHaveText(
     "Backend reachable. Readiness could not be checked. Please try again.",

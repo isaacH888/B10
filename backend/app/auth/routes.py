@@ -60,7 +60,7 @@ def area_allowed(area):
 @auth.post("/<area>/login")
 def login(area):
     area_allowed(area)
-    manager = service()
+    manager = service(area)
     manager.check_origin(request)
     if not request.is_json or (request.content_length or 0) > 2048:
         raise AuthError("validation_error", "Send a small JSON login request.", 422)
@@ -112,7 +112,7 @@ def callback(area):
             raise AuthError(
                 "authentication_failed", "Sign-in could not be completed. Please start again."
             )
-        token = service().finish_login(
+        token = service(area).finish_login(
             area,
             request.args.get("state"),
             request.cookies.get(cookie_name(current_app.config, area, flow=True)),
@@ -168,7 +168,7 @@ def callback(area):
 @auth.get("/<area>/session")
 def read_session(area):
     area_allowed(area)
-    manager = service()
+    manager = service(area)
     # Background bootstrap/poll requests do not extend the user's idle timeout.
     session = manager.authenticate(area, request)
     return response(manager.session_data(area, session))
@@ -177,7 +177,7 @@ def read_session(area):
 @auth.delete("/<area>/session")
 def logout(area):
     area_allowed(area)
-    result = response({"logout_url": service().logout(area, request)})
+    result = response({"logout_url": service(area).logout(area, request)})
     result.delete_cookie(cookie_name(current_app.config, area), **cookie_options())
     result.delete_cookie(cookie_name(current_app.config, area, flow=True), **cookie_options())
     if area == "admin":
@@ -191,7 +191,7 @@ def logout(area):
 @auth.route("/admin/password/transaction", methods=["GET", "POST", "DELETE"])
 def native_admin_transaction():
     admit_unauthenticated_request()
-    manager = service()
+    manager = service("admin")
     options = dict(cookie_options(), samesite="Strict")
     try:
         if request.method == "GET":

@@ -14,7 +14,7 @@ def owner_only(fresh=False):
     def decorate(view):
         @wraps(view)
         def protected(*args, **kwargs):
-            g.principal = service().authenticate(
+            g.principal = service("admin").authenticate(
                 "admin",
                 request,
                 touch=True,
