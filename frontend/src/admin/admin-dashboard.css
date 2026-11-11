@@ -967,6 +967,13 @@
   flex-wrap: wrap;
 }
 
+.ord-filter-counts {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .ord-count-badge {
   display: inline-flex;
   align-items: center;
@@ -1310,9 +1317,11 @@
 .cal-legend__dot--yellow {
   background: #ffed00;
 }
+
 .cal-legend__dot--pink {
   background: #ff59a5;
 }
+
 .cal-legend__dot--cream {
   background: #fff7dc;
   border: 1px dashed #3b003d;
@@ -1326,9 +1335,11 @@
   .adm-stats-grid--4col {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .ord-filters-row {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .cal-cell {
     min-height: 100px;
   }
@@ -1338,20 +1349,25 @@
   .adm-stats-grid--4col {
     grid-template-columns: 1fr 1fr;
   }
+
   .ord-filters-row {
     grid-template-columns: 1fr;
   }
+
   .inv-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
+
   .inv-search {
     width: 100%;
   }
+
   .cal-cell {
     min-height: 60px;
     padding: 4px 2px;
   }
+
   .cal-event__time,
   .cal-event__service,
   .cal-event__status {

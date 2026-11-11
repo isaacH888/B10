@@ -58,6 +58,8 @@ const initialForm = {
   location_postal_code: "",
   // Step 3 - event details
   event_type: "",
+  event_date: "",
+  event_time: "",
   event_starts_at: "",
   event_ends_at: "",
   event_notes: "",
@@ -340,37 +342,43 @@ function StepEventDetails({ form, onChange, errors }) {
 
       <div className="form-row">
         <div className="form-field">
-          <label htmlFor="cf-starts-at">
+          <label htmlFor="cf-event-date">
             Event date{" "}
             <span className="required-mark" aria-hidden="true">
               *
             </span>
           </label>
           <input
-            id="cf-starts-at"
-            type="datetime-local"
-            value={form.event_starts_at}
-            onChange={(e) => onChange("event_starts_at", e.target.value)}
+            id="cf-event-date"
+            type="date"
+            value={form.event_date}
+            onChange={(e) => onChange("event_date", e.target.value)}
             required
           />
-          {errors.event_starts_at && (
+          {errors.event_date && (
             <p className="field-error" role="alert">
-              {errors.event_starts_at}
+              {errors.event_date}
             </p>
           )}
         </div>
 
         <div className="form-field">
-          <label htmlFor="cf-ends-at">Event time (optional)</label>
+          <label htmlFor="cf-event-time">
+            Event time{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
+          </label>
           <input
-            id="cf-ends-at"
-            type="datetime-local"
-            value={form.event_ends_at}
-            onChange={(e) => onChange("event_ends_at", e.target.value)}
+            id="cf-event-time"
+            type="time"
+            value={form.event_time}
+            onChange={(e) => onChange("event_time", e.target.value)}
+            required
           />
-          {errors.event_ends_at && (
+          {errors.event_time && (
             <p className="field-error" role="alert">
-              {errors.event_ends_at}
+              {errors.event_time}
             </p>
           )}
         </div>
@@ -506,11 +514,16 @@ function StepSummary({
           </dd>
           <dt>Event</dt>
           <dd>{form.event_type}</dd>
-          <dt>Date</dt>
+          <dt>Date &amp; Time</dt>
           <dd>
             {form.event_starts_at
-              ? new Date(form.event_starts_at).toLocaleString()
-              : "-"}
+              ? new Date(form.event_starts_at).toLocaleString([], {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })
+              : form.event_date && form.event_time
+                ? `${form.event_date} at ${form.event_time}`
+                : "-"}
           </dd>
           <dt>Quantity</dt>
           <dd>{form.quantity} popsicles</dd>
@@ -671,15 +684,25 @@ function validateStep(step, form) {
   }
   if (step === 3) {
     if (!form.event_type.trim()) errors.event_type = "Event type is required.";
-    if (!form.event_starts_at)
-      errors.event_starts_at = "Event start date and time is required.";
-    else if (new Date(form.event_starts_at) <= new Date())
-      errors.event_starts_at = "Event start must be in the future.";
-    if (
-      form.event_ends_at &&
-      new Date(form.event_ends_at) <= new Date(form.event_starts_at)
-    )
-      errors.event_ends_at = "Event end must be after the start time.";
+
+    const dateVal = form.event_date || (form.event_starts_at ? form.event_starts_at.split("T")[0] : "");
+    const timeVal = form.event_time || (form.event_starts_at && form.event_starts_at.includes("T") ? form.event_starts_at.split("T")[1].slice(0, 5) : "");
+
+    if (!dateVal) {
+      errors.event_date = "Event date is required.";
+    }
+    if (!timeVal) {
+      errors.event_time = "Event time is required.";
+    }
+
+    if (dateVal && timeVal) {
+      const combined = `${dateVal}T${timeVal}`;
+      if (isNaN(new Date(combined).getTime())) {
+        errors.event_date = "Please enter a valid date and time.";
+      } else if (new Date(combined) <= new Date()) {
+        errors.event_date = "Event date and time must be in the future.";
+      }
+    }
   }
   if (step === 4) {
     const qty = Number(form.quantity);
@@ -704,6 +727,10 @@ function validateStep(step, form) {
 
 // Builds the request body the API expects from the flat form state.
 function buildRequestBody(form, quoteId) {
+  const startsAt =
+    form.event_starts_at ||
+    (form.event_date && form.event_time ? `${form.event_date}T${form.event_time}` : "");
+
   const body = {
     catering_request: {
       quantity: Number(form.quantity),
@@ -723,8 +750,8 @@ function buildRequestBody(form, quoteId) {
         postal_code: form.location_postal_code.trim(),
         country_code: "US",
       },
-      starts_at: toIsoWithOffset(form.event_starts_at),
-      ends_at: form.event_ends_at ? toIsoWithOffset(form.event_ends_at) : null,
+      starts_at: toIsoWithOffset(startsAt),
+      ends_at: null,
       timezone: browserTimezone(),
       notes: form.event_notes.trim(),
     },
@@ -760,7 +787,17 @@ function CateringModal({ onClose }) {
   const idempotencyKey = useRef(null);
 
   function handleChange(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "event_date" || field === "event_time") {
+        const d = field === "event_date" ? value : prev.event_date;
+        const t = field === "event_time" ? value : prev.event_time;
+        if (d && t) {
+          next.event_starts_at = `${d}T${t}`;
+        }
+      }
+      return next;
+    });
     setErrors((prev) => {
       if (!prev[field]) return prev;
       const next = { ...prev };

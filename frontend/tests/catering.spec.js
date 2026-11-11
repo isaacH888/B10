@@ -15,7 +15,8 @@ async function orderDetails(page) {
   await page.locator("#cf-postal").fill("77000");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.locator("#cf-event-type").fill("Synthetic celebration");
-  await page.locator("#cf-starts-at").fill("2099-01-15T15:00");
+  await page.locator("#cf-event-date").fill("2099-01-15");
+  await page.locator("#cf-event-time").fill("15:00");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 }
 
