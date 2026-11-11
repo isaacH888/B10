@@ -6,6 +6,7 @@ import re
 import time
 from pathlib import Path
 
+import pymysql
 from dotenv import load_dotenv
 
 from .config import read_settings
@@ -43,11 +44,31 @@ def statements(path):
     source = Path(path).read_text(encoding="utf-8")
     source = re.sub(r"(?m)^\s*--[^\n]*$", "", source)
     pieces = [piece.strip() for piece in source.split(";") if piece.strip()]
-    if not pieces or any(
-        not re.match(r"^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b", piece, re.I) for piece in pieces
-    ):
-        raise MigrationError("This runner requires resumable CREATE TABLE IF NOT EXISTS migrations")
+    if not pieces or any(not resumable(piece) for piece in pieces):
+        raise MigrationError(
+            "This runner requires resumable CREATE TABLE IF NOT EXISTS or CREATE INDEX migrations"
+        )
     return pieces
+
+
+def resumable(piece):
+    """CREATE TABLE IF NOT EXISTS is rerunnable; CREATE INDEX is made rerunnable by run_command."""
+    return bool(
+        re.match(r"^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b", piece, re.I)
+        or re.match(r"^CREATE\s+(UNIQUE\s+)?INDEX\b", piece, re.I)
+    )
+
+
+DUPLICATE_KEY_NAME = 1061  # MySQL has no IF NOT EXISTS for indexes
+
+
+def run_command(cursor, command):
+    """Run one statement; an index that already exists means an earlier run got that far."""
+    try:
+        cursor.execute(command)
+    except pymysql.err.OperationalError as error:
+        if not (error.args and error.args[0] == DUPLICATE_KEY_NAME and re.match(r"^CREATE\s", command, re.I)):
+            raise
 
 
 def apply_migrations(settings, directory=MIGRATIONS):
@@ -94,7 +115,7 @@ def apply_migrations(settings, directory=MIGRATIONS):
                         (version, path.name, digest, int(time.time())),
                     )
                     for command in commands:
-                        cursor.execute(command)
+                        run_command(cursor, command)
                     cursor.execute(
                         "UPDATE schema_migrations SET applied_at=%s WHERE version=%s AND checksum=%s",
                         (int(time.time()), version, digest),
