@@ -685,8 +685,14 @@ function validateStep(step, form) {
   if (step === 3) {
     if (!form.event_type.trim()) errors.event_type = "Event type is required.";
 
-    const dateVal = form.event_date || (form.event_starts_at ? form.event_starts_at.split("T")[0] : "");
-    const timeVal = form.event_time || (form.event_starts_at && form.event_starts_at.includes("T") ? form.event_starts_at.split("T")[1].slice(0, 5) : "");
+    const dateVal =
+      form.event_date ||
+      (form.event_starts_at ? form.event_starts_at.split("T")[0] : "");
+    const timeVal =
+      form.event_time ||
+      (form.event_starts_at && form.event_starts_at.includes("T")
+        ? form.event_starts_at.split("T")[1].slice(0, 5)
+        : "");
 
     if (!dateVal) {
       errors.event_date = "Event date is required.";
@@ -729,7 +735,9 @@ function validateStep(step, form) {
 function buildRequestBody(form, quoteId) {
   const startsAt =
     form.event_starts_at ||
-    (form.event_date && form.event_time ? `${form.event_date}T${form.event_time}` : "");
+    (form.event_date && form.event_time
+      ? `${form.event_date}T${form.event_time}`
+      : "");
 
   const body = {
     catering_request: {
