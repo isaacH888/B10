@@ -13,6 +13,14 @@ from .config import read_settings
 from .database import connect
 
 MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
+IDENTIFIER = r"(?:`[a-z_][a-z0-9_]*`|[a-z_][a-z0-9_]*)"
+INDEX_COLUMN = rf"{IDENTIFIER}(?:\s+(?:ASC|DESC))?"
+INDEX_STATEMENT = re.compile(
+    rf"CREATE\s+(?P<unique>UNIQUE\s+)?INDEX\s+(?P<name>{IDENTIFIER})"
+    rf"\s+ON\s+(?P<table>{IDENTIFIER})\s*"
+    rf"\(\s*(?P<columns>{INDEX_COLUMN}(?:\s*,\s*{INDEX_COLUMN})*)\s*\)",
+    re.I,
+)
 
 
 class MigrationError(RuntimeError):
@@ -40,7 +48,7 @@ def checksum(path):
 
 
 def statements(path):
-    """The initial runner accepts only additive, independently rerunnable table DDL."""
+    """Accept additive tables and named indexes on simple columns."""
     source = Path(path).read_text(encoding="utf-8")
     source = re.sub(r"(?m)^\s*--[^\n]*$", "", source)
     pieces = [piece.strip() for piece in source.split(";") if piece.strip()]
@@ -55,7 +63,7 @@ def resumable(piece):
     """CREATE TABLE IF NOT EXISTS is rerunnable; CREATE INDEX is made rerunnable by run_command."""
     return bool(
         re.match(r"^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b", piece, re.I)
-        or re.match(r"^CREATE\s+(UNIQUE\s+)?INDEX\b", piece, re.I)
+        or INDEX_STATEMENT.fullmatch(piece)
     )
 
 
@@ -63,16 +71,35 @@ DUPLICATE_KEY_NAME = 1061  # MySQL has no IF NOT EXISTS for indexes
 
 
 def run_command(cursor, command):
-    """Run one statement; an index that already exists means an earlier run got that far."""
+    """Resume index creation only when the existing index has the requested definition."""
     try:
         cursor.execute(command)
     except pymysql.err.OperationalError as error:
-        if not (
-            error.args
-            and error.args[0] == DUPLICATE_KEY_NAME
-            and re.match(r"^CREATE\s", command, re.I)
-        ):
+        index = INDEX_STATEMENT.fullmatch(command)
+        if not (error.args and error.args[0] == DUPLICATE_KEY_NAME and index):
             raise
+        name = index["name"].strip("`")
+        table = index["table"].strip("`")
+        cursor.execute(f"SHOW INDEX FROM `{table}` WHERE Key_name=%s", (name,))
+        rows = sorted(cursor.fetchall(), key=lambda row: row["Seq_in_index"])
+        expected = []
+        for column in index["columns"].split(","):
+            parts = column.split()
+            direction = "D" if len(parts) == 2 and parts[1].upper() == "DESC" else "A"
+            expected.append((parts[0].strip("`").lower(), direction, None))
+        actual = [
+            ((row["Column_name"] or "").lower(), row["Collation"], row["Sub_part"]) for row in rows
+        ]
+        non_unique = 0 if index["unique"] else 1
+        if actual != expected or any(
+            row["Non_unique"] != non_unique
+            or row["Index_type"] != "BTREE"
+            or row["Visible"] != "YES"
+            for row in rows
+        ):
+            raise MigrationError(
+                f"Index {name} already exists with a different definition"
+            ) from error
 
 
 def apply_migrations(settings, directory=MIGRATIONS):

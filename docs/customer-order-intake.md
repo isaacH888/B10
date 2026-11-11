@@ -70,6 +70,10 @@ The shared OpenAPI catalog still needs a coordinated update for automation route
 Apply `0008_customer_order_intake.sql` through the existing explicit migration
 runner after migrations 0001-0007. It adds `customers`, `orders`, `order_items` and
 `automation_order_links`; existing migration contents/checksums are preserved.
+Migration `0009_orders_event_start_index.sql` adds the `orders_event_start` index
+on `orders.event_starts_at` through the same runner. Apply all pending migrations;
+see the [index integration review](bryson-index-integration.md) for upgrade and
+interrupted-run checks.
 Do not run schema changes automatically during web startup.
 
 Customer, order and line items save in one transaction. A unique idempotency key

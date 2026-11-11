@@ -35,6 +35,8 @@ session/CSRF protections, migration and operational limits. The previous
 [integration validation report](docs/integration-validation.md) records the October baseline.
 The [DEV/TST/PROD workflow](docs/release-workflow.md) includes owner handoff tickets
 and the proposed release gates.
+The [Bryson index integration review](docs/bryson-index-integration.md) covers
+migration 0009, recovery fixes and validation of the latest database branch.
 The [October DEV publication review](docs/dev-review.md) records that earlier integration.
 
 Customers use
@@ -50,7 +52,8 @@ and the owner booking workspace is at `/admin/automation` after authentication a
 automation setup.
 
 Order persistence uses `customers`, `orders` and `order_items` after applying all
-eight migrations. Without DB credentials, orders use temporary process memory.
+nine migrations. Migration 0009 adds the `orders.event_starts_at` index. Without
+DB credentials, orders use temporary process memory.
 Quote persistence, server-side expiry/payload matching and trusted delivery-distance
 pricing remain release blockers. Browser quote checks do not replace server enforcement.
 
@@ -98,13 +101,14 @@ git diff --check
 ```
 
 Database integration tests skip without `RUN_DATABASE_INTEGRATION=1` and exported disposable
-DB settings. November 11 integration validation passed 1,022 backend tests with
+DB settings. November 11 index integration validation passed 1,037 backend tests with
 isolated MySQL 8.4.13 and 112 Chromium browser tests. Order intake, replay and
 concurrency are exercised against real disposable MySQL. Browser tests otherwise use controlled API/provider
 responses. Local evidence does not establish live provider behavior or deployment.
 [CI](.github/workflows/foundation-checks.yml) includes MySQL migrations/persistence tests,
 frontend build/browser tests and offline Cognito template lint. The latest local
-checks and browser counts are in the [latest integration review](docs/latest-push-integration.md).
+checks and browser counts are in the [index integration review](docs/bryson-index-integration.md)
+and the [frontend integration review](docs/latest-push-integration.md).
 Review remote results in GitHub Actions; earlier local evidence is in
 [authentication validation](docs/authentication-validation.md) and
 [foundation validation](docs/foundation-validation.md). No external deployment has occurred.

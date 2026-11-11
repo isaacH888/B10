@@ -88,9 +88,12 @@ initialize a fresh volume; changing them later does not rotate an existing MySQL
 Do not delete a volume to repair credentials without agreeing on data preservation.
 
 Compose creates the server and empty development database/user. Run the shared
-migration command above to apply all eight migrations, including authentication,
-email, booking automation and customer/order/item tables. Migration application
-does not create approved admin accounts or seed real customer data.
+migration command above to apply all nine migrations, including authentication,
+email, booking automation, customer/order/item tables and the order event-date
+index. Existing installations apply only pending migrations. See the
+[index integration review](bryson-index-integration.md) for upgrade and recovery
+evidence. Migration application does not create approved admin accounts or seed
+real customer data.
 
 ## Troubleshoot a stopped development database
 
