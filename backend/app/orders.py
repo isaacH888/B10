@@ -1,4 +1,4 @@
-"""Order endpoints: ``submitOrder``, ``retrieveOrder`` and ``updateOrderStatus``.
+"""Order endpoints: ``submitOrder``, ``listOrders``, ``retrieveOrder`` and ``updateOrderStatus``.
 
 Contract (docs/api/openapi.json, docs/api-contract.md "Submit order"):
   - Body is ``SubmitOrderRequest``; the response is ``OrderResponse`` with HTTP 201.
@@ -8,6 +8,9 @@ Contract (docs/api/openapi.json, docs/api-contract.md "Submit order"):
     recomputed here with the quote engine, in exact integer cents (Fraction).
 
 Contract for the administrative operations ("Retrieve an order", "Update order status"):
+  - ``GET /orders`` returns a page of ``AdminOrder`` items, newest first (highest id).
+    Filters: ``status``, ``event_from`` (inclusive) and ``event_to`` (exclusive) on the
+    event start; ``page`` >= 1 and ``page_size`` 1..100. Bad values are 422.
   - ``GET /orders/{order_id}`` returns ``AdminOrderResponse`` (404 ``not_found``).
   - ``PATCH /orders/{order_id}/status`` takes ``UpdateStatusRequest`` (``version``,
     ``status``, optional ``reason``). Statuses are pending_review, confirmed, fulfilled
@@ -23,17 +26,18 @@ Known gaps, tracked in docs/decisions-and-blockers.md (T08):
   - Quotes are not persisted yet, so ``quote_id`` is validated and stored as the
     reference, but expiry/revision/equality lookups (409 ``quote_expired`` and
     ``quote_mismatch``) cannot be enforced until a quote store exists.
-  - Bryson's schema is not in the repository. ``_save_in_database`` assumes the
-    tables and columns it names and must be aligned with the approved migration.
-    Without database credentials the order lives in a per-process memory store.
+  - The persistence code follows Bryson's migration 0008_customer_order_intake.sql
+    (``orders.id`` is the key, ``public_id`` the public identifier). That migration
+    is owned by T08 and is not part of this branch. Without database credentials the
+    order lives in a per-process memory store.
   - The administrative routes need the ``popssibilities_admin`` session cookie and an
     ``X-CSRF-Token`` (401/403 in the contract). No session mechanism exists yet (T02,
     B06), so neither is enforced here; do not expose these routes beyond local
     development until the auth owner wires them in.
   - ``reason`` is validated but not stored: the order schema has no field for it and
     the audit table is not defined yet.
-  - Status changes rewrite ``orders.response_json``, so a later replay of the original
-    POST in database mode returns the current order rather than the first response.
+  - Status changes rewrite ``orders.response_json`` only; ``orders.submission_json``
+    keeps the first response, so a replay of the original POST is unaffected.
 """
 
 import hashlib
@@ -281,6 +285,11 @@ def _utc_text(moment):
     return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _naive_utc(moment):
+    """Aware datetime to the naive UTC value stored in ``DATETIME(6)`` columns."""
+    return moment.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def _build_order(clean, quote):
     now = _utc_text(datetime.now(timezone.utc))
     pricing = quote["pricing"]
@@ -324,7 +333,7 @@ def _save_in_database(key, digest, order):
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT request_hash, response_json FROM orders WHERE idempotency_key = %s", (key,))
+            cursor.execute("SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s", (key,))
             row = cursor.fetchone()
             if row:
                 if row[0] != digest:
@@ -334,18 +343,21 @@ def _save_in_database(key, digest, order):
             customer = order["customer"]
             cursor.execute("INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
                            (customer["name"], customer["email"], customer["phone"]))
-            starts_at = datetime.fromisoformat(order["event"]["starts_at"]).astimezone(timezone.utc)
+            customer_id = cursor.lastrowid
+            snapshot = json.dumps(order, separators=(",", ":"))
             cursor.execute(
                 "INSERT INTO orders (public_id, customer_id, status, version, quote_id, pricing_revision,"
                 " total_cents, deposit_due_cents, event_starts_at, event_timezone, idempotency_key,"
-                " request_hash, response_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (order["id"], cursor.lastrowid, order["status"], order["version"], order["quote_id"],
+                " response_json, request_hash, submission_json)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (order["id"], customer_id, order["status"], order["version"], order["quote_id"],
                  order["pricing_revision"], order["pricing"]["total_cents"], order["pricing"]["deposit_due_cents"],
-                 starts_at.replace(tzinfo=None), order["event"]["timezone"], key, digest,
-                 json.dumps(order, separators=(",", ":"))))
+                 _naive_utc(datetime.fromisoformat(order["event"]["starts_at"])), order["event"]["timezone"],
+                 key, snapshot, digest, snapshot))
+            order_pk = cursor.lastrowid
             cursor.executemany(
                 "INSERT INTO order_items (order_id, code, description, amount_cents) VALUES (%s, %s, %s, %s)",
-                [(cursor.lastrowid, item["code"], item["description"], item["amount_cents"])
+                [(order_pk, item["code"], item["description"], item["amount_cents"])
                  for item in order["pricing"]["line_items"]])
         connection.commit()
         return order
@@ -462,6 +474,59 @@ def _update_status_in_database(order_id, version, status):
 
 
 # --------------------------------------------------------------------------- #
+# Listing (listOrders): filter, newest first, offset pagination
+# --------------------------------------------------------------------------- #
+
+_QUERY_INTEGER = re.compile(r"^-?[0-9]{1,10}$")
+
+
+def _list_where(status, event_from, event_to):
+    """Return the parameterized WHERE clause and its values; ``event_to`` is exclusive."""
+    clauses, params = [], []
+    if status is not None:
+        clauses.append("status = %s")
+        params.append(status)
+    if event_from is not None:
+        clauses.append("event_starts_at >= %s")
+        params.append(event_from)
+    if event_to is not None:
+        clauses.append("event_starts_at < %s")
+        params.append(event_to)
+    return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
+
+
+def _list_in_database(status, event_from, event_to, page, page_size):
+    where, params = _list_where(status, event_from, event_to)
+    connection = pymysql.connect(**connection_options(current_app.config))
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM orders" + where, params)
+            total = cursor.fetchone()[0]
+            cursor.execute("SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+                           params + (page_size, (page - 1) * page_size))
+            rows = cursor.fetchall()
+        return [_admin_view(json.loads(row[0])) for row in rows], total
+    finally:
+        connection.close()
+
+
+def _list_in_memory(status, event_from, event_to, page, page_size):
+    """Same filters, order and paging as the database query (insertion order stands in for ``id``)."""
+    store = current_app.extensions["orders_memory"]
+    with store["lock"]:
+        newest_first = list(reversed(store["by_id"].values()))
+    matches = []
+    for order in newest_first:
+        starts_at = _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
+        if ((status is None or order["status"] == status)
+                and (event_from is None or starts_at >= event_from)
+                and (event_to is None or starts_at < event_to)):
+            matches.append(order)
+    offset = (page - 1) * page_size
+    return matches[offset:offset + page_size], len(matches)
+
+
+# --------------------------------------------------------------------------- #
 # HTTP layer
 # --------------------------------------------------------------------------- #
 
@@ -520,6 +585,56 @@ def submit_order():
     response.status_code = 201
     response.headers["Location"] = f"/api/v1/orders/{saved['id']}"
     return response
+
+
+def _query_integer(errors, name, default, minimum, maximum):
+    text = request.args.get(name)
+    if text is None:
+        return default
+    if not _QUERY_INTEGER.match(text) or not minimum <= int(text) <= maximum:
+        errors.append(_field(name, f"must be an integer between {minimum} and {maximum}"))
+        return default
+    return int(text)
+
+
+def _query_instant(errors, name):
+    """Naive UTC value of an ISO 8601 query parameter that carries a UTC offset; None when absent or invalid."""
+    text = request.args.get(name)
+    if text is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text) if 0 < len(text) <= 40 else None
+        if parsed is not None and parsed.tzinfo is not None:
+            return _naive_utc(parsed)
+    except (ValueError, OverflowError):
+        pass
+    errors.append(_field(name, "must be an ISO 8601 date-time with a UTC offset"))
+    return None
+
+
+@orders_bp.get("/orders")
+def list_orders():
+    errors = []
+    status = request.args.get("status")
+    if status is not None and status not in ORDER_STATUSES:
+        errors.append(_field("status", "must be one of: " + ", ".join(ORDER_STATUSES)))
+    event_from = _query_instant(errors, "event_from")
+    event_to = _query_instant(errors, "event_to")
+    if event_from is not None and event_to is not None and event_to <= event_from:
+        errors.append(_field("event_to", "must be after event_from"))
+    page = _query_integer(errors, "page", 1, 1, 2**31 - 1)
+    page_size = _query_integer(errors, "page_size", 25, 1, 100)
+    if errors:
+        return _error(422, "validation_error", "One or more fields are invalid.", errors)
+
+    find = _list_in_database if database_configured(current_app.config) else _list_in_memory
+    try:
+        orders, total = find(status, event_from, event_to, page, page_size)
+    except (pymysql.MySQLError, OSError):
+        return _service_unavailable()
+    items = [{**order, "admin_notes": order.get("admin_notes", "")} for order in orders]
+    return jsonify(data={"items": items, "page": page, "page_size": page_size, "total": total},
+                   meta={"request_id": g.request_id})
 
 
 @orders_bp.get("/orders/<order_id>")
