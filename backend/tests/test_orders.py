@@ -588,7 +588,11 @@ def test_database_replay_returns_the_stored_order_without_new_inserts(client, da
     assert second.json["data"] == first.json["data"]
     assert inserts(database.connection) == []
     assert database.connection.statements == [
-        ("SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s", (IDEMPOTENCY_KEY,))]
+        (
+            "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+            (IDEMPOTENCY_KEY,),
+        )
+    ]
     assert database.connection.closed and not database.connection.committed
 
 
@@ -953,6 +957,7 @@ def test_database_failures_on_new_routes_return_503_without_leaking_details(clie
 # listOrders
 # --------------------------------------------------------------------------- #
 
+
 def create_order_at(client, starts_at, key):
     payload = order_payload()
     payload["event"]["starts_at"] = starts_at
@@ -963,8 +968,10 @@ def create_order_at(client, starts_at, key):
 @pytest.fixture
 def three_orders(client):
     """Orders whose events start on 2099-01-10, 2099-01-15 and 2099-01-20 (UTC), oldest first."""
-    return [create_order_at(client, f"2099-01-{day}T12:00:00+00:00", f"list-key-0123456789-{day}")
-            for day in ("10", "15", "20")]
+    return [
+        create_order_at(client, f"2099-01-{day}T12:00:00+00:00", f"list-key-0123456789-{day}")
+        for day in ("10", "15", "20")
+    ]
 
 
 def list_orders(client, **query):
@@ -985,7 +992,9 @@ def test_default_list_is_newest_first_with_admin_orders(client, three_orders):
     assert response.status_code == 200
     data = response.json["data"]
     assert (data["page"], data["page_size"], data["total"]) == (1, 25, 3)
-    assert [item["id"] for item in data["items"]] == [order["id"] for order in reversed(three_orders)]
+    assert [item["id"] for item in data["items"]] == [
+        order["id"] for order in reversed(three_orders)
+    ]
     assert all(item["admin_notes"] == "" for item in data["items"])
     assert data["items"][2] == {**three_orders[0], "admin_notes": ""}
     assert_matches_openapi_order_response(response.json, "ListOrdersResponse")
@@ -1000,9 +1009,16 @@ def test_list_reflects_status_changes(client, three_orders):
 def test_status_filter_returns_only_that_status(client, three_orders):
     patch_status(client, three_orders[0]["id"], {"version": 1, "status": "confirmed"})
     patch_status(client, three_orders[2]["id"], {"version": 1, "status": "cancelled"})
-    for status, expected in (("confirmed", [0]), ("cancelled", [2]), ("pending_review", [1]), ("fulfilled", [])):
+    for status, expected in (
+        ("confirmed", [0]),
+        ("cancelled", [2]),
+        ("pending_review", [1]),
+        ("fulfilled", []),
+    ):
         data = list_orders(client, status=status).json["data"]
-        assert [item["id"] for item in data["items"]] == [three_orders[index]["id"] for index in expected]
+        assert [item["id"] for item in data["items"]] == [
+            three_orders[index]["id"] for index in expected
+        ]
         assert data["total"] == len(expected)
 
 
@@ -1019,41 +1035,64 @@ def test_event_window_is_inclusive_from_and_exclusive_to(client, three_orders):
 
 def test_event_window_compares_instants_across_offsets(client, three_orders):
     # 06:00-06:00 on the 15th is 12:00 UTC, the exact start of the middle order.
-    data = list_orders(client, event_from="2099-01-15T06:00:00-06:00",
-                       event_to="2099-01-15T07:00:00-06:00").json["data"]
+    data = list_orders(
+        client, event_from="2099-01-15T06:00:00-06:00", event_to="2099-01-15T07:00:00-06:00"
+    ).json["data"]
     assert [item["id"] for item in data["items"]] == [three_orders[1]["id"]]
 
 
 def test_status_and_window_filters_combine(client, three_orders):
     patch_status(client, three_orders[2]["id"], {"version": 1, "status": "confirmed"})
-    data = list_orders(client, status="pending_review", event_from="2099-01-12T00:00:00Z").json["data"]
+    data = list_orders(client, status="pending_review", event_from="2099-01-12T00:00:00Z").json[
+        "data"
+    ]
     assert [item["id"] for item in data["items"]] == [three_orders[1]["id"]]
     assert data["total"] == 1
 
 
 def test_pagination_slices_the_list_and_reports_the_total(client):
-    created = [create_order_at(client, "2099-02-01T12:00:00+00:00", f"page-key-0123456789-{n}")["id"]
-               for n in range(5)]
+    created = [
+        create_order_at(client, "2099-02-01T12:00:00+00:00", f"page-key-0123456789-{n}")["id"]
+        for n in range(5)
+    ]
     newest_first = list(reversed(created))
     pages = [list_orders(client, page=number, page_size=2).json["data"] for number in (1, 2, 3, 4)]
     assert [[item["id"] for item in page["items"]] for page in pages] == [
-        newest_first[0:2], newest_first[2:4], newest_first[4:], []]
+        newest_first[0:2],
+        newest_first[2:4],
+        newest_first[4:],
+        [],
+    ]
     assert all(page["total"] == 5 and page["page_size"] == 2 for page in pages)
     assert [page["page"] for page in pages] == [1, 2, 3, 4]
 
 
-@pytest.mark.parametrize("query,field", [
-    ({"page": "0"}, "page"), ({"page": "-1"}, "page"), ({"page": "abc"}, "page"), ({"page": ""}, "page"),
-    ({"page": "1.5"}, "page"), ({"page": "99999999999"}, "page"),
-    ({"page_size": "0"}, "page_size"), ({"page_size": "101"}, "page_size"), ({"page_size": "-5"}, "page_size"),
-    ({"page_size": "ten"}, "page_size"),
-    ({"status": "submitted"}, "status"), ({"status": "Confirmed"}, "status"), ({"status": ""}, "status"),
-    ({"event_from": "tomorrow"}, "event_from"), ({"event_from": "2099-01-15T12:00:00"}, "event_from"),
-    ({"event_from": ""}, "event_from"), ({"event_from": "0001-01-01T00:00:00+14:00"}, "event_from"),
-    ({"event_to": "not a date"}, "event_to"), ({"event_to": "2099-01-15"}, "event_to"),
-    ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T12:00:00Z"}, "event_to"),
-    ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T11:59:59Z"}, "event_to"),
-])
+@pytest.mark.parametrize(
+    "query,field",
+    [
+        ({"page": "0"}, "page"),
+        ({"page": "-1"}, "page"),
+        ({"page": "abc"}, "page"),
+        ({"page": ""}, "page"),
+        ({"page": "1.5"}, "page"),
+        ({"page": "99999999999"}, "page"),
+        ({"page_size": "0"}, "page_size"),
+        ({"page_size": "101"}, "page_size"),
+        ({"page_size": "-5"}, "page_size"),
+        ({"page_size": "ten"}, "page_size"),
+        ({"status": "submitted"}, "status"),
+        ({"status": "Confirmed"}, "status"),
+        ({"status": ""}, "status"),
+        ({"event_from": "tomorrow"}, "event_from"),
+        ({"event_from": "2099-01-15T12:00:00"}, "event_from"),
+        ({"event_from": ""}, "event_from"),
+        ({"event_from": "0001-01-01T00:00:00+14:00"}, "event_from"),
+        ({"event_to": "not a date"}, "event_to"),
+        ({"event_to": "2099-01-15"}, "event_to"),
+        ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T12:00:00Z"}, "event_to"),
+        ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T11:59:59Z"}, "event_to"),
+    ],
+)
 def test_invalid_list_query_is_422(client, query, field):
     assert_validation_error(list_orders(client, **query), field)
 
@@ -1064,7 +1103,12 @@ def test_page_size_bounds_are_accepted(client):
 
 
 def test_all_list_query_failures_are_reported_together(client):
-    fields = [item["field"] for item in list_orders(client, page="0", page_size="500", status="x").json["error"]["fields"]]
+    fields = [
+        item["field"]
+        for item in list_orders(client, page="0", page_size="500", status="x").json["error"][
+            "fields"
+        ]
+    ]
     assert {"page", "page_size", "status"} <= set(fields)
 
 
@@ -1081,6 +1125,7 @@ def test_list_route_rejects_other_methods(client):
 # --------------------------------------------------------------------------- #
 # listOrders: database path
 # --------------------------------------------------------------------------- #
+
 
 def stored_orders(client, database, count=2):
     """Create orders in database mode; return their ``(response_json,)`` rows, newest first."""
@@ -1110,15 +1155,22 @@ def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(cl
 
 def test_database_list_filters_are_parameterized_naive_utc_values(client, database):
     database.connection = FakeConnection(total=0)
-    response = list_orders(client, status="confirmed", event_from="2099-01-15T06:00:00-06:00",
-                           event_to="2099-01-20T12:00:00Z")
+    response = list_orders(
+        client,
+        status="confirmed",
+        event_from="2099-01-15T06:00:00-06:00",
+        event_to="2099-01-20T12:00:00Z",
+    )
     assert response.status_code == 200
     assert response.json["data"] == {"items": [], "page": 1, "page_size": 25, "total": 0}
     where = " WHERE status = %s AND event_starts_at >= %s AND event_starts_at < %s"
     params = ("confirmed", datetime(2099, 1, 15, 12, 0), datetime(2099, 1, 20, 12, 0))
     assert database.connection.statements == [
         ("SELECT COUNT(*) FROM orders" + where, params),
-        ("SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s", params + (25, 0)),
+        (
+            "SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+            params + (25, 0),
+        ),
     ]
     for sql, values in database.connection.statements:
         assert sql.count("%s") == len(values) and "confirmed" not in sql

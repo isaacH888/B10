@@ -591,8 +591,10 @@ def _list_in_database(status, event_from, event_to, page, page_size):
         with connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) FROM orders" + where, params)
             total = cursor.fetchone()[0]
-            cursor.execute("SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
-                           params + (page_size, (page - 1) * page_size))
+            cursor.execute(
+                "SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+                params + (page_size, (page - 1) * page_size),
+            )
             rows = cursor.fetchall()
         return [_admin_view(json.loads(row[0])) for row in rows], total
     finally:
@@ -607,12 +609,14 @@ def _list_in_memory(status, event_from, event_to, page, page_size):
     matches = []
     for order in newest_first:
         starts_at = _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
-        if ((status is None or order["status"] == status)
-                and (event_from is None or starts_at >= event_from)
-                and (event_to is None or starts_at < event_to)):
+        if (
+            (status is None or order["status"] == status)
+            and (event_from is None or starts_at >= event_from)
+            and (event_to is None or starts_at < event_to)
+        ):
             matches.append(order)
     offset = (page - 1) * page_size
-    return matches[offset:offset + page_size], len(matches)
+    return matches[offset : offset + page_size], len(matches)
 
 
 # --------------------------------------------------------------------------- #
@@ -738,8 +742,10 @@ def list_orders():
     except (pymysql.MySQLError, OSError):
         return _service_unavailable()
     items = [{**order, "admin_notes": order.get("admin_notes", "")} for order in orders]
-    return jsonify(data={"items": items, "page": page, "page_size": page_size, "total": total},
-                   meta={"request_id": g.request_id})
+    return jsonify(
+        data={"items": items, "page": page, "page_size": page_size, "total": total},
+        meta={"request_id": g.request_id},
+    )
 
 
 @orders_bp.get("/orders/<order_id>")
