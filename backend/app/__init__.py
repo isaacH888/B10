@@ -17,6 +17,7 @@ from .config import read_settings
 from .health import health
 from .orders import orders_bp
 from .quotes import quotes_bp
+from .reports import reports_bp
 
 
 def create_app(test_config=None):
@@ -108,6 +109,7 @@ def create_app(test_config=None):
     app.register_blueprint(email, url_prefix="/api/v1")
     app.register_blueprint(quotes_bp, url_prefix="/api/v1")
     app.register_blueprint(orders_bp, url_prefix="/api/v1")
+    app.register_blueprint(reports_bp, url_prefix="/api/v1")
 
     @app.before_request
     def assign_request_id():
