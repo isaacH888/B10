@@ -67,7 +67,11 @@ def run_command(cursor, command):
     try:
         cursor.execute(command)
     except pymysql.err.OperationalError as error:
-        if not (error.args and error.args[0] == DUPLICATE_KEY_NAME and re.match(r"^CREATE\s", command, re.I)):
+        if not (
+            error.args
+            and error.args[0] == DUPLICATE_KEY_NAME
+            and re.match(r"^CREATE\s", command, re.I)
+        ):
             raise
 
 

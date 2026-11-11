@@ -1,6 +1,5 @@
 import pymysql
 import pytest
-
 from app.migrations import MigrationError, run_command, statements
 
 
@@ -8,7 +7,11 @@ def test_runner_accepts_create_index_and_rejects_other_ddl(tmp_path):
     ok = tmp_path / "0009_idx.sql"
     ok.write_text("CREATE INDEX orders_event_start ON orders (event_starts_at);\n")
     assert len(statements(ok)) == 1
-    for bad in ("ALTER TABLE orders ADD COLUMN x INT;", "DROP INDEX i ON orders;", "DROP TABLE orders;"):
+    for bad in (
+        "ALTER TABLE orders ADD COLUMN x INT;",
+        "DROP INDEX i ON orders;",
+        "DROP TABLE orders;",
+    ):
         path = tmp_path / "0010_bad.sql"
         path.write_text(bad + "\n")
         with pytest.raises(MigrationError, match="resumable"):
