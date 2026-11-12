@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiRequest, errorMessage, navigateToProvider } from "../auth/api.js";
+import {
+  fetchInventory,
+  fetchBookingAllocations,
+  saveBookingAllocations,
+} from "../admin/adminApi.js";
 
 const base = "/admin/automation";
-const money = (value, currency) => `${value} ${currency} minor units`;
+const money = (value, currency) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+    value / 100,
+  );
 const time = (value) =>
   value
     ? new Date(
@@ -244,6 +252,7 @@ export function AutomationDashboard({ identity, csrfToken }) {
           detail={detail}
           busy={busy}
           mutate={mutate}
+          refresh={refresh}
         />
       )}
       <div
@@ -329,7 +338,123 @@ export function AutomationDashboard({ identity, csrfToken }) {
   );
 }
 
-function BookingDetail({ detail, busy, mutate }) {
+function BookingInventory({ booking, refresh }) {
+  const [catalog, setCatalog] = useState(null);
+  const [quantities, setQuantities] = useState({});
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (booking.status !== "confirmed")
+      return () => {
+        active = false;
+      };
+    Promise.all([fetchInventory(), fetchBookingAllocations(booking.id)])
+      .then(([inventory, allocations]) => {
+        if (!active) return;
+        setCatalog(inventory.items);
+        setQuantities(
+          Object.fromEntries(
+            allocations.items.map((item) => [
+              item.item_id,
+              String(item.quantity),
+            ]),
+          ),
+        );
+      })
+      .catch(() => {
+        if (active) setError("Inventory allocations could not be loaded.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [booking.id, booking.status]);
+  async function save(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await saveBookingAllocations(booking.id, {
+        expected_revision: booking.revision,
+        items: Object.entries(quantities)
+          .filter(([, qty]) => Number(qty) > 0)
+          .map(([item_id, qty]) => ({ item_id, quantity: Number(qty) })),
+      });
+      await refresh();
+    } catch (failure) {
+      setError(failure.message || "Could not save stock allocations.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (booking.status !== "confirmed")
+    return (
+      <section>
+        <h4>Flavor stock allocations</h4>
+        <p>
+          Confirm the booking before assigning flavor stock. Cancellation
+          releases its allocations.
+        </p>
+      </section>
+    );
+  return (
+    <section aria-label="Flavor stock allocations">
+      <h4>Flavor stock allocations</h4>
+      <p>
+        Assign specific flavors to this confirmed booking. Free-text flavor
+        requests do not reserve inventory.
+      </p>
+      {error && (
+        <p role="alert">
+          {error}{" "}
+          <button type="button" onClick={refresh}>
+            Refresh booking
+          </button>
+        </p>
+      )}
+      {catalog === null && !error && (
+        <p role="status">Loading stock allocations…</p>
+      )}
+      {catalog && (
+        <form onSubmit={save}>
+          <fieldset disabled={saving}>
+            <legend>Reserved flavors for {booking.quantity} paletas</legend>
+            {catalog.length === 0 && (
+              <p>
+                No inventory items yet.{" "}
+                <Link to="/admin/inventory">Add inventory</Link>.
+              </p>
+            )}
+            {catalog.map((item) => (
+              <label key={item.id}>
+                {item.name} · {item.available} available
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  max={booking.quantity}
+                  value={quantities[item.id] || ""}
+                  onChange={(event) =>
+                    setQuantities((current) => ({
+                      ...current,
+                      [item.id]: event.target.value,
+                    }))
+                  }
+                  aria-label={`Reserve ${item.name}`}
+                />
+              </label>
+            ))}
+            <button type="submit">
+              {saving ? "Saving allocations…" : "Save flavor allocations"}
+            </button>
+          </fieldset>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function BookingDetail({ detail, busy, mutate, refresh }) {
   const booking = detail.booking;
   const path = `/bookings/${booking.id}`;
   const revision = { expected_revision: booking.revision };
@@ -486,6 +611,7 @@ function BookingDetail({ detail, busy, mutate }) {
           </form>
         )}
       </fieldset>
+      <BookingInventory booking={booking} refresh={refresh} />
       <h4>Verified payment history</h4>
       <ul>
         {detail.payments.map((payment) => (

@@ -113,6 +113,15 @@ def create_app(test_config=None):
     app.register_blueprint(email, url_prefix="/api/v1")
     app.register_blueprint(quotes_bp, url_prefix="/api/v1")
     app.register_blueprint(orders_bp, url_prefix="/api/v1")
+    from .admin_orders import admin_orders
+
+    app.register_blueprint(admin_orders, url_prefix="/api/v1")
+    from .inventory import inventory
+
+    app.register_blueprint(inventory, url_prefix="/api/v1")
+    from .admin_overview import overview
+
+    app.register_blueprint(overview, url_prefix="/api/v1")
 
     @app.before_request
     def assign_request_id():

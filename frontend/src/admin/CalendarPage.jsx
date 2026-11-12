@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./calendar.css";
@@ -104,56 +104,9 @@ function buildGrid(year, month) {
 }
 
 // Event detail data for the drawer (matches what backend would return)
-const EVENT_DETAILS = {
-  "#1045": {
-    orderId: "#1045",
-    customer: "Elena Martinez",
-    date: "Sat, Nov 7, 2026 · 2:00–4:00 PM",
-    location: "Hermann Park · 1500 Hermann Dr, Houston TX 77004",
-    service: "Full Service",
-    qty: 150,
-    bookingStatus: "Confirmed",
-    bookingStatusSub: "Availability approved",
-    paymentStatus: "Part paid · 50% verified",
-    paymentStatusSub: "$650 remaining",
-    syncType: "failed",
-    syncError: {
-      title: "GOOGLE CALENDAR · SYNC FAILED",
-      body: "Google Calendar could not save this event because of a temporary service error. No external event was created.",
-      account: "owner@popssibilities.com",
-      calendar: "Catering",
-      lastAttempt: "Nov 4, 2026 at 9:12 AM Central",
-    },
-    booking_ok_note: {
-      heading: "YOUR BOOKING IS STILL CONFIRMED",
-      body: "Availability approved + verified $650 deposit.\n150 paletas stay reserved. A calendar sync error does not cancel the booking or change payment status.",
-    },
-    contact: { email: "elena.martinez@example.com", phone: "(713) 555-0145" },
-    orderSummary: "Total $1,300 · Verified $650 · Remaining $650",
-  },
-  "#1044": {
-    orderId: "#1044",
-    customer: "Bayou Creative",
-    date: "Sun, Nov 8, 2026 · 11:00 AM",
-    location: "Bayou Creative Studio · 2802 White Oak Dr, Houston TX 77007",
-    service: "Delivery",
-    qty: 120,
-    bookingStatus: "Confirmed",
-    bookingStatusSub: "Availability approved",
-    paymentStatus: "Part paid · Review",
-    paymentStatusSub: "$480 unverified",
-    syncType: "synced",
-    contact: { email: "events@bayoucreative.com", phone: "(713) 555-0144" },
-    orderSummary: "Total $960 · Verified $480 · Remaining $480",
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Event Detail Drawer
-// ---------------------------------------------------------------------------
 function EventDetailDrawer({ event, onClose }) {
   const navigate = useNavigate();
-  const detail = EVENT_DETAILS[event.orderId];
+  const detail = event.detail;
 
   useEffect(() => {
     const onKey = (e) => {
@@ -239,22 +192,12 @@ function EventDetailDrawer({ event, onClose }) {
                 <p className="cal-drawer__sync-failure-body">
                   {detail.syncError.body}
                 </p>
-                <p className="cal-drawer__sync-failure-meta">
-                  Connected: {detail.syncError.account}
-                  <br />
-                  Calendar: {detail.syncError.calendar}
-                  <br />
-                  Last attempt: {detail.syncError.lastAttempt}
-                </p>
+
                 <button
                   type="button"
                   className="adm-btn adm-btn--outline"
                   style={{ marginTop: "16px" }}
-                  onClick={() =>
-                    navigate(
-                      `/admin/orders/${encodeURIComponent(event.orderId)}`,
-                    )
-                  }
+                  onClick={() => navigate(event.href)}
                 >
                   Review sync in order details
                 </button>
@@ -315,7 +258,7 @@ function EventDetailDrawer({ event, onClose }) {
             className="adm-btn adm-btn--primary"
             onClick={() => {
               onClose();
-              navigate(`/admin/orders/${encodeURIComponent(event.orderId)}`);
+              navigate(event.href);
             }}
           >
             Open order details ↗
@@ -340,13 +283,13 @@ function EventDetailDrawer({ event, onClose }) {
 // ---------------------------------------------------------------------------
 // Calendar Cell
 // ---------------------------------------------------------------------------
-function CalendarCell({ day, event, isToday, onSelect }) {
+function CalendarCell({ day, events, isToday, onSelect }) {
   if (!day)
     return <div className="cal-cell cal-cell--empty" aria-hidden="true" />;
 
   return (
     <div
-      className={`cal-cell${event ? " cal-cell--has-event" : ""}`}
+      className={`cal-cell${events.length ? " cal-cell--has-event" : ""}`}
       role="gridcell"
     >
       <div
@@ -355,8 +298,9 @@ function CalendarCell({ day, event, isToday, onSelect }) {
       >
         {day}
       </div>
-      {event && (
+      {events.map((event) => (
         <button
+          key={event.id}
           type="button"
           className={`cal-event cal-event--${event.color}`}
           onClick={() => onSelect(event)}
@@ -370,14 +314,11 @@ function CalendarCell({ day, event, isToday, onSelect }) {
           <p
             className={`cal-event__status cal-event__status--${event.bookingStatus === "pending" ? "pending" : event.syncStatus === "failed" ? "confirmed-warn" : "confirmed"}`}
           >
-            {event.bookingStatus === "pending"
-              ? "Pending →"
-              : event.syncStatus === "failed"
-                ? "Confirmed · Sync failed"
-                : "Confirmed →"}
+            {event.booking}{" "}
+            {event.syncStatus === "failed" ? "· Sync failed" : "→"}
           </p>
         </button>
-      )}
+      ))}
     </div>
   );
 }
@@ -391,25 +332,43 @@ export function CalendarPage() {
   const [month, setMonth] = useState(today.getMonth() + 1); // 1-indexed
   const [view, setView] = useState("month"); // "month" | "upcoming"
   const [events, setEvents] = useState({});
-  const [stats, setStats] = useState({ confirmed: 0, pending: 0, reserved: 0 });
+  const [stats, setStats] = useState({
+    confirmed: 0,
+    pending: 0,
+    confirmed_quantity: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [connection, setConnection] = useState({ status: "loading" });
+  const [error, setError] = useState(false);
+  const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
+    const version = ++latestRequest.current;
     setLoading(true);
+    setError(false);
+    setSelectedEvent(null);
     try {
       const data = await fetchCalendar(year, month);
+      if (version !== latestRequest.current) return;
       setEvents(data.events);
       setStats(data.stats);
+      setConnection(data.connection);
     } catch {
-      // fail silently for calendar — show empty grid
+      if (version !== latestRequest.current) return;
+      setError(true);
+      setEvents({});
+      setConnection({ status: "unavailable" });
     } finally {
-      setLoading(false);
+      if (version === latestRequest.current) setLoading(false);
     }
   }, [year, month]);
 
   useEffect(() => {
     load();
+    return () => {
+      latestRequest.current += 1;
+    };
   }, [load]);
 
   function prevMonth() {
@@ -425,23 +384,7 @@ export function CalendarPage() {
     } else setMonth((m) => m + 1);
   }
 
-  const upcomingEvents = Object.entries(events).map(([day, event]) => ({
-    ...event,
-    date: new Date(year, month - 1, Number(day)).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    }),
-    booking:
-      event.bookingStatus === "pending" ? "Pending request" : "Confirmed",
-    sync:
-      event.syncStatus === "synced"
-        ? "Synced"
-        : event.syncStatus === "failed"
-          ? "Sync failed"
-          : "Not eligible yet",
-    syncType: event.syncStatus,
-  }));
+  const upcomingEvents = Object.values(events).flat();
   const weeks = buildGrid(year, month);
   const todayDay =
     today.getFullYear() === year && today.getMonth() + 1 === month
@@ -473,7 +416,7 @@ export function CalendarPage() {
                 {view === "upcoming" ? "UPCOMING EVENTS" : "MAKE ROOM FOR JOY."}
               </h1>
               <p className="adm-hero-row__sub">
-                {`${MONTH_NAMES[month - 1]} ${year} · ${stats.confirmed} confirmed bookings · ${stats.pending} pending requests · ${stats.reserved} paletas reserved · All times Central`}
+                {`${MONTH_NAMES[month - 1]} ${year} · ${stats.confirmed} confirmed bookings · ${stats.pending} pending requests · ${stats.confirmed_quantity} paletas in confirmed bookings · All times Central`}
               </p>
             </div>
           </div>
@@ -482,14 +425,16 @@ export function CalendarPage() {
           <div className="cal-gcal-banner">
             <div className="cal-gcal-banner__info">
               <p className="cal-gcal-banner__title">
-                GOOGLE CALENDAR · CONNECTED
+                GOOGLE CALENDAR · {connection.status.toUpperCase()}
               </p>
               <p className="cal-gcal-banner__account">
-                owner@popssibilities.com · Catering calendar
+                {connection.calendar_id ||
+                  connection.setup_message ||
+                  "Manage the current owner connection in the booking workspace."}
               </p>
               <p className="cal-gcal-banner__sync">
-                Last sync Nov 4, 9:12 AM · 5 synced · 1 failed. Pending requests
-                stay internal.
+                Event and booking data remain available when Google is
+                disconnected.
               </p>
             </div>
             <Link to="/admin/automation" className="adm-btn adm-btn--outline">
@@ -554,8 +499,14 @@ export function CalendarPage() {
             </p>
           )}
 
+          {error && (
+            <p role="alert">
+              Could not load calendar events.{" "}
+              <button onClick={load}>Try again</button>
+            </p>
+          )}
           {/* Month view */}
-          {!loading && view === "month" && (
+          {!loading && !error && view === "month" && (
             <section
               className="adm-card adm-card--outlined cal-grid-card"
               aria-label={`${MONTH_NAMES[month - 1]} ${year} calendar`}
@@ -574,17 +525,9 @@ export function CalendarPage() {
                       <CalendarCell
                         key={`${wi}-${di}`}
                         day={day}
-                        event={day ? events[day] : null}
+                        events={day ? events[day] || [] : []}
                         isToday={day === todayDay}
-                        onSelect={(ev) =>
-                          setSelectedEvent({
-                            ...ev,
-                            day,
-                            orderId: ev.orderId,
-                            date: `${MONTH_NAMES[month - 1]} ${day}`,
-                            time: "",
-                          })
-                        }
+                        onSelect={setSelectedEvent}
                       />
                     ))}
                   </div>
@@ -594,7 +537,7 @@ export function CalendarPage() {
           )}
 
           {/* Upcoming view */}
-          {!loading && view === "upcoming" && (
+          {!loading && !error && view === "upcoming" && (
             <section
               className="adm-card adm-card--outlined cal-upcoming-card"
               aria-labelledby="cal-upcoming-heading"
@@ -606,10 +549,11 @@ export function CalendarPage() {
               {/* Summary banner */}
               <div className="cal-upcoming-banner" role="status">
                 <p className="cal-upcoming-banner__text">
-                  ONLY CONFIRMED BOOKINGS RESERVE STOCK &amp; SYNC &nbsp;·&nbsp;{" "}
-                  {stats.reserved} paletas reserved across {stats.confirmed}{" "}
-                  bookings. The {stats.pending} pending requests are visible for
-                  planning only.
+                  CONFIRMED BOOKINGS ARE ELIGIBLE FOR CALENDAR SYNC
+                  &nbsp;·&nbsp; {stats.confirmed_quantity} paletas in confirmed
+                  bookings across {stats.confirmed} bookings. The{" "}
+                  {stats.pending} pending requests are visible for planning
+                  only.
                 </p>
               </div>
 
@@ -632,9 +576,14 @@ export function CalendarPage() {
                     </tr>
                   </thead>
                   <tbody>
+                    {upcomingEvents.length === 0 && (
+                      <tr>
+                        <td colSpan={7}>No events in this month.</td>
+                      </tr>
+                    )}
                     {upcomingEvents.map((ev) => (
                       <tr
-                        key={ev.orderId}
+                        key={ev.id}
                         className={`cal-upcoming-row cal-upcoming-row--${ev.booking === "Pending request" ? "pending" : "confirmed"}`}
                       >
                         <td>
@@ -659,10 +608,7 @@ export function CalendarPage() {
                           {ev.sync}
                         </td>
                         <td>
-                          <Link
-                            to={`/admin/orders/${encodeURIComponent(ev.orderId)}`}
-                            className="adm-card__link"
-                          >
+                          <Link to={ev.href} className="adm-card__link">
                             {ev.orderId} ↗
                           </Link>
                         </td>
