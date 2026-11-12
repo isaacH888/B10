@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./order-detail.css";
 import logoSrc from "../assets/logo.png";
@@ -7,13 +7,9 @@ import iconDashboard from "../assets/admin/icon-dashboard.svg";
 import iconOrders from "../assets/admin/icon-orders.svg";
 import iconCalendar from "../assets/admin/icon-calendar.svg";
 import iconInventory from "../assets/admin/icon-inventory.svg";
-import {
-  approveOrder,
-  cancelOrder,
-  fetchOrder,
-  recordPayment,
-  retryCalsync,
-} from "./adminApi.js";
+import { downloadOrders } from "./adminApi.js";
+import { useAuth } from "../auth/AuthContext.jsx";
+import { fetchOrder } from "./orderApi.js";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
@@ -73,334 +69,6 @@ function AdminNav() {
 // ---------------------------------------------------------------------------
 // Record Payment modal
 // ---------------------------------------------------------------------------
-function RecordPaymentModal({ order, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    method: "Venmo",
-    amountDollars: "",
-    reference: "",
-    note: "",
-  });
-  const [busy, setBusy] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [apiError, setApiError] = useState("");
-  const firstRef = useRef(null);
-
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  function set(field, val) {
-    setForm((f) => ({ ...f, [field]: val }));
-    setErrors((e) => {
-      const n = { ...e };
-      delete n[field];
-      return n;
-    });
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    const errs = {};
-    const amt = parseFloat(form.amountDollars);
-    if (isNaN(amt) || amt <= 0) errs.amountDollars = "Enter a valid amount.";
-    if (!form.reference.trim()) errs.reference = "Reference is required.";
-    if (Object.keys(errs).length) {
-      setErrors(errs);
-      return;
-    }
-    setBusy(true);
-    setApiError("");
-    try {
-      const result = await recordPayment(order.id, form);
-      onSaved(result.order);
-    } catch (err) {
-      setApiError(err.message || "Could not record payment. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="od-modal-backdrop" onClick={onClose} role="presentation">
-      <div
-        className="od-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pay-modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="od-modal__header">
-          <h2 className="od-modal__title" id="pay-modal-title">
-            RECORD EXTERNAL PAYMENT
-          </h2>
-          <button
-            type="button"
-            className="od-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-            ref={firstRef}
-          >
-            Close ×
-          </button>
-        </div>
-
-        <div className="od-modal__context">
-          <p className="od-modal__context-label">
-            Order {order.id} · {order.customer}
-          </p>
-          <p className="od-modal__context-note">
-            Payments happen externally (Venmo, PayPal, Square, Zelle, check).
-            <br />
-            Record them here after you've verified receipt. This workspace does
-            not charge customers.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="od-modal__field-row">
-            <div className="od-modal__field">
-              <label htmlFor="pay-method" className="od-modal__label">
-                Payment method
-              </label>
-              <select
-                id="pay-method"
-                className="od-modal__input"
-                value={form.method}
-                onChange={(e) => set("method", e.target.value)}
-              >
-                {[
-                  "Venmo",
-                  "PayPal",
-                  "Zelle",
-                  "Square",
-                  "Cash",
-                  "Check",
-                  "Other",
-                ].map((m) => (
-                  <option key={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-            <div className="od-modal__field">
-              <label htmlFor="pay-amount" className="od-modal__label">
-                Amount ($){" "}
-                <span className="od-modal__required" aria-hidden="true">
-                  *
-                </span>
-              </label>
-              <input
-                id="pay-amount"
-                type="number"
-                min="1"
-                step="0.01"
-                className={`od-modal__input${errors.amountDollars ? " od-modal__input--error" : ""}`}
-                value={form.amountDollars}
-                onChange={(e) => set("amountDollars", e.target.value)}
-                placeholder="e.g. 650.00"
-                aria-describedby={
-                  errors.amountDollars ? "pay-amount-err" : undefined
-                }
-              />
-              {errors.amountDollars && (
-                <p id="pay-amount-err" className="od-modal__error" role="alert">
-                  {errors.amountDollars}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="od-modal__field">
-            <label htmlFor="pay-ref" className="od-modal__label">
-              Reference / confirmation number{" "}
-              <span className="od-modal__required" aria-hidden="true">
-                *
-              </span>
-            </label>
-            <input
-              id="pay-ref"
-              type="text"
-              className={`od-modal__input${errors.reference ? " od-modal__input--error" : ""}`}
-              value={form.reference}
-              onChange={(e) => set("reference", e.target.value)}
-              placeholder="e.g. VM-1028-1045"
-              aria-describedby={errors.reference ? "pay-ref-err" : undefined}
-            />
-            {errors.reference && (
-              <p id="pay-ref-err" className="od-modal__error" role="alert">
-                {errors.reference}
-              </p>
-            )}
-          </div>
-
-          <div className="od-modal__field">
-            <label htmlFor="pay-note" className="od-modal__label">
-              Note <span className="od-modal__optional">(optional)</span>
-            </label>
-            <input
-              id="pay-note"
-              type="text"
-              className="od-modal__input"
-              value={form.note}
-              onChange={(e) => set("note", e.target.value)}
-              placeholder="e.g. Receipt screenshot verified"
-            />
-          </div>
-
-          {apiError && (
-            <p className="od-modal__error" role="alert">
-              {apiError}
-            </p>
-          )}
-
-          <div className="od-modal__actions">
-            <button
-              type="button"
-              className="adm-btn adm-btn--outline"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="adm-btn adm-btn--primary"
-              disabled={busy}
-            >
-              {busy ? "Recording…" : "Record payment"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Cancel Order modal
-// ---------------------------------------------------------------------------
-function CancelModal({ order, onClose, onCancelled }) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const firstRef = useRef(null);
-
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  async function handleCancel(e) {
-    e.preventDefault();
-    if (!reason.trim()) {
-      setError("Please provide a reason for cancellation.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const result = await cancelOrder(order.id, reason);
-      onCancelled(result.order);
-    } catch (err) {
-      setError(err.message || "Could not cancel order. Try again.");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="od-modal-backdrop" onClick={onClose} role="presentation">
-      <div
-        className="od-modal od-modal--warn"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cancel-modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="od-modal__header">
-          <h2
-            className="od-modal__title od-modal__title--warn"
-            id="cancel-modal-title"
-          >
-            CANCEL ORDER
-          </h2>
-          <button
-            type="button"
-            className="od-modal__close"
-            onClick={onClose}
-            aria-label="Close"
-            ref={firstRef}
-          >
-            Close ×
-          </button>
-        </div>
-        <p className="od-modal__context-note">
-          Cancellation does not issue external refunds automatically. Any
-          deposits already paid will need to be handled separately with the
-          customer.
-        </p>
-        <form onSubmit={handleCancel} noValidate>
-          <div className="od-modal__field">
-            <label htmlFor="cancel-reason" className="od-modal__label">
-              Reason for cancellation{" "}
-              <span className="od-modal__required" aria-hidden="true">
-                *
-              </span>
-            </label>
-            <textarea
-              id="cancel-reason"
-              className="od-modal__textarea"
-              rows={3}
-              value={reason}
-              onChange={(e) => {
-                setReason(e.target.value);
-                setError("");
-              }}
-              placeholder="e.g. Customer requested cancellation"
-            />
-            {error && (
-              <p className="od-modal__error" role="alert">
-                {error}
-              </p>
-            )}
-          </div>
-          <div className="od-modal__actions">
-            <button
-              type="button"
-              className="adm-btn adm-btn--outline"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Keep order
-            </button>
-            <button
-              type="submit"
-              className="adm-btn adm-btn--danger"
-              disabled={busy}
-            >
-              {busy ? "Cancelling…" : "Cancel order"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Status card
-// ---------------------------------------------------------------------------
 function StatusCard({ label, value, sub, color }) {
   return (
     <div className={`od-status-card od-status-card--${color}`}>
@@ -422,59 +90,46 @@ const SYNC_COLOR = {
 // ---------------------------------------------------------------------------
 export function OrderDetailPage() {
   const { orderId } = useParams();
-  const navigate = useNavigate();
+  const { sessions } = useAuth();
+  const canExport =
+    sessions.admin.data.administrator.permissions.includes("customers:export");
 
   const [order, setOrder] = useState(null);
   const [loadState, setLoadState] = useState("loading");
-  const [toast, setToast] = useState(null);
-  const [showPayModal, setShowPayModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [approveBusy, setApproveBusy] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
+    const version = ++latestRequest.current;
     setLoadState("loading");
     try {
       const { order: data } = await fetchOrder(orderId);
+      if (version !== latestRequest.current) return;
       setOrder(data);
       setLoadState("ready");
     } catch (err) {
+      if (version !== latestRequest.current) return;
       setLoadState(err.status === 404 ? "notfound" : "error");
     }
   }, [orderId]);
 
   useEffect(() => {
     load();
+    return () => {
+      latestRequest.current += 1;
+    };
   }, [load]);
 
-  function showToast(msg, type = "success") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  async function handleApprove() {
-    setApproveBusy(true);
+  async function handleExport() {
+    setExportBusy(true);
+    setExportError(null);
     try {
-      const result = await approveOrder(order.id);
-      setOrder(result.order);
-      showToast("Availability approved.");
-    } catch (err) {
-      showToast(err.message || "Could not approve.", "error");
+      await downloadOrders({}, order.id);
+    } catch (error) {
+      setExportError(error);
     } finally {
-      setApproveBusy(false);
-    }
-  }
-
-  async function handleRetrySync() {
-    setSyncBusy(true);
-    try {
-      const result = await retryCalsync(order.id);
-      setOrder(result.order);
-      showToast("Calendar sync retried successfully.");
-    } catch (err) {
-      showToast(err.message || "Sync failed again.", "error");
-    } finally {
-      setSyncBusy(false);
+      setExportBusy(false);
     }
   }
 
@@ -531,9 +186,7 @@ export function OrderDetailPage() {
   }
 
   const isPending = order.orderStatus === "pending";
-  const isConfirmed = order.orderStatus === "confirmed";
   const isCancelled = order.orderStatus === "cancelled";
-  const syncFailed = order.calendarSync === "failed";
 
   return (
     <div className="adm-shell">
@@ -547,9 +200,9 @@ export function OrderDetailPage() {
             <a href="/" className="adm-page-header__view-site">
               View website ↗
             </a>
-            <button type="button" className="adm-btn adm-btn--outline">
-              Owner account ⌄
-            </button>
+            <Link to="/admin" className="adm-btn adm-btn--outline">
+              Owner account
+            </Link>
           </div>
         </header>
 
@@ -563,11 +216,26 @@ export function OrderDetailPage() {
               <h1 className="od-heading">
                 {order.id} · {order.customer.toUpperCase()}
               </h1>
-              <button type="button" className="adm-btn adm-btn--outline">
-                Export summary ↓
+              <button
+                type="button"
+                className="adm-btn adm-btn--outline"
+                disabled={exportBusy || !canExport}
+                onClick={handleExport}
+              >
+                {exportBusy ? "Exporting…" : "Export summary ↓"}
               </button>
             </div>
             <p className="od-created">{order.createdLabel}</p>
+            {exportError && (
+              <p role="alert">
+                {exportError.message}{" "}
+                {exportError.code === "reauthentication_required" && (
+                  <Link to="/admin/login?reauth=1">
+                    Verify owner access again
+                  </Link>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Three status cards */}
@@ -576,9 +244,11 @@ export function OrderDetailPage() {
               label="BOOKING STATUS"
               value={order.orderStatusLabel}
               sub={
-                order.orderStatus === "confirmed"
-                  ? `Availability approved`
-                  : "Availability not approved"
+                order.live
+                  ? order.availabilityLabel
+                  : order.orderStatus === "confirmed"
+                    ? `Availability approved`
+                    : "Availability not approved"
               }
               color="pink"
             />
@@ -637,7 +307,7 @@ export function OrderDetailPage() {
                     </p>
                     <p className="od-field-value">{order.date}</p>
                     <p className="od-field-value">
-                      Team arrival: {order.arrivalWindow}
+                      Event time: {order.arrivalWindow}
                     </p>
                   </div>
                 </div>
@@ -745,7 +415,15 @@ export function OrderDetailPage() {
                 <h2 className="od-section__title" id="od-payments-heading">
                   VERIFIED PAYMENTS
                 </h2>
-                {order.payments.length === 0 ? (
+                {order.live ? (
+                  <p className="od-field-value">
+                    {order.verified} verified.{" "}
+                    <Link to={order.managementHref}>
+                      Review payment records in the booking workspace
+                    </Link>
+                    .
+                  </p>
+                ) : order.payments.length === 0 ? (
                   <>
                     <p
                       className="od-field-value od-field-value--bold"
@@ -784,60 +462,19 @@ export function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Action bar */}
-          {!isCancelled && (
+          {order.live && (
             <section className="od-action-bar" aria-label="Order actions">
-              <div className="od-action-bar__buttons">
-                {isPending && (
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn--primary"
-                    onClick={handleApprove}
-                    disabled={approveBusy}
-                    aria-label="Approve availability for this order"
-                  >
-                    {approveBusy ? "Approving…" : "Approve availability"}
-                  </button>
-                )}
-                {isConfirmed && (
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn--outline"
-                    disabled
-                    aria-label="Availability already approved"
-                  >
-                    Availability approved (confirmed)
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="adm-btn adm-btn--primary"
-                  onClick={() => setShowPayModal(true)}
-                >
-                  Record external payment
-                </button>
-                {syncFailed && (
-                  <button
-                    type="button"
-                    className="adm-btn adm-btn--outline"
-                    onClick={handleRetrySync}
-                    disabled={syncBusy}
-                  >
-                    {syncBusy ? "Retrying…" : "Retry calendar sync ↗"}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="adm-btn adm-btn--outline adm-btn--danger-outline"
-                  onClick={() => setShowCancelModal(true)}
-                >
-                  Cancel order
-                </button>
-              </div>
+              <Link
+                className="adm-btn adm-btn--primary"
+                to={order.managementHref}
+              >
+                {order.bookingId
+                  ? "Manage linked booking"
+                  : "Review customer order intake"}
+              </Link>
               <p className="od-action-bar__note">
-                {isPending
-                  ? "Approval alone does not confirm a booking. A verified 50% deposit is also required."
-                  : "Rescheduling requires a fresh availability check. Cancellation does not issue external refunds automatically."}
+                Availability approval, payment verification, rescheduling and
+                cancellation use the booking workspace.
               </p>
             </section>
           )}
@@ -852,41 +489,6 @@ export function OrderDetailPage() {
           )}
         </div>
       </div>
-
-      {/* Modals */}
-      {showPayModal && (
-        <RecordPaymentModal
-          order={order}
-          onClose={() => setShowPayModal(false)}
-          onSaved={(updated) => {
-            setOrder(updated);
-            setShowPayModal(false);
-            showToast("Payment recorded.");
-          }}
-        />
-      )}
-      {showCancelModal && (
-        <CancelModal
-          order={order}
-          onClose={() => setShowCancelModal(false)}
-          onCancelled={(updated) => {
-            setOrder(updated);
-            setShowCancelModal(false);
-            showToast("Order cancelled.", "error");
-          }}
-        />
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`inv-toast inv-toast--${toast.type}`}
-          role="status"
-          aria-live="polite"
-        >
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 }

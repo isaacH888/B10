@@ -25,6 +25,8 @@
 }
 .od-heading {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-family: "Anton", sans-serif;
   font-size: 38px;
   font-weight: 400;

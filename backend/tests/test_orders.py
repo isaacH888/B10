@@ -1,4 +1,4 @@
-"""Contract tests for the OpenAPI ``submitOrder``, ``retrieveOrder`` and ``updateOrderStatus`` operations.
+"""Contract tests for the OpenAPI ``submitOrder``, ``listOrders``, ``retrieveOrder`` and ``updateOrderStatus`` operations.
 
 Requests are shaped like the synthetic ``SubmitOrderRequest`` example in
 docs/api/openapi.json, with a far-future event date so the "no past events"
@@ -9,6 +9,7 @@ a fake PyMySQL connection, so no MySQL server is needed.
 import json
 import math
 import re
+from datetime import datetime
 from pathlib import Path
 
 import pymysql
@@ -462,6 +463,7 @@ class FakeCursor:
 
     def __init__(self, connection):
         self.connection = connection
+        self.last_sql = ""
 
     def __enter__(self):
         return self
@@ -473,6 +475,7 @@ class FakeCursor:
         if self.connection.fail_on and self.connection.fail_on in sql:
             raise pymysql.err.OperationalError(2003, "secret-host.internal refused the connection")
         self.connection.statements.append((sql, params))
+        self.last_sql = sql
         if sql.startswith("INSERT"):
             self.connection.row_id += 1
             self.lastrowid = self.connection.row_id
@@ -481,13 +484,20 @@ class FakeCursor:
         self.connection.statements.append((sql, list(rows)))
 
     def fetchone(self):
+        if self.last_sql.startswith("SELECT COUNT"):
+            return (self.connection.total,)
         return self.connection.existing
+
+    def fetchall(self):
+        return self.connection.rows
 
 
 class FakeConnection:
-    def __init__(self, existing=None, fail_on=None):
+    def __init__(self, existing=None, fail_on=None, rows=(), total=0):
         self.existing = existing
         self.fail_on = fail_on
+        self.rows = rows
+        self.total = total
         self.statements = []
         self.row_id = 0
         self.committed = self.rolled_back = self.closed = False
@@ -525,11 +535,17 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
     assert connection.committed and connection.closed and not connection.rolled_back
     tables = [re.match(r"INSERT INTO (\w+)", sql).group(1) for sql, _ in inserts(connection)]
     assert tables == ["customers", "orders", "order_items"]
-    _, orders_params = inserts(connection)[1]
+    orders_sql, orders_params = inserts(connection)[1]
+    assert " response_json, request_hash, submission_json)" in orders_sql
+    assert orders_params[0] == response.json["data"]["id"]  # public_id, not the BIGINT key
     assert orders_params[1] == 1  # customer_id is the customers row id
-    assert response.json["data"]["id"] in orders_params
     assert orders_params[6:8] == (20000, 10000)
+    assert orders_params[8] == datetime(2099, 1, 15, 21, 0)  # naive UTC for DATETIME(6)
+    assert orders_params[9] == "America/Chicago"
+    assert re.fullmatch(r"[0-9a-f]{64}", orders_params[-2])  # request_hash
+    assert json.loads(orders_params[-3]) == json.loads(orders_params[-1]) == response.json["data"]
     _, item_rows = inserts(connection)[2]
+    # order_id is the orders BIGINT key (the second insert), never the public id.
     assert item_rows == [
         (2, "popsicles", "50 popsicles, Tier 1 (50-99), $3.50 each", 17500),
         (2, "delivery_fee", "Delivery, 0 miles", 2500),
@@ -571,6 +587,12 @@ def test_database_replay_returns_the_stored_order_without_new_inserts(client, da
     assert second.status_code == 201
     assert second.json["data"] == first.json["data"]
     assert inserts(database.connection) == []
+    assert database.connection.statements == [
+        (
+            "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
+            (IDEMPOTENCY_KEY,),
+        )
+    ]
     assert database.connection.closed and not database.connection.committed
 
 
@@ -840,7 +862,7 @@ def stored_row(client, database):
     """Create an order in database mode and return the ``(response_json,)`` row it stored."""
     post_order(client)
     params = inserts(database.connection)[1][1]
-    return (params[-1],)
+    return (params[-3],)
 
 
 def test_database_retrieve_reads_the_order_by_public_id(client, database):
@@ -929,3 +951,239 @@ def test_database_failures_on_new_routes_return_503_without_leaking_details(clie
     assert_error(response, 503, "service_unavailable")
     assert "secret-host" not in response.get_data(as_text=True)
     assert database.connection.rolled_back and not database.connection.committed
+
+
+# --------------------------------------------------------------------------- #
+# listOrders
+# --------------------------------------------------------------------------- #
+
+
+def create_order_at(client, starts_at, key):
+    payload = order_payload()
+    payload["event"]["starts_at"] = starts_at
+    del payload["event"]["ends_at"]
+    return post_order(client, payload, headers={"Idempotency-Key": key}).json["data"]
+
+
+@pytest.fixture
+def three_orders(client):
+    """Orders whose events start on 2099-01-10, 2099-01-15 and 2099-01-20 (UTC), oldest first."""
+    return [
+        create_order_at(client, f"2099-01-{day}T12:00:00+00:00", f"list-key-0123456789-{day}")
+        for day in ("10", "15", "20")
+    ]
+
+
+def list_orders(client, **query):
+    return client.get("/api/v1/orders", query_string=query)
+
+
+def test_list_with_no_orders_returns_an_empty_page_envelope(client):
+    response = list_orders(client)
+    assert response.status_code == 200
+    assert set(response.json) == {"data", "meta"}
+    assert response.json["data"] == {"items": [], "page": 1, "page_size": 25, "total": 0}
+    assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
+    assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_default_list_is_newest_first_with_admin_orders(client, three_orders):
+    response = list_orders(client)
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert (data["page"], data["page_size"], data["total"]) == (1, 25, 3)
+    assert [item["id"] for item in data["items"]] == [
+        order["id"] for order in reversed(three_orders)
+    ]
+    assert all(item["admin_notes"] == "" for item in data["items"])
+    assert data["items"][2] == {**three_orders[0], "admin_notes": ""}
+    assert_matches_openapi_order_response(response.json, "ListOrdersResponse")
+
+
+def test_list_reflects_status_changes(client, three_orders):
+    patch_status(client, three_orders[1]["id"], {"version": 1, "status": "confirmed"})
+    items = list_orders(client).json["data"]["items"]
+    assert [item["status"] for item in items] == ["pending_review", "confirmed", "pending_review"]
+
+
+def test_status_filter_returns_only_that_status(client, three_orders):
+    patch_status(client, three_orders[0]["id"], {"version": 1, "status": "confirmed"})
+    patch_status(client, three_orders[2]["id"], {"version": 1, "status": "cancelled"})
+    for status, expected in (
+        ("confirmed", [0]),
+        ("cancelled", [2]),
+        ("pending_review", [1]),
+        ("fulfilled", []),
+    ):
+        data = list_orders(client, status=status).json["data"]
+        assert [item["id"] for item in data["items"]] == [
+            three_orders[index]["id"] for index in expected
+        ]
+        assert data["total"] == len(expected)
+
+
+def test_event_window_is_inclusive_from_and_exclusive_to(client, three_orders):
+    def ids(**query):
+        return [item["id"] for item in list_orders(client, **query).json["data"]["items"]]
+
+    middle, last = three_orders[1]["id"], three_orders[2]["id"]
+    assert ids(event_from="2099-01-15T12:00:00+00:00") == [last, middle]
+    assert ids(event_to="2099-01-15T12:00:00+00:00") == [three_orders[0]["id"]]
+    assert ids(event_from="2099-01-15T12:00:00Z", event_to="2099-01-20T12:00:00Z") == [middle]
+    assert ids(event_from="2099-01-21T00:00:00Z") == []
+
+
+def test_event_window_compares_instants_across_offsets(client, three_orders):
+    # 06:00-06:00 on the 15th is 12:00 UTC, the exact start of the middle order.
+    data = list_orders(
+        client, event_from="2099-01-15T06:00:00-06:00", event_to="2099-01-15T07:00:00-06:00"
+    ).json["data"]
+    assert [item["id"] for item in data["items"]] == [three_orders[1]["id"]]
+
+
+def test_status_and_window_filters_combine(client, three_orders):
+    patch_status(client, three_orders[2]["id"], {"version": 1, "status": "confirmed"})
+    data = list_orders(client, status="pending_review", event_from="2099-01-12T00:00:00Z").json[
+        "data"
+    ]
+    assert [item["id"] for item in data["items"]] == [three_orders[1]["id"]]
+    assert data["total"] == 1
+
+
+def test_pagination_slices_the_list_and_reports_the_total(client):
+    created = [
+        create_order_at(client, "2099-02-01T12:00:00+00:00", f"page-key-0123456789-{n}")["id"]
+        for n in range(5)
+    ]
+    newest_first = list(reversed(created))
+    pages = [list_orders(client, page=number, page_size=2).json["data"] for number in (1, 2, 3, 4)]
+    assert [[item["id"] for item in page["items"]] for page in pages] == [
+        newest_first[0:2],
+        newest_first[2:4],
+        newest_first[4:],
+        [],
+    ]
+    assert all(page["total"] == 5 and page["page_size"] == 2 for page in pages)
+    assert [page["page"] for page in pages] == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize(
+    "query,field",
+    [
+        ({"page": "0"}, "page"),
+        ({"page": "-1"}, "page"),
+        ({"page": "abc"}, "page"),
+        ({"page": ""}, "page"),
+        ({"page": "1.5"}, "page"),
+        ({"page": "99999999999"}, "page"),
+        ({"page_size": "0"}, "page_size"),
+        ({"page_size": "101"}, "page_size"),
+        ({"page_size": "-5"}, "page_size"),
+        ({"page_size": "ten"}, "page_size"),
+        ({"status": "submitted"}, "status"),
+        ({"status": "Confirmed"}, "status"),
+        ({"status": ""}, "status"),
+        ({"event_from": "tomorrow"}, "event_from"),
+        ({"event_from": "2099-01-15T12:00:00"}, "event_from"),
+        ({"event_from": ""}, "event_from"),
+        ({"event_from": "0001-01-01T00:00:00+14:00"}, "event_from"),
+        ({"event_to": "not a date"}, "event_to"),
+        ({"event_to": "2099-01-15"}, "event_to"),
+        ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T12:00:00Z"}, "event_to"),
+        ({"event_from": "2099-01-15T12:00:00Z", "event_to": "2099-01-15T11:59:59Z"}, "event_to"),
+    ],
+)
+def test_invalid_list_query_is_422(client, query, field):
+    assert_validation_error(list_orders(client, **query), field)
+
+
+def test_page_size_bounds_are_accepted(client):
+    for page_size in (1, 100):
+        assert list_orders(client, page_size=page_size).json["data"]["page_size"] == page_size
+
+
+def test_all_list_query_failures_are_reported_together(client):
+    fields = [
+        item["field"]
+        for item in list_orders(client, page="0", page_size="500", status="x").json["error"][
+            "fields"
+        ]
+    ]
+    assert {"page", "page_size", "status"} <= set(fields)
+
+
+def test_list_requires_an_admin_session(app):
+    response = app.test_client().get("/api/v1/orders")
+    assert response.status_code == 401
+    assert "items" not in response.get_data(as_text=True)
+
+
+def test_list_route_rejects_other_methods(client):
+    assert_error(client.delete("/api/v1/orders"), 405, "method_not_allowed")
+
+
+# --------------------------------------------------------------------------- #
+# listOrders: database path
+# --------------------------------------------------------------------------- #
+
+
+def stored_orders(client, database, count=2):
+    """Create orders in database mode; return their ``(response_json,)`` rows, newest first."""
+    rows = []
+    for number in range(count):
+        post_order(client, headers={"Idempotency-Key": f"db-list-key-0123456789-{number}"})
+        rows.append((inserts(database.connection)[1][1][-3],))
+        database.connection = FakeConnection()
+    return rows[::-1]
+
+
+def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(client, database):
+    rows = stored_orders(client, database)
+    database.connection = FakeConnection(rows=rows, total=7)
+    response = list_orders(client, page=2, page_size=2)
+    connection = database.connection
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert (data["page"], data["page_size"], data["total"]) == (2, 2, 7)
+    assert data["items"] == [{**json.loads(row[0]), "admin_notes": ""} for row in rows]
+    assert connection.statements == [
+        ("SELECT COUNT(*) FROM orders", ()),
+        ("SELECT response_json FROM orders ORDER BY id DESC LIMIT %s OFFSET %s", (2, 2)),
+    ]
+    assert connection.closed and not connection.committed
+
+
+def test_database_list_filters_are_parameterized_naive_utc_values(client, database):
+    database.connection = FakeConnection(total=0)
+    response = list_orders(
+        client,
+        status="confirmed",
+        event_from="2099-01-15T06:00:00-06:00",
+        event_to="2099-01-20T12:00:00Z",
+    )
+    assert response.status_code == 200
+    assert response.json["data"] == {"items": [], "page": 1, "page_size": 25, "total": 0}
+    where = " WHERE status = %s AND event_starts_at >= %s AND event_starts_at < %s"
+    params = ("confirmed", datetime(2099, 1, 15, 12, 0), datetime(2099, 1, 20, 12, 0))
+    assert database.connection.statements == [
+        ("SELECT COUNT(*) FROM orders" + where, params),
+        (
+            "SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+            params + (25, 0),
+        ),
+    ]
+    for sql, values in database.connection.statements:
+        assert sql.count("%s") == len(values) and "confirmed" not in sql
+
+
+def test_database_list_does_not_query_when_the_request_is_invalid(client, database):
+    assert list_orders(client, page="0").status_code == 422
+    assert database.connection.statements == []
+
+
+def test_database_list_failure_returns_503_without_leaking_details(client, database):
+    database.connection = FakeConnection(fail_on="SELECT COUNT")
+    response = list_orders(client)
+    assert_error(response, 503, "service_unavailable")
+    assert "secret-host" not in response.get_data(as_text=True)
+    assert database.connection.closed

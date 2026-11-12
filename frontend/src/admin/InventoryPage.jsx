@@ -138,8 +138,11 @@ function AdjustDrawer({ item, onClose, onSaved }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const parsedQty = parseInt(qty, 10);
-  const isValidQty = !isNaN(parsedQty) && parsedQty > 0;
+  const parsedQty = Number(qty);
+  const isValidQty =
+    qty !== "" &&
+    Number.isSafeInteger(parsedQty) &&
+    (adjType === "set" ? parsedQty >= 0 : parsedQty > 0);
 
   // Live preview
   let previewOnHand = item.onHand;
@@ -164,6 +167,7 @@ function AdjustDrawer({ item, onClose, onSaved }) {
         quantity: parsedQty,
         reason,
         note,
+        expected_version: item.version,
       });
       onSaved(result.item);
     } catch (err) {
@@ -416,10 +420,11 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
   function validate() {
     const e = {};
     if (!form.name.trim()) e.name = "Name is required.";
-    const qty = parseInt(form.onHand, 10);
-    if (isNaN(qty) || qty < 0) e.onHand = "Enter a valid quantity (0 or more).";
-    const min = parseInt(form.minimum, 10);
-    if (isNaN(min) || min < 1)
+    const qty = Number(form.onHand);
+    if (form.onHand === "" || !Number.isSafeInteger(qty) || qty < 0)
+      e.onHand = "Enter a whole quantity (0 or more).";
+    const min = Number(form.minimum);
+    if (form.minimum === "" || !Number.isSafeInteger(min) || min < 1)
       e.minimum = "Enter a minimum threshold (at least 1).";
     return e;
   }
@@ -438,9 +443,11 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
         name: form.name.trim(),
         category: form.category,
         shape: form.shape,
-        minimum: parseInt(form.minimum, 10),
+        minimum: Number(form.minimum),
         notes: form.notes.trim(),
-        ...(isEdit ? {} : { onHand: parseInt(form.onHand, 10) }),
+        ...(isEdit
+          ? { expected_version: item.version }
+          : { onHand: Number(form.onHand) }),
       };
       const result = isEdit
         ? await updateInventoryItem(item.id, payload)
@@ -649,6 +656,10 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
 function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
   const [history, setHistory] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const firstRef = useRef(null);
@@ -666,20 +677,27 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
 
   useEffect(() => {
     setLoadingHistory(true);
-    fetchStockHistory(item.id)
-      .then((r) => setHistory(r.history))
-      .catch(() => setHistory([]))
+    setHistoryError("");
+    fetchStockHistory(item.id, historyPage)
+      .then((r) => {
+        setHistory(r.history);
+        setHistoryTotal(r.total);
+      })
+      .catch(() =>
+        setHistoryError("Stock history could not be loaded. Try again."),
+      )
       .finally(() => setLoadingHistory(false));
-  }, [item.id]);
+  }, [item.id, historyPage]);
 
   const status = statusOf(item);
 
   async function handleDelete() {
     setDeleting(true);
     try {
-      await deleteInventoryItem(item.id);
+      await deleteInventoryItem(item.id, item.version);
       onClose(item.id); // pass id so parent can remove
-    } catch {
+    } catch (error) {
+      setDeleteError(error.message || "The item could not be archived.");
       setDeleting(false);
       setConfirmDelete(false);
     }
@@ -788,7 +806,9 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
           <h3 className="inv-detail__section-title" id="hist-heading">
             Stock history
           </h3>
-          {loadingHistory ? (
+          {historyError ? (
+            <p role="alert">{historyError}</p>
+          ) : loadingHistory ? (
             <p className="inv-detail__loading" role="status">
               Loading history…
             </p>
@@ -817,6 +837,21 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
           ) : (
             <p className="inv-detail__empty">No adjustments recorded yet.</p>
           )}
+          <nav className="actions" aria-label="Stock history pages">
+            <button
+              disabled={historyPage === 1 || loadingHistory}
+              onClick={() => setHistoryPage(historyPage - 1)}
+            >
+              Previous history
+            </button>
+            <span>Page {historyPage}</span>
+            <button
+              disabled={historyPage * 25 >= historyTotal || loadingHistory}
+              onClick={() => setHistoryPage(historyPage + 1)}
+            >
+              Next history
+            </button>
+          </nav>
         </section>
 
         {/* Danger zone */}
@@ -824,6 +859,7 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
           className="inv-detail__danger"
           aria-labelledby="danger-heading"
         >
+          {deleteError && <p role="alert">{deleteError}</p>}
           <h3
             className="inv-detail__section-title inv-detail__section-title--danger"
             id="danger-heading"
@@ -979,9 +1015,9 @@ export function InventoryPage() {
             <a href="/" className="adm-page-header__view-site">
               View website ↗
             </a>
-            <button type="button" className="adm-btn adm-btn--outline">
-              Owner account ⌄
-            </button>
+            <Link to="/admin" className="adm-btn adm-btn--outline">
+              Owner account
+            </Link>
           </div>
         </header>
 

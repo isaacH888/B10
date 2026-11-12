@@ -4,10 +4,14 @@ Contract version: `0.3.0-draft`. Coordinator: Isaac Hernandez.
 Order/pricing API owner: Anh Hyunh. Auth/automation owner: Shourya Sai Macha. Frontend consumers:
 Aneena Paul and Dillion Nguyen. Persistence owner: Bryson Hawthorne.
 
-Status: health and customer/admin authentication routes are implemented.
-Pricing, orders, payments, email automation and Calendar interfaces remain proposed.
-The authentication design was approved by the user on October 8; business contract
-acceptance remains with the affected owners.
+Status updated November 11, 2026: health, authentication, quote/order submission,
+owner order reads, Dashboard, Calendar feed, inventory and owner CSV exports are
+implemented locally. Booking/payment/email/Calendar automation uses its separate
+[workflow contract](calendar-automation.md). The general `/orders` edit/status/
+deposit interfaces below retain their earlier proposal status; implementing an
+owner workspace counterpart does not implement those routes. Quote persistence,
+trusted delivery distance and live provider verification remain open. See the
+[current admin completion report](admin-api-completion.md).
 
 The October 5 [reference review](reference-alignment.md) and
 [database mapping review](database-integration-review.md) identify conflicts with
@@ -26,6 +30,42 @@ All examples are synthetic. `20000` cents and the `10000`-cent deposit demonstra
 field shape and the 50% relationship only. They do not establish a unit price,
 quantity tier, delivery charge, tax rule, or approved quote. Example identifiers,
 dates, payment references, passwords, and CSRF tokens are not usable operational data.
+
+## Implemented owner workspace additions
+
+All routes below are under `/api/v1`, require an active owner and `bookings:read`,
+use existing session/revocation checks, and return private no-store responses.
+Exports additionally require `customers:export` and fresh MFA. Inventory writes
+require exact Origin, session CSRF, an `Idempotency-Key` and real MySQL storage.
+
+| Method and route | Current behavior |
+| --- | --- |
+| `GET /admin/orders`, `GET /admin/orders/{order_id}` | Saved order snapshots plus bounded current linked-booking state. Server search/status/payment/service/page filters; date bounds use `[event_from,event_to)` with explicit offsets and current linked event start. |
+| `GET /admin/dashboard` | Saved request/deposit/review counts, confirmed balances grouped by currency, next-30-day confirmed bookings, recent orders and inventory counts. |
+| `GET /admin/calendar?year=&month=&timezone=` | Timezone-aware month feed, including unlinked requests and manual bookings without duplicates; cancelled records excluded. Independent of Google connection availability. |
+| `GET /admin/inventory`, `POST /admin/inventory` | Read the active catalog or create an item and initial stock history. Reserved quantities are calculated from saved allocations. |
+| `PATCH /admin/inventory/{item_id}`, `DELETE /admin/inventory/{item_id}` | Versioned metadata edit or archive. Archive preserves history and rejects active reservations. |
+| `POST /admin/inventory/{item_id}/adjust` | Versioned add/remove/set stock with actor/reason/note and before/after history. Reject fractional/negative counts and counts below reserved stock. |
+| `GET /admin/inventory/{item_id}/history` | Paginated saved stock history, including archived items. |
+| `GET /admin/inventory/bookings/{booking_id}/allocations`, `POST /admin/inventory/bookings/{booking_id}/allocations` | Read or explicitly replace confirmed-booking flavor assignments using the current booking revision. Reject insufficient stock and totals above the booking quantity. |
+| `GET /admin/orders/export`, `GET /admin/orders/{order_id}/export` | Filtered or single-order CSV using current booking values; formula-safe cells, maximum 10,000 rows, never silently truncated. |
+
+Inventory mutation keys are scoped to owner/method/path and bound to the payload.
+A successful replay returns the original result before stale-version validation;
+changed payloads under the same key return 409. Stock/assignment/booking changes
+share the SQL booking mutex. Cancellation releases reservations atomically;
+reopening does not restore them. Flavor text is not inferred into reservations,
+and fulfillment does not automatically consume inventory. See migration 0010
+and the exact request/response schemas in [OpenAPI](api/openapi.json).
+
+The reporting query helpers in `backend/app/reports_queries.py` use the linked
+booking's current schedule, quantity, service and monetary values, with source
+order fallback when unlinked. Their date filters and sorting use the same
+effective start as the owner workspace. Upcoming items can include the current
+free-text `venue`; `event.location` retains the original structured customer
+address. CSV neutralization checks formula prefixes after leading whitespace.
+These helpers do not register the proposed general reporting routes. See the
+[reporting integration review](reporting-query-fixes.md).
 
 ## Confirmed requirements and decision boundaries
 
@@ -123,6 +163,8 @@ Planning an interface now does not implement the Week 5/6 features early.
 | `PATCH /orders/{order_id}/deposit` | Record verified deposit status | Admin, CSRF, idempotency | 200 | `UpdateDepositRequest` / `AdminOrderResponse` |
 | `GET /events/upcoming` | Retrieve persisted upcoming events | Admin | 200 | Window/pagination / `UpcomingEventsResponse` |
 | `GET /orders/export` | Export filtered order summaries | Admin | 200 CSV | Query filters / CSV string |
+| `GET /admin/orders` | Implemented owner workspace: saved customer orders plus current linked booking summary | Owner, bookings:read | 200 | Filters/pagination / `AdminWorkspaceOrdersResponse` |
+| `GET /admin/orders/{order_id}` | Implemented owner workspace: saved customer order and current linked booking summary | Owner, bookings:read | 200 | Path ID / `AdminWorkspaceOrderResponse` |
 | `POST /admin/login` | Retained strict administrator OAuth flow | Exact Origin, shared rate limit | 200 | `AdminLoginRequest` / `AuthLoginResponse` |
 | `GET /admin/password/transaction` | Start/resume native admin sign-in | Browser-bound HttpOnly cookie | 200 | `AdminNativeTransactionResponse` |
 | `POST /admin/password/transaction` | Native password, new password or TOTP response | Exact Origin, transaction CSRF, single use, rate limit | 200 | `AdminNativeChallengeRequest` / `AdminNativeTransactionResponse` |
@@ -133,6 +175,10 @@ Planning an interface now does not implement the Week 5/6 features early.
 | `DELETE /admin/session`, `DELETE /customer/session` | Revoke and log out | Matching session, Origin, CSRF | 200 | `AuthLogoutResponse` |
 
 The OpenAPI file specifies success schemas and examples for declared errors.
+Isaac owns the two implemented owner workspace reads above. See the
+[API integration and UI handoff](ui-handoff-and-admin-api.md) for filters,
+authorization, current booking semantics and UI assignments. The original
+planned general order-list/edit/export interfaces remain separate.
 The details below identify additional
 semantic validation that JSON schema alone cannot enforce.
 

@@ -4,10 +4,8 @@
    Red     #D82C37
    Blue    #293CA2
    Tan     #FFF3D9
-   Font    Anton (Google Fonts)
+   Font    Anton (locally hosted; see public-site.css)
 */
-
-@import url("https://fonts.googleapis.com/css2?family=Anton&display=swap");
 
 /* ===========================================================================
    LANDING PAGE
@@ -108,10 +106,12 @@
   font-weight: 700;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
+  text-decoration: none;
   transition:
     background 0.15s,
     opacity 0.15s;
 }
+
 .cat-btn--red {
   background: #4b004b;
   color: #fff;
@@ -519,12 +519,12 @@
 }
 
 /* ----- Form fields ----- */
-fieldset {
+.cat-shell fieldset {
   border: none;
   padding: 0;
   margin: 0;
 }
-legend {
+.cat-shell legend {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -723,4 +723,43 @@ legend {
 }
 .catering-notice p:last-child {
   margin-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .cat-nav {
+    height: auto;
+    min-height: 72px;
+    padding: 0.5rem 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .cat-nav__links {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    gap: 0.5rem 1rem;
+    flex-wrap: wrap;
+  }
+  .cat-nav__links a {
+    font-size: 0.8rem;
+  }
+  .cat-nav__login {
+    margin-left: auto;
+    padding: 0.5rem 1rem;
+  }
+  .cat-hero__content {
+    margin-left: 0;
+    padding: 13rem 1.25rem 3rem;
+  }
+  .cat-features,
+  .cat-how,
+  .cat-cta {
+    padding: 3rem 1.25rem;
+  }
+  .cat-features__grid {
+    grid-template-columns: 1fr;
+  }
+  .cat-footer__inner {
+    padding: 0 1rem;
+  }
 }

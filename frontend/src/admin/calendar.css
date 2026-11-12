@@ -2,6 +2,22 @@
   Calendar page — extra styles
 */
 
+@media (max-width: 720px) {
+  .cal-gcal-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .cal-gcal-banner__info {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.cal-drawer {
+  box-sizing: border-box;
+}
+
 /* Cells — event block now a button */
 .cal-event {
   display: block;

@@ -102,7 +102,12 @@ function PasswordForm() {
       if (!mounted.current || requestVersion !== version.current) return;
       if (session.status !== "authenticated")
         throw session.error || new ApiError(401, "session_expired");
-      navigate("/admin", { replace: true });
+      navigate(
+        session.data.administrator.role === "owner"
+          ? "/admin/dashboard"
+          : "/admin",
+        { replace: true },
+      );
       return;
     }
     setTransaction(data);
@@ -398,7 +403,16 @@ export function AdminPasswordLogin() {
     params.get("reauth") === "1" ||
     (session.status === "authenticated" && Boolean(message));
   if (session.status === "authenticated" && !reauthentication && !message)
-    return <Navigate to="/admin" replace />;
+    return (
+      <Navigate
+        to={
+          session.data.administrator.role === "owner"
+            ? "/admin/dashboard"
+            : "/admin"
+        }
+        replace
+      />
+    );
   return (
     <section>
       <h1>{reauthentication ? "Verify your access" : "Team sign-in"}</h1>
