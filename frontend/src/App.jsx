@@ -10,14 +10,40 @@ import {
 } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
-import { AdminDashboard } from "./AdminDashboard.jsx";
+import { AdminDashboardPage } from "./admin/AdminDashboardPage.jsx";
+import { CalendarPage } from "./admin/CalendarPage.jsx";
+import { InventoryPage } from "./admin/InventoryPage.jsx";
+import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
+import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
+import {
+  CustomerSignInLayout,
+  PublicHome,
+  PublicLayout,
+} from "./PublicSite.jsx";
 
 function Layout({ children }) {
+  const { pathname } = useLocation();
+  if (
+    pathname === "/order" ||
+    /^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)
+  ) {
+    return children;
+  }
+  if (pathname === "/login") {
+    return <CustomerSignInLayout>{children}</CustomerSignInLayout>;
+  }
+  if (
+    pathname === "/" ||
+    pathname === "/account" ||
+    pathname === "/order/confirm"
+  ) {
+    return <PublicLayout>{children}</PublicLayout>;
+  }
   return (
     <div className="test-shell">
       <header>
@@ -31,6 +57,7 @@ function Layout({ children }) {
           <Link to="/account">Customer session</Link>
           <Link to="/admin/login">Admin login</Link>
           <Link to="/admin">Admin dashboard</Link>
+          <Link to="/diagnostics">Connection diagnostics</Link>
         </nav>
       </header>
       <main id="main-content">{children}</main>
@@ -42,7 +69,7 @@ function Layout({ children }) {
   );
 }
 
-function HomePage() {
+function DiagnosticsPage() {
   const [result, setResult] = useState("");
   const [checking, setChecking] = useState(false);
   async function checkConnection() {
@@ -75,7 +102,7 @@ function HomePage() {
   }
   return (
     <section>
-      <h1>Authentication test</h1>
+      <h1>Connection diagnostics</h1>
       <p>
         Use the navigation links to test customer login, administrator login,
         and protected sessions.
@@ -149,9 +176,10 @@ function LoginPage() {
       {session.status === "loading" ? (
         <p role="status">Checking your session…</p>
       ) : (
-        <div className="actions">
+        <div className="actions customer-login-actions">
           <button
             type="button"
+            className="pill red"
             disabled={Boolean(busy) || session.logoutPending}
             onClick={() => begin("password")}
           >
@@ -161,6 +189,7 @@ function LoginPage() {
           </button>
           <button
             type="button"
+            className="pill outline"
             disabled={Boolean(busy) || session.logoutPending}
             onClick={() => begin("google")}
           >
@@ -178,7 +207,12 @@ function LoginPage() {
   );
 }
 
-function ProtectedPage({ area }) {
+function ProtectedPage({
+  area,
+  workspace = false,
+  liveOrders = false,
+  children,
+}) {
   const location = useLocation();
   const { sessions, refresh, expire, logout } = useAuth();
   const [now, setNow] = useState(Date.now());
@@ -242,11 +276,69 @@ function ProtectedPage({ area }) {
   const identity = session.data[admin ? "administrator" : "customer"];
   const deadline = new Date(sessionDeadline(session.data));
   const remaining = Math.max(0, Math.ceil((deadline.getTime() - now) / 60000));
+  if (workspace || liveOrders) {
+    if (
+      identity.role !== "owner" ||
+      !identity.permissions.includes("bookings:read")
+    ) {
+      return (
+        <section className="test-shell">
+          <h1>Owner access required</h1>
+          <p>Only an owner with booking access can open this workspace.</p>
+          <Link to="/admin">Back to your team session</Link>
+        </section>
+      );
+    }
+    return (
+      <div className="admin-preview">
+        <aside
+          className="admin-preview-notice"
+          aria-label={
+            liveOrders ? "Order workspace notice" : "Admin workspace notice"
+          }
+        >
+          <p>
+            {liveOrders ? (
+              <>
+                Saved customer orders and linked booking balances. Manage
+                approvals, payments and Calendar in the booking workspace.
+              </>
+            ) : (
+              <>
+                <strong>Owner workspace.</strong> Dashboard, Calendar and
+                Inventory use saved data. Manage booking actions in the booking
+                workspace.
+              </>
+            )}
+          </p>
+          <nav aria-label="Workspace controls">
+            <Link to="/admin/automation">
+              Manage live bookings and Calendar
+            </Link>
+            <Link to="/admin">Team session and permissions</Link>
+            <button
+              type="button"
+              onClick={() => logout(area, session.data.csrf_token)}
+            >
+              Sign out
+            </button>
+          </nav>
+          {remaining <= 5 && (
+            <p role="status">
+              Your session expires in {remaining || "less than a minute"}
+              {remaining ? " minutes" : ""}.
+            </p>
+          )}
+        </aside>
+        {children}
+      </div>
+    );
+  }
   return (
     <section>
       <h1>
         {admin
-          ? "Admin dashboard"
+          ? "Team account"
           : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}
       </h1>
       <p>
@@ -264,14 +356,21 @@ function ProtectedPage({ area }) {
       ) : (
         admin && (
           <>
-            {identity.role === "owner" && (
-              <p>
-                <Link to="/admin/automation">
-                  Manage catering bookings and Calendar
-                </Link>
-              </p>
+            {identity.role === "owner" &&
+              identity.permissions.includes("bookings:read") && (
+                <p>
+                  <Link to="/admin/automation">
+                    Manage catering bookings and Calendar
+                  </Link>
+                  {" · "}
+                  <Link to="/admin/dashboard">Open admin dashboard</Link>
+                  {" · "}
+                  <Link to="/admin/orders">View customer orders</Link>
+                </p>
+              )}
+            {!identity.permissions.includes("bookings:read") && (
+              <p>Booking access is not assigned to this account.</p>
             )}
-            <AdminDashboard identity={identity} />
           </>
         )
       )}
@@ -384,7 +483,8 @@ export default function App() {
       <AuthProvider>
         <Layout>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<PublicHome />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/order" element={<CateringPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
             <Route path="/login" element={<LoginPage />} />
@@ -405,6 +505,46 @@ export default function App() {
             <Route
               path="/admin/bookings/:bookingId"
               element={<ProtectedPage area="admin" />}
+            />
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedPage area="admin" workspace>
+                  <AdminDashboardPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/orders"
+              element={
+                <ProtectedPage area="admin" liveOrders>
+                  <OrdersPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/orders/:orderId"
+              element={
+                <ProtectedPage area="admin" liveOrders>
+                  <OrderDetailPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/calendar"
+              element={
+                <ProtectedPage area="admin" workspace>
+                  <CalendarPage />
+                </ProtectedPage>
+              }
+            />
+            <Route
+              path="/admin/inventory"
+              element={
+                <ProtectedPage area="admin" workspace>
+                  <InventoryPage />
+                </ProtectedPage>
+              }
             />
             <Route path="*" element={<NotFound />} />
           </Routes>

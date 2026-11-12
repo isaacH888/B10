@@ -13,8 +13,14 @@ def environment_settings(environment):
     enabled = os.getenv("AUTH_ENABLED", "false" if environment == "development" else "true").lower()
     if enabled not in {"true", "false"}:
         raise ValueError("AUTH_ENABLED must be true or false")
+    customer_enabled = os.getenv("CUSTOMER_AUTH_ENABLED")
+    if customer_enabled is not None:
+        customer_enabled = customer_enabled.lower()
+        if customer_enabled not in {"true", "false"}:
+            raise ValueError("CUSTOMER_AUTH_ENABLED must be true or false")
     settings = {
         "AUTH_ENABLED": enabled == "true",
+        "CUSTOMER_AUTH_ENABLED": None if customer_enabled is None else customer_enabled == "true",
         "AUTH_ORIGIN": os.getenv(
             "FRONTEND_ORIGIN", "http://localhost:5173" if environment == "development" else ""
         ),
@@ -32,12 +38,22 @@ def environment_settings(environment):
     return settings
 
 
+def authentication_enabled(settings, area=None):
+    """Keep the shared default while allowing customer-only development sign-in."""
+    if area is None:
+        return any(authentication_enabled(settings, item) for item in ("customer", "admin"))
+    if area == "customer" and settings.get("CUSTOMER_AUTH_ENABLED") is not None:
+        return settings["CUSTOMER_AUTH_ENABLED"]
+    return settings.get("AUTH_ENABLED", False)
+
+
 def validate_settings(settings):
     if not 0 <= settings["AUTH_TRUSTED_PROXY_HOPS"] <= 3:
         raise ValueError("AUTH_TRUSTED_PROXY_HOPS must be between zero and three")
-    if not settings["AUTH_ENABLED"]:
-        if settings["APP_ENV"] != "development":
-            raise ValueError("Authentication must be enabled in hosted environments")
+    areas = [area for area in ("customer", "admin") if authentication_enabled(settings, area)]
+    if settings["APP_ENV"] != "development" and len(areas) != 2:
+        raise ValueError("Authentication must be enabled for both areas in hosted environments")
+    if not areas:
         return
     origin = urlsplit(settings["AUTH_ORIGIN"])
     allowed_schemes = {"http", "https"} if settings["APP_ENV"] == "development" else {"https"}
@@ -64,8 +80,8 @@ def validate_settings(settings):
         Fernet(settings["AUTH_TOKEN_ENCRYPTION_KEY"].encode("ascii"))
     except (ValueError, TypeError, UnicodeError) as error:
         raise ValueError("AUTH_TOKEN_ENCRYPTION_KEY must be a Fernet key") from error
-    for area in ("CUSTOMER", "ADMIN"):
-        prefix = f"COGNITO_{area}_"
+    for area in areas:
+        prefix = f"COGNITO_{area.upper()}_"
         if not ISSUER_PATTERN.fullmatch(settings[prefix + "ISSUER"]):
             raise ValueError(f"{prefix}ISSUER must identify an AWS Cognito user pool")
         if not settings[prefix + "CLIENT_ID"] or not settings[prefix + "CLIENT_SECRET"]:
@@ -82,7 +98,7 @@ def validate_settings(settings):
             or domain.port not in (None, 443)
         ):
             raise ValueError(f"{prefix}DOMAIN must be an exact HTTPS origin")
-    if settings["COGNITO_CUSTOMER_ISSUER"] == settings["COGNITO_ADMIN_ISSUER"]:
+    if len(areas) == 2 and settings["COGNITO_CUSTOMER_ISSUER"] == settings["COGNITO_ADMIN_ISSUER"]:
         raise ValueError("Customer and admin authentication require separate user pools")
 
 

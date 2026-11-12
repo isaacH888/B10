@@ -1,9 +1,11 @@
 # Development setup and command status
 
-Updated October 29, 2026. React/Vite + Flask + MySQL scaffolding, authentication,
-pricing/quote/order APIs and customer sample email are combined locally. Real order
-persistence, catering UI and order-triggered integrations remain incomplete. See
-[integration validation](integration-validation.md) before testing business flows.
+Updated November 11, 2026. React/Vite + Flask + MySQL, authentication,
+pricing/quote/order APIs, order persistence, public/catering UI and owner booking
+automation are combined locally. Dashboard, Orders, Calendar and Inventory use
+saved data. Booking actions at `/admin/automation` still need visual integration
+into the admin shell. See the [admin completion report](admin-api-completion.md)
+and [Figma handoff](dillion-figma-brief.md) before testing business flows.
 
 ## Prerequisites
 
@@ -50,12 +52,14 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. Customer login is `/login`; team login is `/admin/login`.
-The frontend is a minimal authentication test interface; its appearance is not a
-final website design. The backend connection control checks Flask/MySQL and authentication storage readiness separately.
+The homepage uses the integrated public frontend design. Backend connection controls
+are at `/diagnostics`, where Flask/MySQL and authentication storage readiness are
+checked separately. See [public frontend integration](public-site-integration.md)
+for the connected routes and sample source.
 Authentication shows unavailable until its private configuration is supplied;
 account screens contain no business orders. `/api/v1/live` is process liveness;
 `/api/v1/health` checks MySQL connectivity and returns 503 while unconfigured/unavailable.
-A 200 DB probe does not establish that Bryson's domain migrations have run.
+A 200 DB probe does not establish that all domain migrations have run.
 
 Use `VITE_API_BASE_URL=/api/v1`; Vite proxies requests to Flask and preserves login cookies.
 Cognito callbacks must use `http://localhost:5173/api/v1/<area>/callback`, not port 5000.
@@ -84,9 +88,15 @@ The port is loopback-only and the named volume persists data. These variables
 initialize a fresh volume; changing them later does not rotate an existing MySQL user.
 Do not delete a volume to repair credentials without agreeing on data preservation.
 
-Compose creates the server and empty development database/user. The shared authentication
-migration runner creates auth tables; domain migrations/models/seeds remain Bryson's work.
-No real customer data or default accounts are included.
+Compose creates the server and empty development database/user. Run the shared
+migration command above to apply all ten migrations, including authentication,
+email, booking automation, customer/order/item tables, the order event-date
+index, inventory, stock history and explicit booking allocations. Apply migration
+0010 before this version's SQL-backed booking actions. Existing installations
+apply only pending migrations. See the
+[index integration review](bryson-index-integration.md) for upgrade and recovery
+evidence. Migration application does not create approved admin accounts or seed
+real customer data.
 
 ## Troubleshoot a stopped development database
 

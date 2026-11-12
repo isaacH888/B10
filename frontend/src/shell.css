@@ -8,18 +8,18 @@ body {
   margin: 0 auto;
   padding: 1rem;
 }
-header {
+.test-shell > header {
   padding-bottom: 1rem;
   border-bottom: 1px solid #ccc;
 }
-nav,
+.test-shell nav,
 .actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
 }
-main {
+.test-shell > main {
   margin: 2rem 0;
 }
 button {
@@ -45,7 +45,7 @@ dd {
   margin-left: 0;
   overflow-wrap: anywhere;
 }
-footer {
+.test-shell > footer {
   margin-top: 2rem;
   border-top: 1px solid #ccc;
   padding-top: 1rem;
@@ -138,4 +138,23 @@ a:focus-visible,
 .automation-dashboard summary {
   cursor: pointer;
   margin: 1rem 0;
+}
+.admin-preview-notice {
+  padding: 0.75rem 1.5rem;
+  color: #3b003d;
+  background: #ffedb0;
+  border-bottom: 2px solid #3b003d;
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+.admin-preview-notice p {
+  margin: 0 0 0.5rem;
+}
+.admin-preview-notice nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+}
+.admin-preview-notice a {
+  color: inherit;
 }

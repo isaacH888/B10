@@ -25,7 +25,8 @@ backend private files. The MySQL root password belongs only to Compose.
 | `FRONTEND_ORIGIN` | Session/CSRF implementation; Shourya | Exact browser origin, consumed as AUTH_ORIGIN; must equal the sole CORS origin when auth is enabled |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_TLS_CA_FILE` | Flask readiness; Isaac; domain persistence Bryson/Anh | MySQL session/audit storage and readiness; hosted connections require certificate/hostname-verified TLS |
 | `MYSQL_ROOT_PASSWORD` | Local Compose; Isaac | Required for initialization only; never passed to Flask |
-| `AUTH_ENABLED` | Flask authentication; Shourya | Explicit true/false. Local default false; hosted authentication must be enabled. Never permits a fallback identity. |
+| `AUTH_ENABLED` | Flask authentication; Shourya | Explicit true/false. Controls admin authentication and the customer default. Local default false; both areas must remain enabled in hosted environments. Never permits a fallback identity. |
+| `CUSTOMER_AUTH_ENABLED` | Flask customer authentication | Optional explicit true/false override for customer sign-in in development; unset inherits `AUTH_ENABLED`. Customer-only mode requires the customer Cognito configuration and shared application keys/database, with no admin provider or account required. |
 | `AUTH_TRUSTED_PROXY_HOPS` | Flask proxy middleware; Shourya | Default zero ignores forwarded IPs. Set to the exact trusted proxy count (0–3) only after blocking direct backend access. |
 | `AUTH_TOKEN_ENCRYPTION_KEY` | Flask authentication; Shourya | Private Fernet key encrypts provider tokens and OAuth transactions in MySQL; no default. Retain encrypted legacy records and plan ciphertext migration before replacing the key. |
 | `COGNITO_CUSTOMER_ISSUER`, `COGNITO_ADMIN_ISSUER` | Flask OIDC; Shourya | Exact distinct Cognito pool issuers; immutable issuer/subject identify accounts. |
@@ -63,6 +64,8 @@ Hosted startup rejects missing core application/TLS DB configuration and invalid
 origins or ports. Development permits blank DB credentials so the shell can start;
 `/live` returns 200 while `/health` returns 503 until the DB probe succeeds.
 When authentication is enabled, readiness also requires all authentication migrations/checksums and tables, including additive `0002_admin_google_mfa.sql`, `0003_admin_native_login.sql` and `0004_admin_login_epochs.sql`. This does not prove domain migrations or live Cognito connectivity.
+In customer-only development, the aggregate `authentication` readiness status
+checks the enabled customer service; admin endpoints remain unavailable.
 
 Reserved flags do not enable a feature by themselves. Feature owners must add
 explicit boolean parsing, enabled-feature credential validation and safe adapters.

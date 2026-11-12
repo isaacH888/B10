@@ -29,6 +29,7 @@ Prepare and review a CloudFormation change set with the environment parameters a
 | --- | --- |
 | `APP_ENV` | `development` locally; `production` for hosted release |
 | `AUTH_ENABLED` | `true` after all dependencies are configured |
+| `CUSTOMER_AUTH_ENABLED` | Optional development override; unset inherits `AUTH_ENABLED` |
 | `AUTH_TRUSTED_PROXY_HOPS` | Zero for direct local access; one for the supplied private-backend Nginx topology |
 | `FRONTEND_ORIGIN`, `CORS_ALLOWED_ORIGINS` | The single effective template origin, identical values |
 | `APP_SECRET_KEY` | Private random application secret, at least 32 characters |
@@ -40,6 +41,27 @@ Prepare and review a CloudFormation change set with the environment parameters a
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Runtime MySQL connection with only required DML grants |
 | `DB_TLS_CA_FILE` | Trusted CA file for verified MySQL TLS in hosted environments |
 | `DB_MIGRATION_USER`, `DB_MIGRATION_PASSWORD` | Separate deploy-time migration credentials; exclude from the web runtime |
+
+Customer sign-in can run independently during local development. In the private
+`backend/.env`, use:
+
+```dotenv
+AUTH_ENABLED=false
+CUSTOMER_AUTH_ENABLED=true
+```
+
+Supply the existing `COGNITO_CUSTOMER_ISSUER`, `COGNITO_CUSTOMER_CLIENT_ID`,
+`COGNITO_CUSTOMER_CLIENT_SECRET` and `COGNITO_CUSTOMER_DOMAIN`, along with the shared
+application secret, token-encryption key, database settings and exact frontend
+origin. Admin Cognito settings and an approved admin account are not required for
+customer login. No provider, client, account or secret is automatically created.
+Admin sign-in, sessions and protected business endpoints remain unavailable.
+The customer OAuth/state/PKCE, encrypted server sessions, CSRF and logout checks
+remain enforced. Restart Flask after updating private configuration.
+
+Leaving `CUSTOMER_AUTH_ENABLED` unset preserves the existing shared behavior.
+Staging and production still require both authentication areas enabled. Customer
+sample email also requires customer authentication and its separate mail settings.
 
 The [Nginx example](../infra/nginx-authentication.conf) supplies HTTPS, SPA routing,
 API proxying, CSP and other response headers. Replace its example domain, certificate
