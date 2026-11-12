@@ -32,9 +32,12 @@ quote/order calls and booking automation retain their current behavior.
 
 The public header restores an authenticated customer's My account link from the
 existing session context. Public content remains available when authentication is
-unavailable. Newsletter subscription has no API in the current backend; that
-section explains that email updates are coming soon and links to working catering.
-It does not collect email addresses or claim to save subscriptions.
+unavailable. On November 12, Isaac removed newsletter signup from scope. The
+newsletter section and its navigation links have been removed. A social media
+link will be added once the team supplies the page URL.
+
+The [November 12 catering UX validation](catering-ux-validation.md) records the
+schedule, draft, review, wording and navigation improvements and current checks.
 
 ## Fonts and layout
 

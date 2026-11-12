@@ -56,6 +56,7 @@ test("the public homepage loads the uploaded images and opens the existing cater
   await expect(page).toHaveURL(/\/order$/);
   await page
     .getByRole("button", { name: "Request a quote", exact: true })
+    .first()
     .click();
   await expect(page.getByLabel("Full name")).toBeVisible();
   expect(errors).toEqual([]);
@@ -113,20 +114,37 @@ test("a restored customer session is accessible from the public navigation", asy
   );
 });
 
-test("public content stays available during an authentication outage and explains newsletter availability", async ({
+test("public content stays available during an authentication outage", async ({
   page,
 }) => {
   await sessions(page, { unavailable: true });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.locator("#newsletter")).toContainText(
-    "Email updates are coming soon.",
-  );
-  await expect(page.locator("#newsletter input")).toHaveCount(0);
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Sign-in is temporarily unavailable.",
   );
+});
+
+test("section links keep their anchor while navigation to catering starts at the top", async ({
+  page,
+}) => {
+  await sessions(page);
+  await page.goto("/");
+  await page.evaluate(() => document.fonts.ready);
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Our story", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#our-story$/);
+  await expect(page.locator("#story-heading")).toBeInViewport();
+  await page.getByRole("link", { name: "Plan a little joy" }).click();
+  await expect(page).toHaveURL(/\/order$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
+  await page.goBack();
+  await expect(page).toHaveURL(/#our-story$/);
+  await expect(page.locator("#story-heading")).toBeInViewport();
 });
 
 for (const width of [320, 375, 768, 1440]) {

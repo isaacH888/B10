@@ -20,6 +20,7 @@ import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
+import { RouteScroll } from "./RouteScroll.jsx";
 import {
   CustomerSignInLayout,
   PublicHome,
@@ -480,6 +481,7 @@ function NotFound() {
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteScroll />
       <AuthProvider>
         <Layout>
           <Routes>

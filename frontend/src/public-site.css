@@ -306,27 +306,6 @@
   margin-top: 15px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .newsletter {
-  background: var(--red);
-  color: var(--cream);
-  padding: 95px 4.5%;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10%;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .newsletter h2 {
-  color: var(--cream);
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .newsletter-signup {
-  max-width: 490px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-}
-
 .public-site > main {
   margin: 0;
 }
@@ -374,8 +353,7 @@
 }
 
 .customer-signin .auth-columns > *,
-.public-home .hero > *,
-.public-home .newsletter > * {
+.public-home .hero > * {
   min-width: 0;
 }
 
@@ -429,16 +407,6 @@
   .public-chrome .footer-top nav {
     flex-wrap: wrap;
   }
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .newsletter p {
-  font-size: 18px;
-  line-height: 1.5;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .light {
-  background: var(--cream);
-  color: var(--red);
 }
 
 :where(.public-home, .public-chrome, .customer-signin) footer {
@@ -579,8 +547,7 @@
   }
 
   :where(.public-home, .public-chrome, .customer-signin) .features,
-  :where(.public-home, .public-chrome, .customer-signin) .story,
-  :where(.public-home, .public-chrome, .customer-signin) .newsletter {
+  :where(.public-home, .public-chrome, .customer-signin) .story {
     grid-template-columns: 1fr;
   }
 

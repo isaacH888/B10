@@ -389,8 +389,8 @@
 /* ----- Modal card: image left, form right ----- */
 .modal {
   background: #ffcc4b;
-  width: 820px;
-  height: 580px;
+  width: min(820px, 100%);
+  height: min(680px, calc(100dvh - 3rem));
   display: flex;
   flex-direction: row;
   border-radius: 16px;
@@ -420,6 +420,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
   background: #ffcc4b;
 }
 .modal-form-area {
@@ -427,6 +428,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
   padding: 1.25rem 1.5rem 0;
 }
 
@@ -503,15 +505,16 @@
 
 /* ----- Narrow screens: stack image top, form bottom ----- */
 @media (max-width: 640px) {
+  .modal-backdrop {
+    padding: 1rem;
+  }
   .modal {
     width: 100%;
-    height: auto;
-    max-height: 92vh;
+    height: min(680px, calc(100dvh - 2rem));
     flex-direction: column;
   }
   .modal-image-panel {
-    width: 100%;
-    height: 180px;
+    display: none;
   }
   .modal-form-panel {
     width: 100%;
@@ -571,7 +574,7 @@
 }
 .form-field input::placeholder,
 .form-field textarea::placeholder {
-  color: #aaa;
+  color: #767676;
 }
 .form-row {
   display: flex;
@@ -581,6 +584,94 @@
 .form-row .form-field {
   flex: 1;
   min-width: 6rem;
+}
+.form-row:has(#cf-starts-at) {
+  flex-direction: column;
+  gap: 0;
+}
+.form-field input[aria-invalid="true"] {
+  outline: 2px solid #b82030;
+}
+.schedule-hint,
+.draft-hint,
+.request-explanation {
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.schedule-hint {
+  margin: 0 0 1rem;
+}
+.draft-hint {
+  margin: 0.4rem 0 0;
+  color: #343434;
+}
+.modal-step-title:focus {
+  outline: none;
+}
+.summary-section {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid #b68b27;
+}
+.summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.summary-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #293ca2;
+}
+.summary-heading button,
+.draft-reset {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #242f68;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+.summary-heading button:disabled,
+.draft-reset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.summary-heading button:focus-visible,
+.draft-reset:focus-visible {
+  outline: 2px solid #293ca2;
+}
+.summary-section dl {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+.summary-section dt {
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+.summary-section dd {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
+}
+.draft-reset {
+  margin-right: auto;
+}
+.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.quote-actions button {
+  flex: 1 1 100%;
+}
+.catering-contact a {
+  color: #242f68;
+  text-decoration: underline;
 }
 .field-error {
   margin: 0;
@@ -637,6 +728,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
+  flex-wrap: wrap;
   padding: 0.75rem 1.5rem 1rem;
   flex-shrink: 0;
 }

@@ -1,4 +1,5 @@
 import { Link, Navigate, useLocation } from "react-router-dom";
+import { EVENT_TIME_ZONE, formatEventTime } from "./eventTime.js";
 
 // Formats a cents integer as a USD dollar string, e.g. 10000 -> "$100.00"
 function formatCents(cents) {
@@ -29,10 +30,21 @@ export function OrderConfirmation() {
   const depositDue =
     order.deposit?.amount_due_cents ?? order.pricing?.deposit_due_cents;
   const total = order.pricing?.total_cents;
+  const event = order.event || {};
+  const location = event.location || {};
+  const address = [
+    location.line1,
+    location.city,
+    location.region,
+    location.postal_code,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const timeZone = event.timezone || EVENT_TIME_ZONE;
 
   return (
     <section aria-labelledby="confirmation-heading">
-      <h1 id="confirmation-heading">Order received</h1>
+      <h1 id="confirmation-heading">Catering request received</h1>
       <p>
         Thank you, {order.customer?.name}. Your catering request has been
         submitted and is under review. We will be in touch at{" "}
@@ -41,9 +53,9 @@ export function OrderConfirmation() {
 
       {/* Order summary */}
       <section aria-labelledby="order-details-heading">
-        <h2 id="order-details-heading">Order details</h2>
+        <h2 id="order-details-heading">Request details</h2>
         <dl>
-          <dt>Order ID</dt>
+          <dt>Request ID</dt>
           <dd>{order.id}</dd>
           <dt>Status</dt>
           <dd>{friendlyStatus(order.status)}</dd>
@@ -60,14 +72,19 @@ export function OrderConfirmation() {
             </>
           )}
           <dt>Event</dt>
+          <dd>{event.type || "Not provided"}</dd>
+          <dt>Starts</dt>
+          <dd>{formatEventTime(event.starts_at, timeZone)}</dd>
+          <dt>Ends</dt>
+          <dd>{formatEventTime(event.ends_at, timeZone)}</dd>
+          <dt>Time zone</dt>
           <dd>
-            {order.event?.type} -{" "}
-            {order.event?.starts_at
-              ? new Date(order.event.starts_at).toLocaleDateString()
-              : "-"}
+            {timeZone === EVENT_TIME_ZONE ? "Houston / Central time" : timeZone}
           </dd>
+          <dt>Event address</dt>
+          <dd>{address || "Not provided"}</dd>
           <dt>Quantity</dt>
-          <dd>{order.catering_request?.quantity} popsicles</dd>
+          <dd>{order.catering_request?.quantity} paletas</dd>
           <dt>Service type</dt>
           <dd>
             {order.catering_request?.service_type === "full_service"
@@ -104,7 +121,7 @@ export function OrderConfirmation() {
       </section>
 
       <div className="actions">
-        <Link to="/order">Place another order</Link>
+        <Link to="/order">Start another catering request</Link>
         <Link to="/">Back to home</Link>
       </div>
     </section>

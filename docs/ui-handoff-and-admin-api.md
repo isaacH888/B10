@@ -62,10 +62,11 @@ status proposals are separate from the implemented owner workspace interfaces.
 
 Dillion should prioritize the [booking and interaction frames](dillion-figma-brief.md).
 Aneena can own the shared account/sign-in components, customer account and branded
-confirmation/error screens. Customer order history and newsletter subscriptions
-would each need a separate backend contract; neither is supplied by this admin
-completion. Existing public homepage, catering form, customer sign-in and server-backed
-order confirmation remain available.
+confirmation/error screens. Customer order history would need a separate backend
+contract and is not supplied by this admin completion. Newsletter subscriptions
+were removed from scope on November 12; a social media link is planned once the
+team supplies the URL. Existing public homepage, catering form, customer sign-in
+and server-backed order confirmation remain available.
 
 Isaac approved committing and publishing this integration from
 `feature/admin-order-api-integration` into `dev` on November 11, 2026.

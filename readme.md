@@ -56,7 +56,7 @@ The backend implements server-side sessions, revocation checks, audits, migratio
 and private provisioning/recovery commands. The public homepage and customer sign-in
 use Aneena's uploaded design, integrated with the existing React routes. See the
 [public frontend integration](docs/public-site-integration.md) for its source, route
-mapping and remaining newsletter work. The customer catering form is at `/order`,
+mapping and planned social media link. The customer catering form is at `/order`,
 and the owner booking workspace is at `/admin/automation` after authentication and
 automation setup.
 

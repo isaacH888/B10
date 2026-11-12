@@ -228,30 +228,6 @@ export function PublicHome() {
           </div>
         </section>
       </section>
-      <section
-        id="newsletter"
-        className="newsletter"
-        aria-labelledby="newsletter-heading"
-      >
-        <div>
-          <div className="eyebrow">A LITTLE JOY IN YOUR INBOX</div>
-          <h2 id="newsletter-heading">
-            GOOD THINGS
-            <br />
-            ARE POPPING UP.
-          </h2>
-        </div>
-        <div className="newsletter-signup">
-          <p>Food events, openings, and what&apos;s next for Popssibilities.</p>
-          <p id="newsletter-availability">
-            Email updates are coming soon. Planning an event? You can request
-            catering today.
-          </p>
-          <Link className="pill light" to="/order">
-            Explore catering
-          </Link>
-        </div>
-      </section>
     </>
   );
 }

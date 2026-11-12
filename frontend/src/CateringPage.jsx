@@ -1,11 +1,16 @@
 import { useAuth } from "./auth/AuthContext.jsx";
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
 import logoImage from "./assets/logo.png";
 import venueImage from "./assets/Venue.webp";
 import { apiRequest } from "./auth/api.js";
+import {
+  centralTimeToIso,
+  EVENT_TIME_ZONE,
+  formatEventTime,
+} from "./eventTime.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,29 +21,21 @@ function formatCents(cents) {
   return "$" + (cents / 100).toFixed(2);
 }
 
-// Converts a datetime-local input value ("2026-11-07T15:00") to an ISO 8601
-// string with the browser's current UTC offset, e.g. "2026-11-07T15:00:00-06:00"
-function toIsoWithOffset(datetimeLocalValue) {
-  if (!datetimeLocalValue) return "";
-  const date = new Date(datetimeLocalValue);
-  const offsetMinutes = date.getTimezoneOffset();
-  const sign = offsetMinutes <= 0 ? "+" : "-";
-  const absMinutes = Math.abs(offsetMinutes);
-  const hh = String(Math.floor(absMinutes / 60)).padStart(2, "0");
-  const mm = String(absMinutes % 60).padStart(2, "0");
-  const local =
-    datetimeLocalValue.length === 16
-      ? datetimeLocalValue + ":00"
-      : datetimeLocalValue;
-  return `${local}${sign}${hh}:${mm}`;
+function CateringContact() {
+  return (
+    <p className="catering-contact">
+      <a href="mailto:info@popssibilities.com">Email our team</a> or{" "}
+      <a href="tel:+12812487514">call 281-248-7514</a>.
+    </p>
+  );
 }
 
-// Returns the IANA timezone name for the browser, falling back to UTC.
-function browserTimezone() {
+function formatEnteredTime(value) {
+  if (!value) return "Not provided";
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return formatEventTime(centralTimeToIso(value));
   } catch {
-    return "UTC";
+    return "Check this date and time";
   }
 }
 
@@ -72,21 +69,72 @@ const initialForm = {
 const TOTAL_STEPS = 5;
 
 const stepTitles = [
-  "Your Contact",
-  "Your Event",
-  "Event Details",
-  "Additional Details",
-  "Summary",
+  "Contact",
+  "Service & location",
+  "Event schedule",
+  "Paletas & extras",
+  "Review",
 ];
 
 // Subtitle shown below the step title inside the modal form area.
 const stepSubtitles = [
-  "Tell us about yourself.",
-  "How should we serve you?",
-  "Let us know more about your event.",
-  "Tell us about the popsicles.",
-  "Review and get your quote.",
+  "How can we reach you about your request?",
+  "Choose your service and tell us where the event will be.",
+  "Tell us when your event starts and ends.",
+  "Choose your quantity and share any requests.",
+  "Check your details, then get your quote.",
 ];
+
+const DRAFT_KEY = "popssibilities.catering-draft.v1";
+const DRAFT_LIFETIME = 2 * 60 * 60 * 1000;
+
+function readDraft() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY));
+    if (
+      saved &&
+      Date.now() - saved.savedAt < DRAFT_LIFETIME &&
+      Number.isInteger(saved.step) &&
+      saved.step >= 1 &&
+      saved.step <= TOTAL_STEPS &&
+      Object.keys(initialForm).every(
+        (key) =>
+          (typeof saved.form?.[key] === "string" ||
+            (["quantity", "dry_ice_blocks"].includes(key) &&
+              typeof saved.form?.[key] === "number" &&
+              Number.isFinite(saved.form[key]))) &&
+          String(saved.form[key]).length <= 2000,
+      )
+    ) {
+      return {
+        form: Object.fromEntries(
+          Object.keys(initialForm).map((key) => [key, saved.form[key]]),
+        ),
+        step: saved.step,
+      };
+    }
+  } catch {
+    // Drafts are optional when browser storage is unavailable.
+  }
+  return { form: { ...initialForm }, step: 1 };
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // The in-memory draft remains usable when storage is unavailable.
+  }
+}
+
+function fieldAccessibility(errors, field, id, hint) {
+  return {
+    "aria-invalid": errors[field] ? true : undefined,
+    "aria-describedby":
+      [hint, errors[field] && `${id}-error`].filter(Boolean).join(" ") ||
+      undefined,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Step components
@@ -106,6 +154,7 @@ function StepContact({ form, onChange, errors }) {
         </label>
         <input
           id="cf-name"
+          {...fieldAccessibility(errors, "name", "cf-name")}
           type="text"
           value={form.name}
           onChange={(e) => onChange("name", e.target.value)}
@@ -114,7 +163,7 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.name && (
-          <p className="field-error" role="alert">
+          <p id="cf-name-error" className="field-error" role="alert">
             {errors.name}
           </p>
         )}
@@ -129,6 +178,7 @@ function StepContact({ form, onChange, errors }) {
         </label>
         <input
           id="cf-email"
+          {...fieldAccessibility(errors, "email", "cf-email")}
           type="email"
           value={form.email}
           onChange={(e) => onChange("email", e.target.value)}
@@ -137,7 +187,7 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.email && (
-          <p className="field-error" role="alert">
+          <p id="cf-email-error" className="field-error" role="alert">
             {errors.email}
           </p>
         )}
@@ -152,6 +202,7 @@ function StepContact({ form, onChange, errors }) {
         </label>
         <input
           id="cf-phone"
+          {...fieldAccessibility(errors, "phone", "cf-phone")}
           type="tel"
           value={form.phone}
           onChange={(e) => onChange("phone", e.target.value)}
@@ -160,7 +211,7 @@ function StepContact({ form, onChange, errors }) {
           required
         />
         {errors.phone && (
-          <p className="field-error" role="alert">
+          <p id="cf-phone-error" className="field-error" role="alert">
             {errors.phone}
           </p>
         )}
@@ -181,7 +232,7 @@ function StepEvent({ form, onChange, errors }) {
         aria-labelledby="service-type-label"
       >
         <span id="service-type-label" className="field-group-label">
-          Event style{" "}
+          Service type{" "}
           <span className="required-mark" aria-hidden="true">
             *
           </span>
@@ -225,15 +276,16 @@ function StepEvent({ form, onChange, errors }) {
         </label>
         <input
           id="cf-line1"
+          {...fieldAccessibility(errors, "location_line1", "cf-line1")}
           type="text"
           value={form.location_line1}
           onChange={(e) => onChange("location_line1", e.target.value)}
           autoComplete="street-address"
-          placeholder="123 Pop Street, City, State"
+          placeholder="123 Example Street"
           required
         />
         {errors.location_line1 && (
-          <p className="field-error" role="alert">
+          <p id="cf-line1-error" className="field-error" role="alert">
             {errors.location_line1}
           </p>
         )}
@@ -249,6 +301,7 @@ function StepEvent({ form, onChange, errors }) {
           </label>
           <input
             id="cf-city"
+            {...fieldAccessibility(errors, "location_city", "cf-city")}
             type="text"
             value={form.location_city}
             onChange={(e) => onChange("location_city", e.target.value)}
@@ -256,7 +309,7 @@ function StepEvent({ form, onChange, errors }) {
             required
           />
           {errors.location_city && (
-            <p className="field-error" role="alert">
+            <p id="cf-city-error" className="field-error" role="alert">
               {errors.location_city}
             </p>
           )}
@@ -271,6 +324,7 @@ function StepEvent({ form, onChange, errors }) {
           </label>
           <input
             id="cf-region"
+            {...fieldAccessibility(errors, "location_region", "cf-region")}
             type="text"
             value={form.location_region}
             onChange={(e) => onChange("location_region", e.target.value)}
@@ -280,7 +334,7 @@ function StepEvent({ form, onChange, errors }) {
             required
           />
           {errors.location_region && (
-            <p className="field-error" role="alert">
+            <p id="cf-region-error" className="field-error" role="alert">
               {errors.location_region}
             </p>
           )}
@@ -295,6 +349,7 @@ function StepEvent({ form, onChange, errors }) {
           </label>
           <input
             id="cf-postal"
+            {...fieldAccessibility(errors, "location_postal_code", "cf-postal")}
             type="text"
             value={form.location_postal_code}
             onChange={(e) => onChange("location_postal_code", e.target.value)}
@@ -302,7 +357,7 @@ function StepEvent({ form, onChange, errors }) {
             required
           />
           {errors.location_postal_code && (
-            <p className="field-error" role="alert">
+            <p id="cf-postal-error" className="field-error" role="alert">
               {errors.location_postal_code}
             </p>
           )}
@@ -317,6 +372,11 @@ function StepEventDetails({ form, onChange, errors }) {
     <fieldset>
       <legend>{stepTitles[2]}</legend>
 
+      <p id="event-timezone-hint" className="schedule-hint">
+        All event times are in Houston/Central time. Enter the event start and,
+        if known, the event end.
+      </p>
+
       <div className="form-field">
         <label htmlFor="cf-event-type">
           Event type{" "}
@@ -326,6 +386,7 @@ function StepEventDetails({ form, onChange, errors }) {
         </label>
         <input
           id="cf-event-type"
+          {...fieldAccessibility(errors, "event_type", "cf-event-type")}
           type="text"
           value={form.event_type}
           onChange={(e) => onChange("event_type", e.target.value)}
@@ -333,7 +394,7 @@ function StepEventDetails({ form, onChange, errors }) {
           required
         />
         {errors.event_type && (
-          <p className="field-error" role="alert">
+          <p id="cf-event-type-error" className="field-error" role="alert">
             {errors.event_type}
           </p>
         )}
@@ -342,35 +403,47 @@ function StepEventDetails({ form, onChange, errors }) {
       <div className="form-row">
         <div className="form-field">
           <label htmlFor="cf-starts-at">
-            Event date{" "}
+            Event start date and time{" "}
             <span className="required-mark" aria-hidden="true">
               *
             </span>
           </label>
           <input
             id="cf-starts-at"
+            {...fieldAccessibility(
+              errors,
+              "event_starts_at",
+              "cf-starts-at",
+              "event-timezone-hint",
+            )}
             type="datetime-local"
             value={form.event_starts_at}
             onChange={(e) => onChange("event_starts_at", e.target.value)}
             required
           />
           {errors.event_starts_at && (
-            <p className="field-error" role="alert">
+            <p id="cf-starts-at-error" className="field-error" role="alert">
               {errors.event_starts_at}
             </p>
           )}
         </div>
 
         <div className="form-field">
-          <label htmlFor="cf-ends-at">Event time (optional)</label>
+          <label htmlFor="cf-ends-at">Event end date and time (optional)</label>
           <input
             id="cf-ends-at"
+            {...fieldAccessibility(
+              errors,
+              "event_ends_at",
+              "cf-ends-at",
+              "event-timezone-hint",
+            )}
             type="datetime-local"
             value={form.event_ends_at}
             onChange={(e) => onChange("event_ends_at", e.target.value)}
           />
           {errors.event_ends_at && (
-            <p className="field-error" role="alert">
+            <p id="cf-ends-at-error" className="field-error" role="alert">
               {errors.event_ends_at}
             </p>
           )}
@@ -400,13 +473,14 @@ function StepOrderDetails({ form, onChange, errors }) {
       <div className="form-row">
         <div className="form-field">
           <label htmlFor="cf-quantity">
-            Number of popsicles{" "}
+            Number of paletas{" "}
             <span className="required-mark" aria-hidden="true">
               *
             </span>
           </label>
           <input
             id="cf-quantity"
+            {...fieldAccessibility(errors, "quantity", "cf-quantity")}
             type="number"
             value={form.quantity}
             onChange={(e) => onChange("quantity", e.target.value)}
@@ -416,14 +490,14 @@ function StepOrderDetails({ form, onChange, errors }) {
           />
           <p className="field-hint">Minimum 50.</p>
           {errors.quantity && (
-            <p className="field-error" role="alert">
+            <p id="cf-quantity-error" className="field-error" role="alert">
               {errors.quantity}
             </p>
           )}
         </div>
 
         <div className="form-field">
-          <label htmlFor="cf-shape">Popsicle shape</label>
+          <label htmlFor="cf-shape">Paleta shape</label>
           <select
             id="cf-shape"
             value={form.popsicle_shape}
@@ -454,6 +528,7 @@ function StepOrderDetails({ form, onChange, errors }) {
         <label htmlFor="cf-dry-ice">Dry ice blocks (optional)</label>
         <input
           id="cf-dry-ice"
+          {...fieldAccessibility(errors, "dry_ice_blocks", "cf-dry-ice")}
           type="number"
           value={form.dry_ice_blocks}
           onChange={(e) => onChange("dry_ice_blocks", e.target.value)}
@@ -463,7 +538,7 @@ function StepOrderDetails({ form, onChange, errors }) {
         />
         <p className="field-hint">$15 per block.</p>
         {errors.dry_ice_blocks && (
-          <p className="field-error" role="alert">
+          <p id="cf-dry-ice-error" className="field-error" role="alert">
             {errors.dry_ice_blocks}
           </p>
         )}
@@ -478,6 +553,7 @@ function StepSummary({
   quote,
   onGetQuote,
   onSubmitOrder,
+  onEdit,
   submitError,
 }) {
   const isLoading = quoteStatus === "loading";
@@ -488,7 +564,18 @@ function StepSummary({
     <fieldset>
       <legend>{stepTitles[4]}</legend>
 
-      <section aria-label="Order summary">
+      <section className="summary-section" aria-label="Contact details">
+        <div className="summary-heading">
+          <h3>Contact</h3>
+          <button
+            type="button"
+            onClick={() => onEdit(1)}
+            disabled={busy}
+            aria-label="Edit contact"
+          >
+            Edit
+          </button>
+        </div>
         <dl>
           <dt>Name</dt>
           <dd>{form.name}</dd>
@@ -496,6 +583,21 @@ function StepSummary({
           <dd>{form.email}</dd>
           <dt>Phone</dt>
           <dd>{form.phone}</dd>
+        </dl>
+      </section>
+      <section className="summary-section" aria-label="Service and location">
+        <div className="summary-heading">
+          <h3>Service &amp; location</h3>
+          <button
+            type="button"
+            onClick={() => onEdit(2)}
+            disabled={busy}
+            aria-label="Edit service and location"
+          >
+            Edit
+          </button>
+        </div>
+        <dl>
           <dt>Service</dt>
           <dd>
             {form.service_type === "full_service" ? "Full service" : "Delivery"}
@@ -505,16 +607,52 @@ function StepSummary({
             {form.location_line1}, {form.location_city}, {form.location_region}{" "}
             {form.location_postal_code}
           </dd>
+        </dl>
+      </section>
+      <section className="summary-section" aria-label="Event schedule">
+        <div className="summary-heading">
+          <h3>Event schedule</h3>
+          <button
+            type="button"
+            onClick={() => onEdit(3)}
+            disabled={busy}
+            aria-label="Edit event schedule"
+          >
+            Edit
+          </button>
+        </div>
+        <dl>
           <dt>Event</dt>
           <dd>{form.event_type}</dd>
-          <dt>Date</dt>
-          <dd>
-            {form.event_starts_at
-              ? new Date(form.event_starts_at).toLocaleString()
-              : "-"}
-          </dd>
+          <dt>Starts</dt>
+          <dd>{formatEnteredTime(form.event_starts_at)}</dd>
+          <dt>Ends</dt>
+          <dd>{formatEnteredTime(form.event_ends_at)}</dd>
+          <dt>Time zone</dt>
+          <dd>Houston / Central time</dd>
+          {form.event_notes && (
+            <>
+              <dt>Notes</dt>
+              <dd>{form.event_notes}</dd>
+            </>
+          )}
+        </dl>
+      </section>
+      <section className="summary-section" aria-label="Paletas and extras">
+        <div className="summary-heading">
+          <h3>Paletas &amp; extras</h3>
+          <button
+            type="button"
+            onClick={() => onEdit(4)}
+            disabled={busy}
+            aria-label="Edit paletas and extras"
+          >
+            Edit
+          </button>
+        </div>
+        <dl>
           <dt>Quantity</dt>
-          <dd>{form.quantity} popsicles</dd>
+          <dd>{form.quantity} paletas</dd>
           <dt>Shape</dt>
           <dd>
             {form.popsicle_shape === "heart" ? "Heart-shaped" : "Standard"}
@@ -533,6 +671,12 @@ function StepSummary({
           )}
         </dl>
       </section>
+
+      <p className="request-explanation">
+        Submitting a catering request does not secure your date. Our team
+        reviews availability and sends payment instructions. Your booking is
+        confirmed after the required deposit is verified.
+      </p>
 
       {quoteStatus === "idle" && (
         <button
@@ -567,16 +711,18 @@ function StepSummary({
             Total: {formatCents(quote.pricing.total_cents)}
           </p>
           <p className="quote-deposit">
-            Deposit to confirm: {formatCents(quote.pricing.deposit_due_cents)}
+            Deposit after availability approval:{" "}
+            {formatCents(quote.pricing.deposit_due_cents)}
           </p>
           <p className="field-hint">Quote expires in 15 minutes.</p>
           {submitError && (
             <div className="catering-notice" role="alert">
               <p>{submitError}</p>
               <p>Retrying will not create a duplicate order.</p>
+              <CateringContact />
             </div>
           )}
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <div className="quote-actions">
             <button
               type="button"
               className="btn-back"
@@ -593,7 +739,9 @@ function StepSummary({
               disabled={busy}
               style={{ flex: 1 }}
             >
-              {isSubmitting ? "Placing order..." : "Place order"}
+              {isSubmitting
+                ? "Submitting request..."
+                : "Submit catering request"}
             </button>
           </div>
         </div>
@@ -606,6 +754,7 @@ function StepSummary({
             for a custom quote. Your order has not been submitted.
           </p>
           <p>No payment is due at this time.</p>
+          <CateringContact />
           <button
             type="button"
             className="btn-back"
@@ -631,16 +780,21 @@ function StepSummary({
         </div>
       )}
 
-      {quoteStatus === "error" && (
+      {["error", "expired"].includes(quoteStatus) && (
         <div className="catering-notice" role="alert">
-          <p>We could not retrieve a quote. Please try again.</p>
+          <p>
+            {quoteStatus === "expired"
+              ? "Your quote expired. Recalculate to continue. Your details are still here."
+              : "We could not retrieve a quote. Your details are still here. Please try again."}
+          </p>
+          <CateringContact />
           <button
             type="button"
             className="btn-back"
             onClick={onGetQuote}
             style={{ marginTop: "0.5rem" }}
           >
-            Try again
+            {quoteStatus === "expired" ? "Recalculate quote" : "Try again"}
           </button>
         </div>
       )}
@@ -674,22 +828,33 @@ function validateStep(step, form) {
     if (!form.event_type.trim()) errors.event_type = "Event type is required.";
     if (!form.event_starts_at)
       errors.event_starts_at = "Event start date and time is required.";
-    else if (new Date(form.event_starts_at) <= new Date())
+    let start, end;
+    for (const [field, value] of [
+      ["event_starts_at", form.event_starts_at],
+      ["event_ends_at", form.event_ends_at],
+    ]) {
+      if (!value) continue;
+      try {
+        const timestamp = Date.parse(centralTimeToIso(value));
+        if (field === "event_starts_at") start = timestamp;
+        else end = timestamp;
+      } catch (error) {
+        errors[field] = error.message;
+      }
+    }
+    if (start <= Date.now())
       errors.event_starts_at = "Event start must be in the future.";
-    if (
-      form.event_ends_at &&
-      new Date(form.event_ends_at) <= new Date(form.event_starts_at)
-    )
+    if (end <= start)
       errors.event_ends_at = "Event end must be after the start time.";
   }
   if (step === 4) {
     const qty = Number(form.quantity);
     if (!Number.isInteger(qty))
-      errors.quantity = "Enter a whole number of popsicles.";
+      errors.quantity = "Enter a whole number of paletas.";
     else if (!form.quantity || qty < 50)
-      errors.quantity = "Minimum order is 50 popsicles.";
+      errors.quantity = "Minimum order is 50 paletas.";
     else if (qty > 100000)
-      errors.quantity = "Maximum order is 100,000 popsicles.";
+      errors.quantity = "Maximum order is 100,000 paletas.";
     const dryIce = form.dry_ice_blocks;
     if (
       dryIce !== "" &&
@@ -724,9 +889,9 @@ function buildRequestBody(form, quoteId) {
         postal_code: form.location_postal_code.trim(),
         country_code: "US",
       },
-      starts_at: toIsoWithOffset(form.event_starts_at),
-      ends_at: form.event_ends_at ? toIsoWithOffset(form.event_ends_at) : null,
-      timezone: browserTimezone(),
+      starts_at: centralTimeToIso(form.event_starts_at),
+      ends_at: form.event_ends_at ? centralTimeToIso(form.event_ends_at) : null,
+      timezone: EVENT_TIME_ZONE,
       notes: form.event_notes.trim(),
     },
   };
@@ -748,17 +913,90 @@ function buildRequestBody(form, quoteId) {
 // Modal
 // ---------------------------------------------------------------------------
 
-function CateringModal({ onClose }) {
+function CateringModal({ onClose, draft, onDraftChange }) {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [form, setForm] = useState(initialForm);
+  const [currentStep, setCurrentStep] = useState(draft.step);
+  const [form, setForm] = useState(draft.form);
   const [errors, setErrors] = useState({});
-  // quoteStatus: "idle" | "loading" | "priced" | "requires_review" | "inquiry" | "error" | "submitting"
+  const [validationFocus, setValidationFocus] = useState(0);
+  // Quotes and retry keys stay in memory and are never restored from a draft.
   const [quoteStatus, setQuoteStatus] = useState("idle");
   const [quote, setQuote] = useState(null);
   const [submitError, setSubmitError] = useState("");
   // Generated once per submission attempt; reused on retry to prevent duplicates.
   const idempotencyKey = useRef(null);
+  const modalRef = useRef(null);
+  const headingRef = useRef(null);
+  const hasDetails = Object.keys(initialForm).some(
+    (key) => String(form[key]) !== String(initialForm[key]),
+  );
+
+  useEffect(() => {
+    onDraftChange({ form, step: currentStep });
+    if (!hasDetails) {
+      clearDraft();
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          form,
+          step: currentStep,
+          savedAt: Date.now(),
+        }),
+      );
+    } catch {
+      // The parent also keeps this draft in memory for close/reopen.
+    }
+  }, [form, currentStep, hasDetails, onDraftChange]);
+
+  useLayoutEffect(() => {
+    const firstInvalid = modalRef.current?.querySelector(
+      '[aria-invalid="true"]',
+    );
+    (firstInvalid || headingRef.current)?.focus();
+    if (!firstInvalid) {
+      const body = modalRef.current?.querySelector(".modal-body");
+      if (body) body.scrollTop = 0;
+    }
+  }, [currentStep, validationFocus]);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (quoteStatus !== "priced" || !quote) return;
+    const timer = window.setTimeout(
+      () => {
+        setQuoteStatus("expired");
+        idempotencyKey.current = null;
+      },
+      Math.max(0, Date.parse(quote.expires_at) - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [quoteStatus, quote]);
+
+  function resetForm() {
+    if (
+      hasDetails &&
+      !window.confirm("Start over? This will clear the details you’ve entered.")
+    )
+      return;
+    clearDraft();
+    setForm({ ...initialForm });
+    setCurrentStep(1);
+    setErrors({});
+    setQuote(null);
+    setQuoteStatus("idle");
+    setSubmitError("");
+    idempotencyKey.current = null;
+  }
 
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -779,6 +1017,7 @@ function CateringModal({ onClose }) {
     const stepErrors = validateStep(currentStep, form);
     if (Object.keys(stepErrors).length > 0) {
       setErrors(stepErrors);
+      setValidationFocus((value) => value + 1);
       return;
     }
     setErrors({});
@@ -790,7 +1029,21 @@ function CateringModal({ onClose }) {
     setCurrentStep((prev) => prev - 1);
   }
 
+  function handleEdit(step) {
+    setErrors({});
+    setCurrentStep(step);
+  }
+
   async function handleGetQuote() {
+    for (let step = 1; step < TOTAL_STEPS; step++) {
+      const stepErrors = validateStep(step, form);
+      if (Object.keys(stepErrors).length) {
+        setErrors(stepErrors);
+        setCurrentStep(step);
+        setValidationFocus((value) => value + 1);
+        return;
+      }
+    }
     setQuoteStatus("loading");
     setQuote(null);
     setSubmitError("");
@@ -818,7 +1071,7 @@ function CateringModal({ onClose }) {
   async function handleSubmitOrder() {
     if (!quote || quoteStatus !== "priced") return;
     if (Date.parse(quote.expires_at) <= Date.now()) {
-      setQuoteStatus("error");
+      setQuoteStatus("expired");
       setQuote(null);
       idempotencyKey.current = null;
       return;
@@ -836,13 +1089,21 @@ function CateringModal({ onClose }) {
         },
         body: JSON.stringify(requestBody),
       });
+      clearDraft();
+      onDraftChange({ form: { ...initialForm }, step: 1 });
       navigate("/order/confirm", { state: { order } });
     } catch (error) {
       // Keep the same idempotency key on retry to prevent duplicate orders.
       const refreshQuote = ["quote_expired", "quote_mismatch"].includes(
         error?.code,
       );
-      setQuoteStatus(refreshQuote ? "error" : "priced");
+      setQuoteStatus(
+        error?.code === "quote_expired"
+          ? "expired"
+          : refreshQuote
+            ? "error"
+            : "priced",
+      );
       if (refreshQuote) {
         setQuote(null);
         idempotencyKey.current = null;
@@ -852,20 +1113,46 @@ function CateringModal({ onClose }) {
           ? "Your quote expired. Please recalculate to get a fresh quote."
           : error?.code === "idempotency_conflict"
             ? "A conflicting order was detected. Please contact us if this continues."
-            : "Your order could not be placed. You can retry safely.",
+            : "Your catering request could not be submitted. Your details are still here. You can retry safely.",
       );
     }
   }
 
   function handleModalKeyDown(e) {
-    if (e.key === "Escape" && !["loading", "submitting"].includes(quoteStatus))
+    if (
+      e.key === "Escape" &&
+      !["loading", "submitting"].includes(quoteStatus)
+    ) {
+      e.preventDefault();
       onClose();
+    }
+    if (e.key === "Tab") {
+      const controls = [
+        ...modalRef.current.querySelectorAll(
+          "a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)",
+        ),
+      ].filter((element) => element.getClientRects().length);
+      const first = controls[0],
+        last = controls[controls.length - 1];
+      if (
+        e.shiftKey &&
+        (document.activeElement === first ||
+          document.activeElement === headingRef.current)
+      ) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    }
   }
 
   return (
     <div className="modal-backdrop" role="presentation">
       <div
         className="modal"
+        ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-step-title"
@@ -893,11 +1180,19 @@ function CateringModal({ onClose }) {
                 &times;
               </button>
             </div>
-            <h2 id="modal-step-title" className="modal-step-title">
+            <h2
+              id="modal-step-title"
+              className="modal-step-title"
+              ref={headingRef}
+              tabIndex={-1}
+            >
               {stepTitles[currentStep - 1]}
             </h2>
             <p className="modal-step-subtitle">
               {stepSubtitles[currentStep - 1]}
+            </p>
+            <p className="draft-hint">
+              Closing keeps your progress. Use Start over to clear it.
             </p>
             <div className="modal-body">
               {currentStep === 1 && (
@@ -935,6 +1230,7 @@ function CateringModal({ onClose }) {
                   quote={quote}
                   onGetQuote={handleGetQuote}
                   onSubmitOrder={handleSubmitOrder}
+                  onEdit={handleEdit}
                   submitError={submitError}
                 />
               )}
@@ -943,6 +1239,14 @@ function CateringModal({ onClose }) {
 
           {/* Back/Next navigation sits at the bottom of the right form panel */}
           <div className="modal-footer">
+            <button
+              type="button"
+              className="draft-reset"
+              onClick={resetForm}
+              disabled={["loading", "submitting"].includes(quoteStatus)}
+            >
+              Start over
+            </button>
             {currentStep > 1 && (
               <button
                 type="button"
@@ -976,6 +1280,18 @@ export function CateringPage() {
   const { sessions } = useAuth();
   const signedIn = sessions.customer.status === "authenticated";
   const [modalOpen, setModalOpen] = useState(false);
+  const [draft, setDraft] = useState(readDraft);
+  const triggerRef = useRef(null);
+
+  function openForm(event) {
+    triggerRef.current = event.currentTarget;
+    setModalOpen(true);
+  }
+
+  function closeForm() {
+    setModalOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
 
   return (
     <div className="cat-shell">
@@ -1000,7 +1316,6 @@ export function CateringPage() {
         <nav className="cat-nav__links" aria-label="Main navigation">
           <a href="/#paleta-life">The paleta life</a>
           <a href="/#our-story">Our story</a>
-          <a href="/#newsletter">Stay in the loop</a>
           <a href="/order" aria-label="Catering order">
             Catering
           </a>
@@ -1036,9 +1351,9 @@ export function CateringPage() {
             <button
               type="button"
               className="cat-btn cat-btn--red"
-              onClick={() => setModalOpen(true)}
+              onClick={openForm}
             >
-              Book now
+              Request a quote
             </button>
           </div>
         </section>
@@ -1116,8 +1431,8 @@ export function CateringPage() {
               <div>
                 <h3>Get your quote</h3>
                 <p>
-                  Receive an instant price. Delivery within 30 miles:
-                  $25&ndash;$75.
+                  Get a price estimate or guidance on a custom quote. Delivery
+                  within 30 miles: $25&ndash;$75.
                 </p>
               </div>
             </li>
@@ -1128,8 +1443,9 @@ export function CateringPage() {
               <div>
                 <h3>Confirm with a deposit</h3>
                 <p>
-                  Lock in your date with a 50% deposit via Square, PayPal, or
-                  Venmo.
+                  After our team approves availability, follow the payment
+                  instructions we send. Your date is secured after the required
+                  deposit is verified.
                 </p>
               </div>
             </li>
@@ -1160,15 +1476,16 @@ export function CateringPage() {
         {/* ---- CTA: red background, white text ---- */}
         <section className="cat-cta" aria-labelledby="cat-cta-heading">
           <h2 id="cat-cta-heading" className="cat-cta__heading">
-            Ready to book?
+            Planning an event?
           </h2>
           <p className="cat-cta__sub">
-            Fill out the form in just a few minutes and get your instant quote.
+            Share your event details to request a quote. Availability is
+            reviewed before your booking is confirmed.
           </p>
           <button
             type="button"
             className="cat-btn cat-btn--outline-white"
-            onClick={() => setModalOpen(true)}
+            onClick={openForm}
           >
             Request a quote
           </button>
@@ -1198,7 +1515,6 @@ export function CateringPage() {
               Catering
             </a>
             <a href="/#our-story">About</a>
-            <a href="/#newsletter">Stay in the loop</a>
           </nav>
           <p className="cat-footer__copy">
             &copy; {new Date().getFullYear()} Popssibilities. All rights
@@ -1207,7 +1523,13 @@ export function CateringPage() {
         </div>
       </footer>
 
-      {modalOpen && <CateringModal onClose={() => setModalOpen(false)} />}
+      {modalOpen && (
+        <CateringModal
+          onClose={closeForm}
+          draft={draft}
+          onDraftChange={setDraft}
+        />
+      )}
     </div>
   );
 }
