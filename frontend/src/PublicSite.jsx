@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext.jsx";
+import StoryGallery from "./StoryGallery.jsx";
 import logo from "./assets/aneena-logo.png";
 import paletas from "./assets/aneena-paletas-hero.png";
 import "./public-site.css";
@@ -203,10 +204,7 @@ export function PublicHome() {
           className="story"
           aria-labelledby="story-heading"
         >
-          <div className="story-logo">
-            <img src={logo} alt="Popssibilities logo" loading="lazy" />
-            <small>A LITTLE COLOR. A LOT OF HEART.</small>
-          </div>
+          <StoryGallery />
           <div className="story-copy">
             <div className="eyebrow red-text">HELLO FROM STAFFORD, TEXAS</div>
             <h2 id="story-heading">
@@ -215,12 +213,31 @@ export function PublicHome() {
               TEXAS HEART.
             </h2>
             <p>
-              We&apos;re Popssibilities. Mexican paletas, a love of color, and a
-              simple invitation: make room for a little joy.
+              <strong>Hi, I’m Audrey, the owner of Popssibilities!</strong>
             </p>
             <p>
-              Because the best moments don&apos;t have to be big. Sometimes,
-              they just need a stick.
+              After years of working in the corporate world, I wanted a space to
+              be creative and make something of my own. I didn’t know exactly
+              what that would look like until a trip to Bolivia, where I tried
+              traditional Latin American paletas. Something as simple as a
+              frozen treat inspired me to explore a whole new direction.
+            </p>
+            <p>
+              That curiosity took me to Los Angeles, where I had the opportunity
+              to learn the art of paleta-making from a renowned paleta master.
+              Little by little, an idea became something I could actually bring
+              to life. In 2020, I took the leap and started Popssibilities,
+              creating delicious popsicles made with all-natural ingredients and
+              fresh fruit. These are a healthier, more refreshing alternative to
+              traditional frozen treats.
+            </p>
+            <p>
+              Paleta means “popsicle” in Spanish, but at Popssibilities, it
+              represents so much more. Inspired by traditional Latin American
+              flavors and tastes from around the world, we love exploring unique
+              flavor combinations and bringing them to life. Every paleta is an
+              opportunity to experience something new, one delicious bite at a
+              time!
             </p>
             <Link className="pill outline" to="/order">
               Plan a little joy <span aria-hidden="true">↗</span>

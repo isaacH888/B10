@@ -269,29 +269,139 @@
 :where(.public-home, .public-chrome, .customer-signin) .story {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7%;
+  column-gap: 7%;
+  row-gap: 40px;
   align-items: center;
   margin-top: 130px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .story-logo {
+.public-home .story-gallery {
+  min-width: 0;
+  width: 100%;
+  padding: 12px;
   background: var(--pink);
-  border-radius: 24px;
-  min-height: 480px;
+  border-radius: 28px;
+}
+
+.public-home .story-gallery-photos {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--cream);
+}
+
+.public-home .story-gallery-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+
+.public-home .story-gallery-slide.is-active {
+  opacity: 1;
+}
+
+.public-home .story-gallery-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-home .story-gallery-caption {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 8px 12px;
+}
+
+.public-home .story-gallery-caption .eyebrow {
+  font-size: 10px;
+}
+
+.public-home .story-gallery-caption p {
+  margin: 5px 0 0;
+  font-size: 14px;
+}
+
+.public-home .story-gallery-button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font-size: 23px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .story-logo img {
-  width: min(75%, 350px);
+.public-home .story-gallery-button:hover {
+  background: var(--cream);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .story-logo small {
-  font-size: 11px;
-  font-weight: 700;
+.public-home .story-gallery-button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.public-home .story-gallery-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 4px;
+}
+
+.public-home .story-gallery-dots {
+  display: flex;
+  justify-content: center;
+}
+
+.public-home .story-gallery-dots button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.public-home .story-gallery-dots span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 10px;
+  background: var(--ink);
+  opacity: 0.4;
+}
+
+.public-home .story-gallery-dots [aria-current="true"] span {
+  width: 24px;
+  background: var(--red);
+  opacity: 1;
+}
+
+.public-home .story-gallery-dots button:hover span {
+  opacity: 1;
+}
+
+.public-home .story-gallery button:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-home .story-gallery-slide {
+    transition: none;
+  }
 }
 
 :where(.public-home, .public-chrome, .customer-signin) .story-copy p {
@@ -558,6 +668,11 @@
 
   :where(.public-home, .public-chrome, .customer-signin) .story {
     margin-top: 60px;
+  }
+
+  .public-home .story-gallery {
+    max-width: 480px;
+    margin-inline: auto;
   }
 
   :where(.public-home, .public-chrome, .customer-signin) .auth-columns {

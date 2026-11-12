@@ -147,6 +147,81 @@ test("section links keep their anchor while navigation to catering starts at the
   await expect(page.locator("#story-heading")).toBeInViewport();
 });
 
+test("Audrey's gallery rotates in view and supports pausing and choosing photos", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.clock.install();
+  await sessions(page);
+  await page.goto("/#our-story");
+  const gallery = page.getByRole("region", { name: "Moments with Audrey" });
+  const photo = (number) =>
+    gallery.getByRole("button", { name: `Show photo ${number}` });
+  await expect(gallery).toBeInViewport();
+  await page.mouse.move(0, 0);
+  await expect(photo(1)).toHaveAttribute("aria-current", "true");
+
+  await page.clock.fastForward(5600);
+  await expect(photo(2)).toHaveAttribute("aria-current", "true");
+  await gallery.hover();
+  await page.clock.fastForward(11000);
+  await expect(photo(2)).toHaveAttribute("aria-current", "true");
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(5600);
+  await expect(photo(3)).toHaveAttribute("aria-current", "true");
+
+  await gallery.getByRole("button", { name: "Pause slideshow" }).click();
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(11000);
+  await expect(photo(3)).toHaveAttribute("aria-current", "true");
+  await gallery.getByRole("button", { name: "Next photo" }).click();
+  await expect(photo(4)).toHaveAttribute("aria-current", "true");
+  await gallery.getByRole("button", { name: "Next photo" }).click();
+  await expect(photo(1)).toHaveAttribute("aria-current", "true");
+  await gallery.getByRole("button", { name: "Previous photo" }).click();
+  await expect(photo(4)).toHaveAttribute("aria-current", "true");
+  await photo(2).click();
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(11000);
+  await expect(photo(2)).toHaveAttribute("aria-current", "true");
+
+  await gallery.getByRole("button", { name: "Play slideshow" }).click();
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(5600);
+  await expect(photo(3)).toHaveAttribute("aria-current", "true");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(gallery).not.toBeInViewport();
+  await page.clock.fastForward(11000);
+  await expect(photo(3)).toHaveAttribute("aria-current", "true");
+});
+
+test("Audrey's gallery respects reduced motion and works with keyboard controls", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.clock.install();
+  await sessions(page);
+  await page.goto("/#our-story");
+  const gallery = page.getByRole("region", { name: "Moments with Audrey" });
+  await expect(
+    gallery.getByRole("button", { name: "Play slideshow" }),
+  ).toBeVisible();
+  await page.clock.fastForward(11000);
+  await expect(
+    gallery.getByRole("button", { name: "Show photo 1" }),
+  ).toHaveAttribute("aria-current", "true");
+
+  await gallery.getByRole("button", { name: "Next photo" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    gallery.getByRole("button", { name: "Show photo 2" }),
+  ).toHaveAttribute("aria-current", "true");
+  await expect(
+    gallery.getByRole("group", { name: "Photo 2 of 4", exact: true }),
+  ).toHaveCSS("transition-duration", "0s");
+  await expect(gallery.getByRole("img")).toHaveCount(1);
+});
+
 for (const width of [320, 375, 768, 1440]) {
   test(`public pages fit a ${width}px viewport and keep catering and sign-in reachable`, async ({
     page,
