@@ -37,6 +37,9 @@ The [DEV/TST/PROD workflow](docs/release-workflow.md) includes owner handoff tic
 and the proposed release gates.
 The [Bryson index integration review](docs/bryson-index-integration.md) covers
 migration 0009, recovery fixes and validation of the latest database branch.
+The [reporting query integration](docs/reporting-query-fixes.md) records the
+current-booking and CSV fixes for Bryson's reporting helpers and validation with
+Anh's owner-order list changes.
 The [admin order API integration and UI handoff](docs/ui-handoff-and-admin-api.md)
 records the initial owner order integration. The
 [admin API completion report](docs/admin-api-completion.md) covers saved Dashboard

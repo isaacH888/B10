@@ -58,6 +58,15 @@ reopening does not restore them. Flavor text is not inferred into reservations,
 and fulfillment does not automatically consume inventory. See migration 0010
 and the exact request/response schemas in [OpenAPI](api/openapi.json).
 
+The reporting query helpers in `backend/app/reports_queries.py` use the linked
+booking's current schedule, quantity, service and monetary values, with source
+order fallback when unlinked. Their date filters and sorting use the same
+effective start as the owner workspace. Upcoming items can include the current
+free-text `venue`; `event.location` retains the original structured customer
+address. CSV neutralization checks formula prefixes after leading whitespace.
+These helpers do not register the proposed general reporting routes. See the
+[reporting integration review](reporting-query-fixes.md).
+
 ## Confirmed requirements and decision boundaries
 
 | Requirement | Interface expectation |
