@@ -90,6 +90,21 @@ async function mock(page, role = "owner") {
       return route.fulfill({
         json: { data: { booking: current, payments, jobs: [] } },
       });
+    if (path === "/api/v1/admin/inventory")
+      return route.fulfill({ json: { data: { items: [] } } });
+    if (
+      path ===
+      "/api/v1/admin/inventory/bookings/" + current.id + "/allocations"
+    )
+      return route.fulfill({
+        json: {
+          data: {
+            booking_id: current.id,
+            revision: current.revision,
+            items: [],
+          },
+        },
+      });
     return route.fulfill({
       status: 404,
       json: { error: { code: "not_found" } },
@@ -124,7 +139,7 @@ test("owner verifies a half deposit while the remaining balance and Calendar sta
     page.getByText("confirmed / deposit_paid / pending", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("5001 USD minor units / 5000 USD minor units", {
+    page.getByText("$50.01 / $50.00", {
       exact: true,
     }),
   ).toBeVisible();

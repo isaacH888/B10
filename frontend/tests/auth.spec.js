@@ -327,7 +327,7 @@ test("staff sees assigned booking permissions and no owner financial access", as
   await mockApi(page, { admin: makeSession("admin") });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).toBeVisible();
   await expect(page.getByText("View bookings", { exact: true })).toBeVisible();
   await expect(
@@ -340,7 +340,7 @@ test("staff sees assigned booking permissions and no owner financial access", as
     page.getByText("Export customer data", { exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Booking workspace" }),
+    page.getByRole("heading", { name: "Your team permissions" }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Management workspace" }),
@@ -369,14 +369,14 @@ test("owner capabilities come from the current server permissions", async ({
     page.getByText("Confirm bookings", { exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByText("Payment management preview", { exact: true }),
+    page.getByText("Manage payments", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Customer export preview", { exact: true }),
+    page.getByText("Export customer data", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Booking management preview", { exact: true }),
-  ).not.toBeVisible();
+    page.getByRole("link", { name: "View customer orders", exact: true }),
+  ).toBeVisible();
 });
 
 test("a customer session does not grant admin access", async ({ page }) => {
@@ -454,7 +454,7 @@ test("a provider outage clears identity while allowing local logout with memory-
   });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).toBeVisible();
   await page.clock.fastForward(61000);
   await expect(
@@ -483,7 +483,7 @@ for (const [status, heading] of [
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Admin dashboard" }),
+      page.getByRole("heading", { name: "Team account" }),
     ).not.toBeVisible();
     await expect(
       page.getByRole("button", { name: "Sign out" }),
@@ -498,7 +498,7 @@ test("malformed session responses fail closed", async ({ page }) => {
     page.getByRole("heading", { name: "Sign-in unavailable" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
 });
 
@@ -535,7 +535,7 @@ test("session polling keeps the server idle deadline and sends no activity mutat
   const requests = await mockApi(page, { admin: session });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).toBeVisible();
   await page.clock.fastForward(61000);
   await expect
@@ -580,7 +580,7 @@ test("logout failure clears protected content and offers a CSRF-preserving retry
     "We couldn’t confirm sign-out",
   );
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await page.getByRole("button", { name: "Retry sign-out" }).click();
   await expect(page).toHaveURL(logoutUrl);
@@ -636,7 +636,7 @@ test("native admin sign-in outages are actionable without exposing the account",
   await expect(page.getByLabel("Password", { exact: true })).not.toBeVisible();
 });
 
-test("a verified native password and TOTP login opens the protected sample dashboard", async ({
+test("a verified native password and TOTP login opens the protected team account", async ({
   page,
 }) => {
   const requests = await mockApi(page, {
@@ -653,18 +653,13 @@ test("a verified native password and TOTP login opens the protected sample dashb
   await submitCode(page);
   await expect(page).toHaveURL(`${origin}/admin`);
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Sample data", exact: true }),
-  ).toBeVisible();
+    page.getByRole("table", { name: "Sample bookings" }),
+  ).toHaveCount(0);
   await expect(
-    page.getByText("These fictional bookings", { exact: false }),
-  ).toBeVisible();
-  const bookings = page.getByRole("table", { name: "Sample bookings" });
-  await expect(bookings.getByRole("row")).toHaveCount(4);
-  await expect(
-    bookings.getByRole("rowheader", { name: "SAMPLE-001" }),
+    page.getByRole("heading", { name: "Session details" }),
   ).toBeVisible();
   expect(
     requests
@@ -715,7 +710,7 @@ for (const provider of ["password", "google"]) {
       page.getByRole("heading", { name: "Welcome, Macha." }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Admin dashboard" }),
+      page.getByRole("heading", { name: "Team account" }),
     ).not.toBeVisible();
     expect(
       requests.filter((entry) => entry.path === "/api/v1/admin/login"),
@@ -753,7 +748,7 @@ test("booking previews require the server-assigned booking permission", async ({
   await mockApi(page, { admin: makeSession("admin", { administrator }) });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).toBeVisible();
   await expect(
     page.getByText("Booking access is not assigned to this account."),
@@ -765,7 +760,7 @@ test("booking previews require the server-assigned booking permission", async ({
     page.getByRole("heading", { name: "Total bookings" }),
   ).not.toBeVisible();
   await expect(
-    page.getByText("Payment management preview", { exact: true }),
+    page.getByText("Manage payments", { exact: true }),
   ).toBeVisible();
 });
 
@@ -789,17 +784,17 @@ test("the sample dashboard follows live role and permission changes", async ({
   await page.clock.fastForward(61000);
   await expect(page.getByText("Owner", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Payment management preview", { exact: true }),
+    page.getByText("Manage payments", { exact: true }),
   ).toBeVisible();
   options.admin = makeSession("admin");
   await page.clock.fastForward(61000);
   await expect(page.getByText("Staff", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Payment management preview", { exact: true }),
+    page.getByText("Manage payments", { exact: true }),
   ).not.toBeVisible();
 });
 
-test("disabled administrator access clears the sample dashboard", async ({
+test("disabled administrator access clears the team account", async ({
   page,
 }) => {
   await page.clock.install({ time: new Date(Date.now()) });
@@ -810,7 +805,7 @@ test("disabled administrator access clears the sample dashboard", async ({
   });
   await page.goto("/admin");
   await expect(
-    page.getByRole("table", { name: "Sample bookings" }),
+    page.getByRole("heading", { name: "Session details" }),
   ).toBeVisible();
   active = false;
   await page.clock.fastForward(61000);
@@ -821,20 +816,20 @@ test("disabled administrator access clears the sample dashboard", async ({
     page.getByText("admin@example.com", { exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole("table", { name: "Sample bookings" }),
+    page.getByRole("heading", { name: "Session details" }),
   ).not.toBeVisible();
 });
 
-test("the basic dashboard fits a narrow viewport with readable sample bookings", async ({
-  page,
-}) => {
+test("the team account fits a narrow viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await mockApi(page, { admin: makeSession("admin") });
   await page.goto("/admin");
-  const table = page.getByRole("region", { name: "Sample bookings" });
-  await expect(table).toBeVisible();
-  await table.focus();
-  await expect(table).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "Session details" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("table", { name: "Sample bookings" }),
+  ).toHaveCount(0);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -975,7 +970,7 @@ test("the readiness exception never accepts a failed administrator session", asy
     page.getByRole("heading", { name: "Sign-in unavailable" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
@@ -994,7 +989,7 @@ test("a failed admin authenticator callback gives setup and configuration guidan
     page.getByRole("button", { name: "Continue with password" }),
   ).toBeEnabled();
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
@@ -1004,7 +999,7 @@ test("a failed admin authenticator callback gives setup and configuration guidan
     .click();
   await expect(page).toHaveURL(`${origin}/admin/login`);
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await submitPassword(page);
   await expect(
@@ -1072,7 +1067,7 @@ test("an invited administrator replaces the password and enrolls before a separa
     page.getByText("Authenticator enrolled.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
   await expect(page.getByText(setupSecret, { exact: true })).not.toBeVisible();
@@ -1120,7 +1115,7 @@ for (const [code, status, message] of [
       "private-provider-details",
     );
     await expect(
-      page.getByRole("heading", { name: "Admin dashboard" }),
+      page.getByRole("heading", { name: "Team account" }),
     ).not.toBeVisible();
     await expect(
       page.getByLabel("Six-digit authenticator code"),
@@ -1144,7 +1139,7 @@ test("a claimed native completion still requires a valid protected session", asy
   await submitPassword(page);
   await submitCode(page);
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page).toHaveURL(`${origin}/admin/login`);
@@ -1198,7 +1193,7 @@ test("expired native transactions discard setup keys and require restarting", as
     page.getByRole("img", { name: "Authenticator setup QR code" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Admin dashboard" }),
+    page.getByRole("heading", { name: "Team account" }),
   ).not.toBeVisible();
 });
 

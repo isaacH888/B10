@@ -205,6 +205,30 @@ class SQLTransaction:
         )
 
     def save_booking(self, booking):
+        from .domain import DomainError
+
+        if booking["status"] == "cancelled":
+            self._execute(
+                "UPDATE inventory_items i JOIN inventory_reservations r ON r.item_id=i.id "
+                "SET i.version=i.version+1 WHERE r.booking_id=%s AND r.active=1",
+                (booking["id"],),
+            )
+            self._execute(
+                "UPDATE inventory_reservations SET active=0 WHERE booking_id=%s", (booking["id"],)
+            )
+        else:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COALESCE(SUM(quantity),0) AS total FROM inventory_reservations WHERE booking_id=%s AND active=1",
+                    (booking["id"],),
+                )
+                allocated = cursor.fetchone()["total"]
+                if allocated and allocated > booking.get("quantity", 0):
+                    raise DomainError(
+                        "Reduce flavor allocations before lowering the booking quantity.",
+                        409,
+                        "stock_conflict",
+                    )
         self._execute(
             """INSERT INTO automation_bookings (id,status,revision,start_at,end_at,data)
             VALUES (%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE

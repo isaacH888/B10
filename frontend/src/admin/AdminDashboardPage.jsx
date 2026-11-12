@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { fetchDashboard } from "./adminApi.js";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
 import logoSrc from "../assets/logo.png";
@@ -5,138 +7,6 @@ import iconDashboard from "../assets/admin/icon-dashboard.svg";
 import iconOrders from "../assets/admin/icon-orders.svg";
 import iconCalendar from "../assets/admin/icon-calendar.svg";
 import iconInventory from "../assets/admin/icon-inventory.svg";
-
-// ---------------------------------------------------------------------------
-// Data — static sample data matching the Figma design
-// ---------------------------------------------------------------------------
-
-const STAT_CARDS = [
-  {
-    id: "catering-requests",
-    label: "New catering requests",
-    value: "3",
-    sub: "Awaiting your approval",
-    color: "pink",
-  },
-  {
-    id: "upcoming-events",
-    label: "Upcoming events",
-    value: "6",
-    sub: "Through Nov 15 · 680 paletas",
-    color: "yellow",
-  },
-  {
-    id: "outstanding-balances",
-    label: "Outstanding balances",
-    value: "$1,860",
-    sub: "Across 5 confirmed orders",
-    color: "softpink",
-  },
-  {
-    id: "low-stock",
-    label: "Low-stock items",
-    value: "3",
-    sub: "Available below minimum",
-    color: "pink",
-  },
-];
-
-const UPCOMING_EVENTS = [
-  {
-    id: "e1",
-    month: "NOV",
-    day: "07",
-    customer: "Elena Martinez",
-    service: "Full Service",
-    qty: 150,
-    time: "Sat, 2:00–4:00 PM",
-  },
-  {
-    id: "e2",
-    month: "NOV",
-    day: "08",
-    customer: "Bayou Creative",
-    service: "Delivery",
-    qty: 120,
-    time: "Sun, 11:00 AM",
-  },
-  {
-    id: "e3",
-    month: "NOV",
-    day: "10",
-    customer: "Priya Patel",
-    service: "Full Service",
-    qty: 100,
-    time: "Tue, 3:00–5:00 PM",
-  },
-];
-
-const ATTENTION_ITEMS = [
-  {
-    id: "a1",
-    count: "03",
-    label: "Requests awaiting approval",
-    link: "Review requests →",
-    href: "/admin/orders",
-  },
-  {
-    id: "a2",
-    count: "02",
-    label: "Unverified deposits",
-    link: "Check payments →",
-    href: "/admin/orders",
-  },
-  {
-    id: "a3",
-    count: "03",
-    label: "Inventory shortages",
-    link: "Update inventory →",
-    href: "/admin/inventory",
-  },
-];
-
-const RECENT_ORDERS = [
-  {
-    id: "#1048",
-    customer: "Sofia Ramirez",
-    eventDate: "Nov 21",
-    service: "Delivery",
-    qty: 200,
-    status: "Awaiting approval",
-    statusType: "pending",
-  },
-  {
-    id: "#1047",
-    customer: "Oakwood PTA",
-    eventDate: "Nov 20",
-    service: "Full Service",
-    qty: 150,
-    status: "Awaiting approval",
-    statusType: "pending",
-  },
-  {
-    id: "#1046",
-    customer: "James Wilson",
-    eventDate: "Nov 18",
-    service: "Delivery",
-    qty: 80,
-    status: "Awaiting approval",
-    statusType: "pending",
-  },
-  {
-    id: "#1045",
-    customer: "Elena Martinez",
-    eventDate: "Nov 07",
-    service: "Full Service",
-    qty: 150,
-    status: "Confirmed",
-    statusType: "confirmed",
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Nav items
-// ---------------------------------------------------------------------------
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
@@ -226,7 +96,7 @@ function StatCard({ label, value, sub, color }) {
   );
 }
 
-function UpcomingEventsCard() {
+function UpcomingEventsCard({ events, total }) {
   return (
     <section
       className="adm-card adm-card--outlined adm-card--events"
@@ -242,7 +112,10 @@ function UpcomingEventsCard() {
       </div>
 
       <ul className="adm-event-list" role="list">
-        {UPCOMING_EVENTS.map((event, index) => (
+        {events.length === 0 && (
+          <li>No confirmed events in the next 30 days.</li>
+        )}
+        {events.map((event, index) => (
           <li key={event.id} className="adm-event-row">
             {index > 0 && (
               <div className="adm-event-row__divider" role="separator" />
@@ -256,7 +129,11 @@ function UpcomingEventsCard() {
                 <span>{event.day}</span>
               </div>
               <div className="adm-event-info">
-                <p className="adm-event-info__name">{event.customer}</p>
+                <p className="adm-event-info__name">
+                  <Link className="adm-card__link" to={event.href}>
+                    {event.customer}
+                  </Link>
+                </p>
                 <p className="adm-event-info__detail">
                   {event.service} · {event.qty} paletas
                 </p>
@@ -267,14 +144,16 @@ function UpcomingEventsCard() {
         ))}
       </ul>
 
-      <p className="adm-card__more-link">
-        + 3 more confirmed events this month
-      </p>
+      {total > events.length && (
+        <p className="adm-card__more-link">
+          + {total - events.length} more confirmed events in the next 30 days
+        </p>
+      )}
     </section>
   );
 }
 
-function AttentionCard() {
+function AttentionCard({ items }) {
   return (
     <section
       className="adm-card adm-card--yellow adm-card--attention"
@@ -285,7 +164,7 @@ function AttentionCard() {
       </h2>
 
       <ul className="adm-attention-list" role="list">
-        {ATTENTION_ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.id} className="adm-attention-item">
             <p className="adm-attention-item__count-label">
               <span className="adm-attention-item__count">{item.count}</span>
@@ -302,7 +181,7 @@ function AttentionCard() {
   );
 }
 
-function RecentOrdersTable() {
+function RecentOrdersTable({ orders }) {
   return (
     <section
       className="adm-card adm-card--outlined adm-card--orders"
@@ -335,7 +214,12 @@ function RecentOrdersTable() {
             </tr>
           </thead>
           <tbody>
-            {RECENT_ORDERS.map((order) => (
+            {orders.length === 0 && (
+              <tr>
+                <td colSpan={6}>No customer orders yet.</td>
+              </tr>
+            )}
+            {orders.map((order) => (
               <tr key={order.id}>
                 <td>
                   <Link
@@ -346,14 +230,14 @@ function RecentOrdersTable() {
                   </Link>
                 </td>
                 <td className="adm-orders-table__customer">{order.customer}</td>
-                <td>{order.eventDate}</td>
+                <td>{order.date}</td>
                 <td>{order.service}</td>
                 <td>{order.qty}</td>
                 <td>
                   <span
-                    className={`adm-status adm-status--${order.statusType}`}
+                    className={`adm-status adm-status--${order.orderStatus}`}
                   >
-                    {order.status}
+                    {order.orderStatusLabel}
                   </span>
                 </td>
               </tr>
@@ -363,8 +247,8 @@ function RecentOrdersTable() {
       </div>
 
       <p className="adm-orders-table__note">
-        Inventory is reserved for confirmed events only. New requests do not
-        reduce available stock.
+        Stock is reserved through explicit flavor allocations for confirmed
+        bookings.
       </p>
     </section>
   );
@@ -396,6 +280,101 @@ function PageHeader({ title }) {
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(false);
+    fetchDashboard()
+      .then((value) => {
+        if (active) setData(value);
+      })
+      .catch(() => {
+        if (active) setError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
+  const cards = data
+    ? [
+        {
+          id: "catering-requests",
+          label: "New catering requests",
+          value: data.requests,
+          sub: "Awaiting availability review",
+          color: "pink",
+        },
+        {
+          id: "upcoming-events",
+          label: "Upcoming events",
+          value: data.upcoming_count,
+          sub: `Next 30 days · ${data.upcoming_quantity} paletas`,
+          color: "yellow",
+        },
+        {
+          id: "outstanding-balances",
+          label: "Outstanding balances",
+          value: data.balances.length
+            ? data.balances
+                .map((b) =>
+                  new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: b.currency,
+                  }).format(b.remaining_cents / 100),
+                )
+                .join(" / ")
+            : "None",
+          sub: "Remaining on confirmed bookings",
+          color: "softpink",
+        },
+        {
+          id: "low-stock",
+          label: "Low-stock items",
+          value: data.low_stock ?? "Unavailable",
+          sub: "Available below minimum",
+          color: "pink",
+        },
+      ]
+    : [];
+  const attention = data
+    ? [
+        {
+          id: "requests",
+          count: data.requests,
+          label: "Requests awaiting approval",
+          link: "Review requests →",
+          href: "/admin/orders?status=pending",
+        },
+        {
+          id: "deposits",
+          count: data.awaiting_deposit,
+          label: "Awaiting deposits",
+          link: "Check payments →",
+          href: "/admin/orders?status=awaiting_deposit",
+        },
+        {
+          id: "review",
+          count: data.owner_review,
+          label: "Bookings needing owner review",
+          link: "Review bookings →",
+          href: "/admin/automation",
+        },
+        {
+          id: "stock",
+          count: data.low_stock ?? "Unavailable",
+          label: "Low-stock items",
+          link: "Update inventory →",
+          href: "/admin/inventory",
+        },
+      ]
+    : [];
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", {
     weekday: "long",
@@ -429,36 +408,50 @@ export function AdminDashboardPage() {
             </button>
           </div>
 
-          {/* Stat cards */}
-          <div className="adm-stats-grid" aria-label="At-a-glance stats">
-            {STAT_CARDS.map((card) => (
-              <StatCard key={card.id} {...card} />
-            ))}
-          </div>
-
-          {/* Middle row: events + attention */}
-          <div className="adm-mid-row">
-            <UpcomingEventsCard />
-            <AttentionCard />
-          </div>
-
-          {/* Recent orders */}
-          <RecentOrdersTable />
-
-          {/* Footer note + action */}
-          <div className="adm-content__footer">
-            <p className="adm-content__footer-note">
-              Inventory is reserved for confirmed events only. New requests do
-              not reduce available stock.
+          {loading && <p role="status">Loading dashboard…</p>}
+          {error && (
+            <p role="alert">
+              Could not load dashboard.{" "}
+              <button onClick={() => setAttempt(attempt + 1)}>Try again</button>
             </p>
-            <button
-              type="button"
-              className="adm-btn adm-btn--outline"
-              onClick={() => navigate("/admin/inventory")}
-            >
-              Update inventory ↗
-            </button>
-          </div>
+          )}
+          {!loading && !error && data && (
+            <>
+              {/* Stat cards */}
+              <div className="adm-stats-grid" aria-label="At-a-glance stats">
+                {cards.map((card) => (
+                  <StatCard key={card.id} {...card} />
+                ))}
+              </div>
+
+              {/* Middle row: events + attention */}
+              <div className="adm-mid-row">
+                <UpcomingEventsCard
+                  events={data.upcoming}
+                  total={data.upcoming_count}
+                />
+                <AttentionCard items={attention} />
+              </div>
+
+              {/* Recent orders */}
+              <RecentOrdersTable orders={data.recent_orders} />
+
+              {/* Footer note + action */}
+              <div className="adm-content__footer">
+                <p className="adm-content__footer-note">
+                  Stock is reserved through explicit flavor allocations for
+                  confirmed bookings.
+                </p>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  onClick={() => navigate("/admin/inventory")}
+                >
+                  Update inventory ↗
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

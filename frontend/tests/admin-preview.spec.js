@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { calendarEvent, dashboardData, savedOrder } from "./order-fixtures.js";
 
 const previewPaths = [
   "/admin/dashboard",
   "/admin/orders",
-  "/admin/orders/%231048",
+  "/admin/orders/order_example_001",
   "/admin/calendar",
   "/admin/inventory",
 ];
@@ -44,6 +45,53 @@ async function mockSessions(page, options = {}) {
         },
       });
     }
+    if (options.authenticated && path === "/api/v1/admin/orders") {
+      return route.fulfill({
+        json: {
+          data: {
+            items: [{ order: savedOrder(), booking: null }],
+            total: 1,
+            page: 1,
+            page_size: 25,
+            storage: "database",
+          },
+        },
+      });
+    }
+    if (
+      options.authenticated &&
+      path === "/api/v1/admin/orders/order_example_001"
+    ) {
+      return route.fulfill({
+        json: { data: { order: savedOrder(), booking: null } },
+      });
+    }
+    if (options.authenticated && path === "/api/v1/admin/dashboard")
+      return route.fulfill({ json: { data: dashboardData() } });
+    if (options.authenticated && path === "/api/v1/admin/inventory")
+      return route.fulfill({ json: { data: { items: [] } } });
+    if (options.authenticated && path === "/api/v1/admin/automation/google")
+      return route.fulfill({
+        json: { data: { status: "disconnected", configured: false } },
+      });
+    if (options.authenticated && path === "/api/v1/admin/calendar") {
+      const query = new URL(request.url()).searchParams;
+      const matching =
+        query.get("year") === "2026" && query.get("month") === "11";
+      return route.fulfill({
+        json: {
+          data: {
+            events: matching ? [calendarEvent()] : [],
+            timezone: "America/Chicago",
+            stats: {
+              confirmed: 0,
+              pending: matching ? 1 : 0,
+              confirmed_quantity: 0,
+            },
+          },
+        },
+      });
+    }
     return route.fulfill({
       status: options.unavailable ? 503 : 401,
       json: {
@@ -72,9 +120,15 @@ for (const path of previewPaths) {
     const requests = await mockSessions(page, { authenticated: true });
     await page.goto(path);
     await expect(page.locator(".adm-shell")).toBeVisible();
-    await expect(page.getByLabel("Design preview notice")).toContainText(
-      "fictional sample data",
-    );
+    if (path.startsWith("/admin/orders")) {
+      await expect(page.getByLabel("Order workspace notice")).toContainText(
+        "Saved customer orders",
+      );
+    } else {
+      await expect(page.getByLabel("Admin workspace notice")).toContainText(
+        "use saved data",
+      );
+    }
     await expect(
       page.getByRole("link", { name: "Manage live bookings and Calendar" }),
     ).toHaveAttribute("href", "/admin/automation");
@@ -162,7 +216,7 @@ test("calendar previews retain Central calendar dates and filter the selected ye
   await mockSessions(page, { authenticated: true });
   await page.goto("/admin/calendar");
   const sofia = page.getByRole("button", {
-    name: "Sofia Ramirez, Delivery, 200 paletas, pending",
+    name: "Example Customer, Delivery, 50 paletas, pending",
   });
   await expect(sofia).toBeVisible();
   await expect(
@@ -174,18 +228,18 @@ test("calendar previews retain Central calendar dates and filter the selected ye
   await page.getByRole("button", { name: "Upcoming", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "Upcoming events table" }),
-  ).toContainText("Sofia Ramirez");
+  ).toContainText("Example Customer");
   await page.getByRole("button", { name: "Next month" }).click();
   await expect(page.locator(".adm-hero-row__sub")).toContainText(
-    "December 2026 · 0 confirmed bookings · 0 pending requests · 0 paletas reserved",
+    "December 2026 · 0 confirmed bookings · 0 pending requests · 0 paletas in confirmed bookings",
   );
   await expect(
     page.getByRole("region", { name: "Upcoming events table" }),
-  ).not.toContainText("Sofia Ramirez");
+  ).not.toContainText("Example Customer");
   for (let index = 0; index < 11; index++) {
     await page.getByRole("button", { name: "Next month" }).click();
   }
   await expect(page.locator(".adm-hero-row__sub")).toContainText(
-    "November 2027 · 0 confirmed bookings · 0 pending requests · 0 paletas reserved",
+    "November 2027 · 0 confirmed bookings · 0 pending requests · 0 paletas in confirmed bookings",
   );
 });

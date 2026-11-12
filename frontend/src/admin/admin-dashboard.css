@@ -165,8 +165,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 96px;
-  padding: 0 32px;
+  min-height: 96px;
+  height: auto;
+  padding: 20px 32px;
+  gap: 12px;
+  flex-wrap: wrap;
   background: #fff7dc;
   border-bottom: 1px solid #3b003d;
   flex-shrink: 0;
@@ -185,6 +188,9 @@
   display: flex;
   align-items: center;
   gap: 24px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
 .adm-page-header__view-site {
@@ -998,6 +1004,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .ord-filter-label {
@@ -1009,6 +1016,10 @@
 }
 
 .ord-select {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   height: 60px;
   padding: 0 24px;
   border: 1px solid #3b003d;

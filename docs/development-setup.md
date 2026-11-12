@@ -2,9 +2,10 @@
 
 Updated November 11, 2026. React/Vite + Flask + MySQL, authentication,
 pricing/quote/order APIs, order persistence, public/catering UI and owner booking
-automation are combined locally. The new admin design screens remain labeled
-previews with temporary data; real booking actions use `/admin/automation`. See the
-[latest integration review](latest-push-integration.md) before testing business flows.
+automation are combined locally. Dashboard, Orders, Calendar and Inventory use
+saved data. Booking actions at `/admin/automation` still need visual integration
+into the admin shell. See the [admin completion report](admin-api-completion.md)
+and [Figma handoff](dillion-figma-brief.md) before testing business flows.
 
 ## Prerequisites
 
@@ -88,9 +89,11 @@ initialize a fresh volume; changing them later does not rotate an existing MySQL
 Do not delete a volume to repair credentials without agreeing on data preservation.
 
 Compose creates the server and empty development database/user. Run the shared
-migration command above to apply all nine migrations, including authentication,
-email, booking automation, customer/order/item tables and the order event-date
-index. Existing installations apply only pending migrations. See the
+migration command above to apply all ten migrations, including authentication,
+email, booking automation, customer/order/item tables, the order event-date
+index, inventory, stock history and explicit booking allocations. Apply migration
+0010 before this version's SQL-backed booking actions. Existing installations
+apply only pending migrations. See the
 [index integration review](bryson-index-integration.md) for upgrade and recovery
 evidence. Migration application does not create approved admin accounts or seed
 real customer data.

@@ -10,7 +10,6 @@ import {
 } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
-import { AdminDashboard } from "./AdminDashboard.jsx";
 import { AdminDashboardPage } from "./admin/AdminDashboardPage.jsx";
 import { CalendarPage } from "./admin/CalendarPage.jsx";
 import { InventoryPage } from "./admin/InventoryPage.jsx";
@@ -208,7 +207,12 @@ function LoginPage() {
   );
 }
 
-function ProtectedPage({ area, preview = false, children }) {
+function ProtectedPage({
+  area,
+  workspace = false,
+  liveOrders = false,
+  children,
+}) {
   const location = useLocation();
   const { sessions, refresh, expire, logout } = useAuth();
   const [now, setNow] = useState(Date.now());
@@ -272,7 +276,7 @@ function ProtectedPage({ area, preview = false, children }) {
   const identity = session.data[admin ? "administrator" : "customer"];
   const deadline = new Date(sessionDeadline(session.data));
   const remaining = Math.max(0, Math.ceil((deadline.getTime() - now) / 60000));
-  if (preview) {
+  if (workspace || liveOrders) {
     if (
       identity.role !== "owner" ||
       !identity.permissions.includes("bookings:read")
@@ -280,9 +284,7 @@ function ProtectedPage({ area, preview = false, children }) {
       return (
         <section className="test-shell">
           <h1>Owner access required</h1>
-          <p>
-            Only an owner with booking access can open the admin design preview.
-          </p>
+          <p>Only an owner with booking access can open this workspace.</p>
           <Link to="/admin">Back to your team session</Link>
         </section>
       );
@@ -291,13 +293,23 @@ function ProtectedPage({ area, preview = false, children }) {
       <div className="admin-preview">
         <aside
           className="admin-preview-notice"
-          aria-label="Design preview notice"
+          aria-label={
+            liveOrders ? "Order workspace notice" : "Admin workspace notice"
+          }
         >
           <p>
-            <strong>Design preview: fictional sample data.</strong> Changes stay
-            in this browser tab and reset on reload. Use the booking workspace
-            for real orders, payments and Calendar. Inventory storage is not
-            connected.
+            {liveOrders ? (
+              <>
+                Saved customer orders and linked booking balances. Manage
+                approvals, payments and Calendar in the booking workspace.
+              </>
+            ) : (
+              <>
+                <strong>Owner workspace.</strong> Dashboard, Calendar and
+                Inventory use saved data. Manage booking actions in the booking
+                workspace.
+              </>
+            )}
           </p>
           <nav aria-label="Workspace controls">
             <Link to="/admin/automation">
@@ -326,7 +338,7 @@ function ProtectedPage({ area, preview = false, children }) {
     <section>
       <h1>
         {admin
-          ? "Admin dashboard"
+          ? "Team account"
           : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}
       </h1>
       <p>
@@ -344,16 +356,21 @@ function ProtectedPage({ area, preview = false, children }) {
       ) : (
         admin && (
           <>
-            {identity.role === "owner" && (
-              <p>
-                <Link to="/admin/automation">
-                  Manage catering bookings and Calendar
-                </Link>
-                {" · "}
-                <Link to="/admin/dashboard">Open admin design preview</Link>
-              </p>
+            {identity.role === "owner" &&
+              identity.permissions.includes("bookings:read") && (
+                <p>
+                  <Link to="/admin/automation">
+                    Manage catering bookings and Calendar
+                  </Link>
+                  {" · "}
+                  <Link to="/admin/dashboard">Open admin dashboard</Link>
+                  {" · "}
+                  <Link to="/admin/orders">View customer orders</Link>
+                </p>
+              )}
+            {!identity.permissions.includes("bookings:read") && (
+              <p>Booking access is not assigned to this account.</p>
             )}
-            <AdminDashboard identity={identity} />
           </>
         )
       )}
@@ -492,7 +509,7 @@ export default function App() {
             <Route
               path="/admin/dashboard"
               element={
-                <ProtectedPage area="admin" preview>
+                <ProtectedPage area="admin" workspace>
                   <AdminDashboardPage />
                 </ProtectedPage>
               }
@@ -500,7 +517,7 @@ export default function App() {
             <Route
               path="/admin/orders"
               element={
-                <ProtectedPage area="admin" preview>
+                <ProtectedPage area="admin" liveOrders>
                   <OrdersPage />
                 </ProtectedPage>
               }
@@ -508,7 +525,7 @@ export default function App() {
             <Route
               path="/admin/orders/:orderId"
               element={
-                <ProtectedPage area="admin" preview>
+                <ProtectedPage area="admin" liveOrders>
                   <OrderDetailPage />
                 </ProtectedPage>
               }
@@ -516,7 +533,7 @@ export default function App() {
             <Route
               path="/admin/calendar"
               element={
-                <ProtectedPage area="admin" preview>
+                <ProtectedPage area="admin" workspace>
                   <CalendarPage />
                 </ProtectedPage>
               }
@@ -524,7 +541,7 @@ export default function App() {
             <Route
               path="/admin/inventory"
               element={
-                <ProtectedPage area="admin" preview>
+                <ProtectedPage area="admin" workspace>
                   <InventoryPage />
                 </ProtectedPage>
               }
