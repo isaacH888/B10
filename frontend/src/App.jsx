@@ -19,7 +19,7 @@ import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
 import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
-import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
+import { CustomerAccount } from "./CustomerAccount.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
 import { RouteScroll } from "./RouteScroll.jsx";
 import {
@@ -240,7 +240,14 @@ function ProtectedPage({
   }, [area, expire, now, session]);
 
   if (session.status === "loading")
-    return <p role="status">Checking your session…</p>;
+    return (
+      <p
+        className={admin ? undefined : "customer-account-loading"}
+        role="status"
+      >
+        Checking your session…
+      </p>
+    );
   if (session.status === "signed-out") {
     return (
       <Navigate
@@ -251,7 +258,7 @@ function ProtectedPage({
   }
   if (session.status === "error")
     return (
-      <section>
+      <section className={admin ? undefined : "customer-account-state"}>
         <h1>
           {session.error.code === "reauthentication_required"
             ? "Verification required"
@@ -339,6 +346,18 @@ function ProtectedPage({
       </div>
     );
   }
+  if (!admin) {
+    return (
+      <CustomerAccount
+        key={identity.id}
+        identity={identity}
+        csrfToken={session.data.csrf_token}
+        deadline={deadline}
+        remaining={remaining}
+        onSignOut={() => logout(area, session.data.csrf_token)}
+      />
+    );
+  }
   return (
     <section>
       <h1>
@@ -378,13 +397,6 @@ function ProtectedPage({
             )}
           </>
         )
-      )}
-      {!admin && (
-        <CustomerTestEmail
-          key={identity.id}
-          csrfToken={session.data.csrf_token}
-          email={identity.email}
-        />
       )}
       {remaining <= 5 && (
         <Notice>

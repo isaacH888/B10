@@ -61,11 +61,86 @@ async function mockApi(page, options = {}) {
   return { state, requests };
 }
 
-test("a signed-in customer explicitly sends only to their server-selected account", async ({
+test("account navigation keeps a sent email disabled when switching sections", async ({
   page,
 }) => {
   const { requests } = await mockApi(page);
   await page.goto("/account");
+  await expect(
+    page.getByRole("heading", { name: "My Account", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Account details" }),
+  ).toContainText("customer@example.com");
+  await expect(
+    page.getByRole("button", { name: "Send test order confirmation" }),
+  ).not.toBeVisible();
+  const nav = page.getByRole("navigation", { name: "My account navigation" });
+  await nav.getByRole("link", { name: "Email Preview" }).click();
+  await page
+    .getByRole("button", { name: "Send test order confirmation" })
+    .click();
+  await expect(page.getByRole("status")).toContainText("accepted for sending");
+  await nav.getByRole("link", { name: "Account Overview" }).click();
+  await nav.getByRole("link", { name: "Sign-In & Security" }).click();
+  await expect(
+    page.getByRole("region", { name: "Sign-in details" }),
+  ).toContainText("Current session ends");
+  await nav.getByRole("link", { name: "Email Preview" }).click();
+  await expect(
+    page.getByRole("button", { name: "Send test order confirmation" }),
+  ).toBeDisabled();
+  expect(requests).toHaveLength(1);
+});
+
+for (const width of [320, 375, 768, 1440]) {
+  test(`account details and navigation fit a ${width}px screen`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockApi(page, {
+      customer: session("customer", {
+        name: "A customer with a longer display name",
+        email: "a-long-customer-email-address@example.invalid",
+      }),
+    });
+    await page.goto("/account");
+    const nav = page.getByRole("navigation", { name: "My account navigation" });
+    for (const view of [
+      "Account Overview",
+      "Sign-In & Security",
+      "Email Preview",
+    ]) {
+      const link = nav.getByRole("link", { name: view });
+      await link.click();
+      await expect(link).toHaveAttribute("aria-current", "page");
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
+    const button = page.getByRole("button", {
+      name: "Send test order confirmation",
+    });
+    const box = await button.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    await nav.getByRole("link", { name: "Account Overview" }).click();
+    await page.getByRole("link", { name: "Request a catering quote" }).click();
+    await expect(page).toHaveURL(/\/order$/);
+    await page.goBack();
+    await expect(
+      page.getByRole("heading", { name: "My Account", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+test("a signed-in customer explicitly sends only to their server-selected account", async ({
+  page,
+}) => {
+  const { requests } = await mockApi(page);
+  await page.goto("/account?view=email");
   await expect(
     page.getByRole("heading", { name: "Test Order Confirmation", exact: true }),
   ).toBeVisible();
@@ -114,7 +189,7 @@ test("a pending send blocks rapid duplicate clicks", async ({ page }) => {
       });
     },
   });
-  await page.goto("/account");
+  await page.goto("/account?view=email");
   const button = page.getByRole("button", {
     name: "Send test order confirmation",
   });
@@ -147,7 +222,7 @@ test("network failures reuse the same request key on explicit retry", async ({
             },
           }),
   });
-  await page.goto("/account");
+  await page.goto("/account?view=email");
   const button = page.getByRole("button", {
     name: "Send test order confirmation",
   });
@@ -180,7 +255,7 @@ for (const code of ["email_rejected", "email_unavailable"]) {
               },
             }),
     });
-    await page.goto("/account");
+    await page.goto("/account?view=email");
     const button = page.getByRole("button", {
       name: "Send test order confirmation",
     });
@@ -212,7 +287,7 @@ for (const [status, code, text] of [
           json: { error: { code, message: "private-provider-detail" } },
         }),
     });
-    await page.goto("/account");
+    await page.goto("/account?view=email");
     await page
       .getByRole("button", { name: "Send test order confirmation" })
       .click();
@@ -234,7 +309,7 @@ test("an uncertain send asks the customer to check their inbox and prevents anot
         json: { error: { code: "email_delivery_uncertain" } },
       }),
   });
-  await page.goto("/account");
+  await page.goto("/account?view=email");
   await page
     .getByRole("button", { name: "Send test order confirmation" })
     .click();
@@ -261,7 +336,7 @@ for (const status of [401, 403]) {
         });
       },
     });
-    await page.goto("/account");
+    await page.goto("/account?view=email");
     await page
       .getByRole("button", { name: "Send test order confirmation" })
       .click();
@@ -305,7 +380,7 @@ test("reloading the customer page never automatically repeats a send", async ({
   page,
 }) => {
   const { requests } = await mockApi(page);
-  await page.goto("/account");
+  await page.goto("/account?view=email");
   await page
     .getByRole("button", { name: "Send test order confirmation" })
     .click();
@@ -322,7 +397,7 @@ test("switching the authenticated customer clears the previous request state", a
 }) => {
   const { state, requests } = await mockApi(page);
   await page.clock.install();
-  await page.goto("/account");
+  await page.goto("/account?view=email");
   await page
     .getByRole("button", { name: "Send test order confirmation" })
     .click();
