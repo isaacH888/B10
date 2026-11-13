@@ -388,8 +388,25 @@ class CognitoProvider:
                     raise AuthError(
                         "session_expired", "Your session has expired. Please sign in again."
                     )
+                reason = {
+                    "NotAuthorizedException": "cognito_not_authorized",
+                    "UserNotFoundException": "cognito_user_not_found",
+                    "CodeMismatchException": "cognito_code_mismatch",
+                    "ExpiredCodeException": "cognito_code_expired",
+                    "EnableSoftwareTokenMFAException": "cognito_totp_unavailable",
+                }[code]
+                if code == "NotAuthorizedException":
+                    message = str(body.get("message", "")).lower()
+                    if "secret hash" in message or "secrethash" in message:
+                        reason = "cognito_client_secret_rejected"
+                    elif "user is disabled" in message:
+                        reason = "cognito_user_disabled"
+                    elif "incorrect username or password" in message:
+                        reason = "cognito_credentials_rejected"
                 raise AuthError(
-                    "authentication_failed", "Sign-in could not be completed. Please start again."
+                    "authentication_failed",
+                    "Sign-in could not be completed. Please start again.",
+                    reason=reason,
                 )
             raise unavailable()
         return body
@@ -402,9 +419,11 @@ class CognitoProvider:
         ).decode("ascii")
 
     @staticmethod
-    def _native_failure():
+    def _native_failure(reason="native_response_invalid"):
         return AuthError(
-            "authentication_failed", "Sign-in could not be completed. Please start again."
+            "authentication_failed",
+            "Sign-in could not be completed. Please start again.",
+            reason=reason,
         )
 
     def _native_challenge(self, body, username, allowed):
@@ -425,7 +444,7 @@ class CognitoProvider:
             raise self._native_failure()
         for field in ("USERNAME", "USER_ID_FOR_SRP"):
             if field in parameters and parameters[field] != username:
-                raise self._native_failure()
+                raise self._native_failure("native_username_mismatch")
         result = {"challenge": name, "session": session, "username": username}
         try:
             if name == "NEW_PASSWORD_REQUIRED":

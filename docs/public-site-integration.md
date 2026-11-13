@@ -22,7 +22,7 @@ JavaScript and README are not application entry points; development still uses
 | `/account` | Existing protected customer session and sample email action |
 | `/order` | Existing catering form and quote/order API integration |
 | `/order/confirm` | Existing server-backed order confirmation |
-| `/admin/login` | Existing administrator password/MFA flow, linked as Team sign-in |
+| `/admin/login` | Existing administrator password/MFA flow, linked as Team Sign-In |
 | `/diagnostics` | Previous backend/database/authentication readiness controls |
 
 Customer registration and password reset remain on the provider's secure sign-in
@@ -30,14 +30,27 @@ screen. The sample's placeholder username/password handlers are not used.
 Existing session cookies, CSRF, provider redirect validation, permission checks,
 quote/order calls and booking automation retain their current behavior.
 
-The public header restores an authenticated customer's My account link from the
+The public header restores an authenticated customer's My Account link from the
 existing session context. Public content remains available when authentication is
 unavailable. On November 12, Isaac removed newsletter signup from scope. The
 newsletter section and its navigation links have been removed. Isaac supplied
 the Instagram and Facebook profile URLs on November 12. Both public and catering
-footers now include "Follow our socials!" with accessible linked icons that open
+footers now include "Follow Our Socials!" with accessible linked icons that open
 those profiles in a new tab. See
 [client content confirmations](client-content-confirmations.md) for the URLs.
+
+The November 12 consistency follow-up moves the header and footer into
+`PublicChrome.jsx`. Home, catering, customer account and order confirmation now
+share the catering-style pink navigation, logo, contact links and dark navy
+footer with social icons. Section links use the router and retain their home
+page anchors; catering marks its active navigation link. The homepage content
+retains its original text colors and palette. Header/footer styles and local
+fonts live in `public-chrome.css`, separate from page content and form styles.
+The shared header stays visible while scrolling, including on mobile. Section
+anchors include clearance below the header; the catering dialog opens above it.
+Navigation labels and public form/confirmation headings use Title Case. Large
+marketing headlines use uppercase on both home and catering; body copy and
+action sentences retain sentence case.
 
 The [November 12 catering UX validation](catering-ux-validation.md) records the
 schedule, draft, review, wording and navigation improvements and current checks.
@@ -89,3 +102,41 @@ On November 11, the owner confirmed successful live Google customer sign-in afte
 the existing private configuration and local Docker database were supplied. See
 [authentication validation](authentication-validation.md) for the current access
 limitations. The November 3 results above remain the historical UI validation.
+
+The November 12 shared-header/footer follow-up passed the production build,
+frontend formatting, foundation and whitespace checks, and all 110 selected
+public-site, catering, authentication and customer-email browser cases in
+installed Chrome. The added navigation regression checks shared header/footer
+appearance, one main landmark, restored customer access and cross-page story
+anchors. Desktop/mobile screenshots were inspected at 1440 and 375 pixels;
+browser checks also cover 320 and 768 pixels. These checks use synthetic API
+responses and do not establish live provider authentication.
+The subsequent sticky-header change passed the build and formatting checks and
+the 47 affected public/catering cases, including navigation from the page bottom
+and unobscured section targets at 320, 375, 768 and 1440 pixels.
+
+The capitalization follow-up passed the build, formatting and whitespace checks
+and all 110 selected public-site, catering, authentication and customer-email
+browser cases. Desktop and 320-pixel screenshots were inspected; navigation
+retains its single row of section links and the original header height.
+
+The November 13 step-2 address follow-up adds optional Geoapify suggestions,
+city/state/ZIP autofill and server-owned 30-mile service-area checks. See
+[catering address setup and validation](catering-addresses.md). Geoapify access is
+configured and verified locally, including nearby and beyond-30-mile addresses
+in the actual mobile form. Other environments need their own private key;
+without it, manual entry remains available with manual-review quotes instead
+of an assumed zero-mile fee.
+
+The latest service-area follow-up fills selected addresses immediately and checks
+service separately. Search is US-wide. The UI hides mileage, uses a green in-area
+check, and lets outside-area customers reach a paletas/extras quote estimate with
+owner contact guidance. Service/travel fees and final availability require owner
+approval; estimates are not accepted booking pricing.
+
+The latest ZIP follow-up fixes the service anchor at Stafford 77477. ZIP-area
+geographic checks run locally and update automatically beside the ZIP field,
+independently of suggestions, street matching or route services. This replaces
+the earlier kitchen-based driving calculation. Outside/unknown ZIPs still reach
+owner-review quote estimates. See the updated address handoff for data limitations
+and pricing revision 2.1.0.

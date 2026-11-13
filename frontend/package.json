@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:admin-preview": "vite --config vite.admin-preview.config.js --mode admin-preview",
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",

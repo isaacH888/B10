@@ -6,6 +6,7 @@ from copy import deepcopy
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from address_fixtures import FixedAddressProvider
 from app import create_app
 from app.auth.errors import AuthError
 from app.auth.guards import require_admin, require_customer
@@ -185,6 +186,8 @@ def auth_app(monkeypatch):
         "DB_USER": "synthetic",
         "DB_PASSWORD": "synthetic",
         "AUTH_STORE": store,
+        "ADDRESS_PROVIDER": FixedAddressProvider(),
+        "ADDRESS_DISTANCE_PROVIDER": FixedAddressProvider(),
         "AUTH_PROVIDERS": providers,
         "AUTH_CLOCK": lambda: clock["now"],
     }

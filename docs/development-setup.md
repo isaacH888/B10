@@ -61,6 +61,14 @@ account screens contain no business orders. `/api/v1/live` is process liveness;
 `/api/v1/health` checks MySQL connectivity and returns 503 while unconfigured/unavailable.
 A 200 DB probe does not establish that all domain migrations have run.
 
+To browse the admin UI without signing in, run `npm run dev:admin-preview --prefix frontend`
+and open `http://127.0.0.1:5174/admin/dashboard`. This separate, loopback-only
+development server supplies labeled sample orders, Calendar events and inventory.
+It blocks API mutations, handles every API request locally, and has no backend
+proxy or real authentication cookies. Normal development and production admin
+routes still require sign-in. Run its browser checks with
+`npx playwright test --config playwright.admin-preview.config.js` from `frontend/`.
+
 Use `VITE_API_BASE_URL=/api/v1`; Vite proxies requests to Flask and preserves login cookies.
 Cognito callbacks must use `http://localhost:5173/api/v1/<area>/callback`, not port 5000.
 See [authentication setup](authentication-deployment.md) before enabling AUTH_ENABLED.

@@ -9,8 +9,8 @@ owner order reads, Dashboard, Calendar feed, inventory and owner CSV exports are
 implemented locally. Booking/payment/email/Calendar automation uses its separate
 [workflow contract](calendar-automation.md). The general `/orders` edit/status/
 deposit interfaces below retain their earlier proposal status; implementing an
-owner workspace counterpart does not implement those routes. Quote persistence,
-trusted delivery distance and live provider verification remain open. See the
+owner workspace counterpart does not implement those routes. Quote persistence and live provider verification remain open. Server-side address
+checks and Geoapify setup are documented in [catering addresses](catering-addresses.md). See the
 [current admin completion report](admin-api-completion.md).
 
 The October 5 [reference review](reference-alignment.md) and
@@ -72,7 +72,7 @@ These helpers do not register the proposed general reporting routes. See the
 | Requirement | Interface expectation |
 | --- | --- |
 | At least 50 popsicles | Backend rejects smaller quantities with 422 |
-| Quantity-based and heart-shaped pricing | Accept quantity/shape; final rates depend on D01/D02 |
+| Regular and heart-shaped pricing | November 13 supplied rates: regular $4.50/unit, heart-shaped $3.00/unit. Accept quantity/shape; further discounts and mixed-shape policy remain D01/D02 |
 | Custom flavors and add-ons | Accept request text and add-on requests; pricing/availability depend on D03 |
 | Event details | Collect type, address, timestamp with offset, and IANA timezone |
 | Delivery or full service | Recorded full-service window is 3.5 hours (0.5 setup/2.5 serving/0.5 breakdown), 1-2 people; the $150 mentioned in the question needs explicit rate confirmation under D05 |
@@ -202,11 +202,21 @@ pricing/revision, unresolved decision IDs, and nullable `next_action`. `priced` 
 and a rule revision; `requires_review` requires null pricing and a nonempty decision list.
 Validate the minimum quantity, event address/time, request lengths, and service values.
 
-For backend-assessed delivery beyond 30 miles, return `requires_review`, null pricing,
-and `next_action` with `type=contact_inquiry`, `reason_code=outside_delivery_radius`,
-a safe message and nullable `inquiry_url`. The example URL is synthetic. Dillion
-connects the approved real inquiry destination; do not accept a client distance as
-authoritative or silently place a standard out-of-area delivery order.
+For an outside-area or unverified address, customers may continue to a quote
+estimate. Return `requires_review`, null accepted `pricing`, contact guidance and
+an optional `estimate` with `currency`, product/extra `line_items` and
+`subtotal_cents`. The estimate excludes service/travel fees and any deposit;
+the owner confirms availability, final fees and price. Outside-area guidance uses
+`reason_code=outside_delivery_radius`; unverified addresses use
+`address_verification_unavailable`. The public form shows a green in-area check
+or owner-review notice, without mileage, and does not block outside-area estimates.
+A quote estimate is not an approved booking: browser distances cannot authorize
+service, and normal order creation still requires a server-calculated accepted price.
+The November 13 ZIP follow-up fixes the anchor at Stafford 77477 and compares
+Census ZIP-area centers within 30 geographic miles. Full event details remain
+required for normal pricing; a ZIP-only service check does not validate a street
+address. Checks run locally without the suggestion API. Revision 2.1.0 records
+the new distance basis for eligibility and the existing delivery-fee formula.
 
 Success examples: OpenAPI `/quotes` POST, `200`, `synthetic`, `priced_fixture`, and `outside_radius`.
 Error example: `422` with code `validation_error` and field

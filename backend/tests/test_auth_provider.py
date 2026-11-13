@@ -1030,6 +1030,43 @@ def test_native_errors_never_expose_private_provider_messages(provider, monkeypa
 
 
 @pytest.mark.parametrize(
+    "code,message,reason",
+    [
+        (
+            "NotAuthorizedException",
+            "Incorrect username or password. PRIVATE_PASSWORD_CODE_TOKEN_SECRET",
+            "cognito_credentials_rejected",
+        ),
+        (
+            "NotAuthorizedException",
+            "Unable to verify secret hash for client PRIVATE_PASSWORD_CODE_TOKEN_SECRET",
+            "cognito_client_secret_rejected",
+        ),
+        ("NotAuthorizedException", "User is disabled.", "cognito_user_disabled"),
+        ("NotAuthorizedException", "PRIVATE_PASSWORD_CODE_TOKEN_SECRET", "cognito_not_authorized"),
+        ("UserNotFoundException", "PRIVATE_PASSWORD_CODE_TOKEN_SECRET", "cognito_user_not_found"),
+        ("CodeMismatchException", "PRIVATE_PASSWORD_CODE_TOKEN_SECRET", "cognito_code_mismatch"),
+    ],
+)
+def test_native_provider_failure_has_only_static_private_reason(
+    provider, monkeypatch, code, message, reason
+):
+    class Response:
+        status_code = 400
+
+        def json(self):
+            return {"__type": code, "message": message}
+
+    monkeypatch.setattr("app.auth.provider.requests.post", lambda *a, **kw: Response())
+    with pytest.raises(AuthError) as failure:
+        provider.native_password(NATIVE_USERNAME, "fixture-password")
+    assert failure.value.code == "authentication_failed"
+    assert failure.value.reason == reason
+    assert reason not in failure.value.message
+    assert "PRIVATE_" not in str(failure.value)
+
+
+@pytest.mark.parametrize(
     "returned",
     [
         {"AuthenticationResult": {}},

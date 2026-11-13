@@ -56,7 +56,7 @@ export default function FlavorPicker({ quantity, rows, onChange, error }) {
   return (
     <section className="flavor-picker" aria-labelledby="cf-flavor-mix-heading">
       <h3 id="cf-flavor-mix-heading">
-        Build your flavor mix <small>(optional)</small>
+        Build Your Flavor Mix <small>(optional)</small>
       </h3>
       <p id="cf-flavor-mix-hint" className="field-hint">
         Choose from our sample flavors. We’ll confirm availability for your

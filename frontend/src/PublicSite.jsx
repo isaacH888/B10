@@ -1,9 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "./auth/AuthContext.jsx";
 import StoryGallery from "./StoryGallery.jsx";
-import SocialLinks from "./SocialLinks.jsx";
+import { PublicHeader, PublicFooter } from "./PublicChrome.jsx";
 import FlavorMenu from "./FlavorMenu.jsx";
-import logo from "./assets/aneena-logo.png";
 import paletas from "./assets/aneena-paletas-hero.png";
 import "./public-site.css";
 
@@ -18,66 +16,6 @@ function Sunburst() {
     <svg width="1em" height="1em" viewBox="0 0 100 100" aria-hidden="true">
       <polygon points={burstPoints} fill="currentColor" />
     </svg>
-  );
-}
-
-function PublicHeader() {
-  const { sessions } = useAuth();
-  const signedIn = sessions.customer.status === "authenticated";
-  return (
-    <div className="public-chrome">
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
-      <div className="announcement">
-        MEXICAN PALETAS. ENDLESS POPSSIBILITIES.
-      </div>
-      <header className="site-header">
-        <Link to="/" aria-label="Popssibilities home">
-          <img className="nav-logo" src={logo} alt="Popssibilities logo" />
-        </Link>
-        <nav aria-label="Main navigation">
-          <a href="/#paleta-life">The paleta life</a>
-          <a href="/#flavors">Flavors</a>
-          <a href="/#our-story">Our story</a>
-          <Link className="pill red" to="/order">
-            Catering order <span aria-hidden="true">↗</span>
-          </Link>
-        </nav>
-        <Link className="signin" to={signedIn ? "/account" : "/login"}>
-          {signedIn ? "My account" : "Sign in"}
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 22v-3a8 8 0 0 1 16 0v3" />
-          </svg>
-        </Link>
-      </header>
-    </div>
-  );
-}
-
-function PublicFooter() {
-  return (
-    <div className="public-chrome">
-      <footer>
-        <div className="footer-top">
-          <span>MEXICAN PALETAS · STAFFORD, TX</span>
-          <nav aria-label="Footer navigation">
-            <a href="/#paleta-life">The paleta life</a>
-            <a href="/#flavors">Flavors</a>
-            <a href="/#our-story">Our story</a>
-            <Link to="/order">Catering</Link>
-            <Link to="/admin/login">Team sign-in</Link>
-          </nav>
-        </div>
-        <div className="footer-brand">POPSSIBILITIES</div>
-        <SocialLinks />
-        <div className="footer-bottom">
-          <span>© {new Date().getFullYear()} Popssibilities.</span>
-          <span>Endless Popssibilities.</span>
-        </div>
-      </footer>
-    </div>
   );
 }
 
@@ -277,7 +215,7 @@ export function CustomerSignInLayout({ children }) {
               </div>
               <div className="auth-card">{children}</div>
               <Link className="team-signin" to="/admin/login">
-                Team sign-in
+                Team Sign-In
               </Link>
             </div>
           </div>

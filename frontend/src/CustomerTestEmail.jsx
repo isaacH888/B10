@@ -85,7 +85,7 @@ export function CustomerTestEmail({ csrfToken, email }) {
 
   return (
     <section aria-labelledby="test-email-heading">
-      <h2 id="test-email-heading">Test order confirmation</h2>
+      <h2 id="test-email-heading">Test Order Confirmation</h2>
       <p>
         Send a sample order confirmation to {email}. This is a test email; it
         does not place an order or charge you.

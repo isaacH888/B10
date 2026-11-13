@@ -47,8 +47,9 @@ backend private files. The MySQL root password belongs only to Compose.
 | `SQUARE_PAYMENT_LINK`, `VENMO_PAYMENT_LINK`, `PAYPAL_PAYMENT_LINK` | Payment links; client supplies, Anh consumes | Reserved external destinations; Square first, others later; links do not verify payment |
 | `CONTRACT_URL` | Contract delivery; Shourya/client | Reserved approved HTTPS document URL/access policy; Week 6 |
 | `REMINDERS_ENABLED` | Scheduler; Shourya | Reserved disabled gate; timing/eligibility still open; Week 6 |
-| `DELIVERY_ORIGIN_ADDRESS`, `DELIVERY_ORIGIN_POSTAL_CODE` | Distance/pricing; Anh/client | Reserved recorded Wingman Kitchens address; postal code and geocoding unverified |
-| `DISTANCE_PROVIDER`, `DISTANCE_API_KEY` | Distance adapter; Anh | Reserved approved distance method/provider; no guessed distance or fee calculation |
+| `DELIVERY_ORIGIN_ADDRESS` | Catering address/routing; Anh/client | Recorded kitchen address only; the service-area check is fixed to ZIP 77477 and does not use this setting |
+| `GEOAPIFY_API_KEY` | Server-side Geoapify autocomplete; Anh | Private key in backend settings only. Missing key leaves manual address entry; local ZIP service-area checks still work. Unknown ZIPs receive owner-review estimates. See [address setup](catering-addresses.md) |
+| `DELIVERY_ORIGIN_POSTAL_CODE`, `DISTANCE_PROVIDER`, `DISTANCE_API_KEY` | Legacy reserved variables | Unused by the implemented Geoapify address adapter; retained in the root inventory for historical handoff |
 | `CUSTOM_EVENT_INQUIRY_URL` | Quote inquiry action; Anh/Dillion/client | Reserved destination for beyond-30-mile requests; empty until approved route is provided |
 
 Cognito configuration is implemented for the user-approved authentication design.

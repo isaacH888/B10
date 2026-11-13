@@ -45,7 +45,7 @@ export function OrderConfirmation() {
 
   return (
     <section aria-labelledby="confirmation-heading">
-      <h1 id="confirmation-heading">Catering request received</h1>
+      <h1 id="confirmation-heading">Catering Request Received</h1>
       <p>
         Thank you, {order.customer?.name}. Your catering request has been
         submitted and is under review. We will be in touch at{" "}
@@ -54,7 +54,7 @@ export function OrderConfirmation() {
 
       {/* Order summary */}
       <section aria-labelledby="order-details-heading">
-        <h2 id="order-details-heading">Request details</h2>
+        <h2 id="order-details-heading">Request Details</h2>
         <dl>
           <dt>Request ID</dt>
           <dd>{order.id}</dd>
@@ -107,7 +107,7 @@ export function OrderConfirmation() {
 
       {/* Next steps */}
       <section aria-labelledby="next-steps-heading">
-        <h2 id="next-steps-heading">What happens next</h2>
+        <h2 id="next-steps-heading">What Happens Next</h2>
         <ol>
           <li>
             Our team will review your request and confirm availability for your

@@ -240,7 +240,24 @@ def native_admin_transaction():
             if isinstance(failure, AuthError)
             else AuthError("authentication_unavailable", "Sign-in is temporarily unavailable.", 503)
         )
-        audit_denial("admin_native_login_denied", {"area": "admin", "error_code": error.code})
+        detail = {"area": "admin", "error_code": error.code}
+        # Retain only static classifications, never raw Cognito messages or
+        # request data. These labels remain private to the audit database.
+        if isinstance(error.reason, str) and error.reason in {
+            "cognito_not_authorized",
+            "cognito_user_not_found",
+            "cognito_code_mismatch",
+            "cognito_code_expired",
+            "cognito_totp_unavailable",
+            "cognito_client_secret_rejected",
+            "cognito_user_disabled",
+            "cognito_credentials_rejected",
+            "native_response_invalid",
+            "native_username_mismatch",
+            "native_identity_not_authorized",
+        }:
+            detail["reason"] = error.reason
+        audit_denial("admin_native_login_denied", detail)
         result = jsonify(
             error={
                 "code": error.code,

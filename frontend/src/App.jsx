@@ -17,6 +17,7 @@ import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
 import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
+import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
@@ -27,12 +28,12 @@ import {
   PublicLayout,
 } from "./PublicSite.jsx";
 
+const adminPreview =
+  import.meta.env.DEV && import.meta.env.MODE === "admin-preview";
+
 function Layout({ children }) {
   const { pathname } = useLocation();
-  if (
-    pathname === "/order" ||
-    /^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)
-  ) {
+  if (/^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)) {
     return children;
   }
   if (pathname === "/login") {
@@ -40,6 +41,7 @@ function Layout({ children }) {
   }
   if (
     pathname === "/" ||
+    pathname === "/order" ||
     pathname === "/account" ||
     pathname === "/order/confirm"
   ) {
@@ -152,7 +154,7 @@ function LoginPage() {
   }
   return (
     <section>
-      <h1>Customer sign-in</h1>
+      <h1>Customer Sign-In</h1>
       <p>
         Sign in or create a customer account using email and password or Google.
       </p>
@@ -292,45 +294,47 @@ function ProtectedPage({
     }
     return (
       <div className="admin-preview">
-        <aside
-          className="admin-preview-notice"
-          aria-label={
-            liveOrders ? "Order workspace notice" : "Admin workspace notice"
-          }
-        >
-          <p>
-            {liveOrders ? (
-              <>
-                Saved customer orders and linked booking balances. Manage
-                approvals, payments and Calendar in the booking workspace.
-              </>
-            ) : (
-              <>
-                <strong>Owner workspace.</strong> Dashboard, Calendar and
-                Inventory use saved data. Manage booking actions in the booking
-                workspace.
-              </>
-            )}
-          </p>
-          <nav aria-label="Workspace controls">
-            <Link to="/admin/automation">
-              Manage live bookings and Calendar
-            </Link>
-            <Link to="/admin">Team session and permissions</Link>
-            <button
-              type="button"
-              onClick={() => logout(area, session.data.csrf_token)}
-            >
-              Sign out
-            </button>
-          </nav>
-          {remaining <= 5 && (
-            <p role="status">
-              Your session expires in {remaining || "less than a minute"}
-              {remaining ? " minutes" : ""}.
+        {!adminPreview && (
+          <aside
+            className="admin-preview-notice"
+            aria-label={
+              liveOrders ? "Order workspace notice" : "Admin workspace notice"
+            }
+          >
+            <p>
+              {liveOrders ? (
+                <>
+                  Saved customer orders and linked booking balances. Manage
+                  approvals, payments and Calendar in the booking workspace.
+                </>
+              ) : (
+                <>
+                  <strong>Owner workspace.</strong> Dashboard, Calendar and
+                  Inventory use saved data. Manage booking actions in the
+                  booking workspace.
+                </>
+              )}
             </p>
-          )}
-        </aside>
+            <nav aria-label="Workspace controls">
+              <Link to="/admin/automation">
+                Manage live bookings and Calendar
+              </Link>
+              <Link to="/admin">Team session and permissions</Link>
+              <button
+                type="button"
+                onClick={() => logout(area, session.data.csrf_token)}
+              >
+                Sign out
+              </button>
+            </nav>
+            {remaining <= 5 && (
+              <p role="status">
+                Your session expires in {remaining || "less than a minute"}
+                {remaining ? " minutes" : ""}.
+              </p>
+            )}
+          </aside>
+        )}
         {children}
       </div>
     );
@@ -391,7 +395,7 @@ function ProtectedPage({
           . Sign in again after it expires to continue.
         </Notice>
       )}
-      <h2>Session details</h2>
+      <h2>Session Details</h2>
       <dl>
         <dt>Name</dt>
         <dd>{identity.name || "Not provided"}</dd>
@@ -483,9 +487,28 @@ export default function App() {
     <BrowserRouter>
       <RouteScroll />
       <AuthProvider>
+        {adminPreview && (
+          <aside className="admin-sample-banner" aria-label="Sample preview">
+            <p>
+              <strong>Admin preview</strong> · Sample data · Viewing only
+            </p>
+            <a href="http://localhost:5173/admin/login">
+              Open real admin sign-in ↗
+            </a>
+          </aside>
+        )}
         <Layout>
           <Routes>
-            <Route path="/" element={<PublicHome />} />
+            <Route
+              path="/"
+              element={
+                adminPreview ? (
+                  <Navigate to="/admin/dashboard" replace />
+                ) : (
+                  <PublicHome />
+                )
+              }
+            />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/order" element={<CateringPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
@@ -494,12 +517,30 @@ export default function App() {
               path="/account"
               element={<ProtectedPage area="customer" />}
             />
-            <Route path="/admin/login" element={<AdminPasswordLogin />} />
+            <Route
+              path="/admin/login"
+              element={
+                adminPreview ? (
+                  <Navigate to="/admin/dashboard" replace />
+                ) : (
+                  <AdminPasswordLogin />
+                )
+              }
+            />
             <Route
               path="/admin/mfa"
               element={<Navigate to="/admin/login?reauth=1" replace />}
             />
-            <Route path="/admin" element={<ProtectedPage area="admin" />} />
+            <Route
+              path="/admin"
+              element={
+                adminPreview ? (
+                  <Navigate to="/admin/dashboard" replace />
+                ) : (
+                  <ProtectedPage area="admin" />
+                )
+              }
+            />
             <Route
               path="/admin/automation"
               element={<ProtectedPage area="admin" />}

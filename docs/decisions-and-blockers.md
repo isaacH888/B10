@@ -15,14 +15,14 @@ flavor, ingredient, allergy and review guidance.
 
 | ID | Current evidence and remaining question | Responsible owners |
 | --- | --- | --- |
-| D01 | Quantity tiers, unit prices, boundaries and effective dates still unknown | Client / Anh; Dillion display; Bryson snapshots |
-| D02 | Confirm heart-shaped price and mixed-shape order policy | Client / Anh / Dillion / Bryson |
+| D01 | November 13: Isaac supplied $4.50 per regular paleta and $3.00 per heart-shaped paleta for catering. Revision 2.0.0 applies flat per-shape rates to new quotes/orders, replacing the old quantity discounts. Further discounts and historical effective dates need separate confirmation | Client / Anh; Dillion display; Bryson snapshots |
+| D02 | November 13: heart-shaped units cost $3.00 each in total, replacing the old surcharge. Mixed-shape order policy remains unconfirmed; the public form still selects one shape | Client / Anh / Dillion / Bryson |
 | D03 | November 12 S06/S08: rotating availability with five approved demo flavors and optional per-flavor quantities. Organic/fresh-fruit wording and allergy examples supplied. Confirm actual event availability, add-on charges and manual-review pricing where needed | Client / Anh / Dillion |
-| D04 | Origin recorded: Wingman Kitchens Houston, 4783 Lexington Blvd, Missouri City, TX; beyond 30 miles redirects to inquiry. Confirm postal code/geocoding, distance method, $25-$75 formula and inquiry URL | Client / Anh / Dillion |
+| D04 | Latest November 13 instruction: fixed Stafford ZIP 77477 and a 30-mile geographic ZIP-area radius, replacing kitchen-origin driving routes. Local Census coordinates support checks without API keys or street matches. Green status for inside ZIPs; outside/unknown ZIPs can get product/extra estimates for owner review of availability and travel/service fees. Pricing revision 2.1.0 records the new distance basis; see catering-addresses.md | Client / Anh / Dillion |
 | D05 | Recorded full service is 3.5 hours (.5 setup, 2.5 serving, .5 breakdown), 1-2 people. $150 appears in the question, not explicit price approval; confirm fee, staffing, timestamp meaning, overtime and delivery inclusion | Client / Anh / Dillion / Shourya calendar |
 | D06 | Confirm dry-ice allocation/count and when $15/block applies | Client / Anh / Dillion |
 | D07 | Confirm USD, taxes, total basis, odd-cent deposit rounding and final balance | Client / Anh / Bryson |
-| D08 | Approve whether unpriced requests can be submitted; draft API requires a priced accepted quote | Client / Anh / Dillion |
+| D08 | November 13: preliminary outside-area/unverified quote estimates may be generated and discussed with the owner. Estimates are not accepted order pricing; normal order submission still requires a priced accepted quote. A separate automated custom-fee approval/submission workflow remains open | Client / Anh / Dillion |
 | D09 | Define financial edits, corrections/reversals, cancellation/refunds and adjustments after deposit | Client / Anh / Bryson |
 | D10 | Approve order states/transitions, acceptance/capacity policy and draft DB status mapping | Client / Anh / Bryson |
 | D11 | Square first is recorded; Venmo/PayPal later. Merchant credentials unknown; approve manual/provider verification and acceptable evidence | Client / Anh / Shourya |

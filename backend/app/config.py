@@ -45,6 +45,8 @@ def read_settings():
         "DB_PASSWORD": os.getenv("DB_PASSWORD", ""),
         "DB_TLS_CA_FILE": os.getenv("DB_TLS_CA_FILE", ""),
         "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO").upper(),
+        "GEOAPIFY_API_KEY": os.getenv("GEOAPIFY_API_KEY", ""),
+        "DELIVERY_ORIGIN_ADDRESS": os.getenv("DELIVERY_ORIGIN_ADDRESS", ""),
     }
     if not 1 <= settings["DB_PORT"] <= 65535:
         raise ValueError("DB_PORT must be between 1 and 65535")

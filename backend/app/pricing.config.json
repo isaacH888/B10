@@ -1,8 +1,8 @@
 {
-  "version": "1.1.0",
+  "version": "2.1.0",
   "project": "Popssibilities Catering Order Management System",
-  "last_updated": "2026-10-05",
-  "status": "RATIFIED_BY_CLIENT_SPONSOR",
+  "last_updated": "2026-11-13",
+  "status": "CLIENT_UNIT_PRICES_AND_ZIP_RADIUS_PROVIDED",
   "business_rules": {
     "moq": {
       "minimum_order_quantity": 50,
@@ -10,26 +10,14 @@
     },
     "volume_tiers": [
       {
-        "tier_name": "Tier 1",
+        "tier_name": "Regular paletas",
         "min_quantity": 50,
-        "max_quantity": 99,
-        "unit_price": 3.5
-      },
-      {
-        "tier_name": "Tier 2",
-        "min_quantity": 100,
-        "max_quantity": 199,
-        "unit_price": 3.25
-      },
-      {
-        "tier_name": "Tier 3",
-        "min_quantity": 200,
         "max_quantity": null,
-        "unit_price": 3.0
+        "unit_price": 4.5
       }
     ],
     "customizations": {
-      "heart_shaped_surcharge_per_unit": 0.5
+      "heart_shaped_unit_price": 3.0
     },
     "logistics": {
       "dry_ice": {

@@ -30,10 +30,17 @@ export async function apiRequest(path, options = {}) {
   const timeout =
     path === "/admin/password/transaction" && options.method === "POST"
       ? 45000
-      : path === "/customer/test-email" && options.method === "POST"
+      : (path === "/customer/test-email" ||
+            path.startsWith("/catering/address/") ||
+            path === "/quotes" ||
+            path === "/orders") &&
+          options.method === "POST"
         ? 20000
         : 10000;
   const timer = setTimeout(() => controller.abort(), timeout);
+  const cancel = () => controller.abort();
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) controller.abort();
   try {
     const response = await fetch(`${configuredBase}${path}`, {
       ...options,
@@ -65,6 +72,7 @@ export async function apiRequest(path, options = {}) {
     throw new ApiError(503, "authentication_unavailable");
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener("abort", cancel);
   }
 }
 

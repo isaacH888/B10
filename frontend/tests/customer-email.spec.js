@@ -67,7 +67,7 @@ test("a signed-in customer explicitly sends only to their server-selected accoun
   const { requests } = await mockApi(page);
   await page.goto("/account");
   await expect(
-    page.getByRole("heading", { name: "Test order confirmation", exact: true }),
+    page.getByRole("heading", { name: "Test Order Confirmation", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("does not place an order or charge you", { exact: false }),
@@ -290,7 +290,7 @@ for (const scenario of ["signed-out", "administrator"]) {
     await expect(
       page.getByRole("heading", {
         name:
-          scenario === "administrator" ? "Team account" : "Customer sign-in",
+          scenario === "administrator" ? "Team account" : "Customer Sign-In",
         exact: true,
       }),
     ).toBeVisible();

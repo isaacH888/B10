@@ -1,6 +1,7 @@
 # Client content confirmations
 
-Recorded November 12, 2026 from Adriana's answers relayed by Isaac in conversation.
+Recorded November 12–13, 2026 from Adriana's answers and pricing information
+relayed by Isaac in conversation.
 These answers guide the public website and catering copy. The original charter
 and supplied documents remain unchanged.
 
@@ -78,9 +79,31 @@ The catering page now describes that recorded service scope.
 
 The documents do not supply quantity-tier unit prices, heart-shape/add-on prices,
 tax/refund/cancellation terms, or explicit approval of the $150 service fee
-mentioned in a question. Existing pricing and policy decisions remain open where
-those details are absent; see [the decision register](decisions-and-blockers.md).
-This content update does not change the price calculator or payment rules.
+mentioned in a question. The subsequent unit-price confirmation below supersedes
+the old regular/heart rates. Other policy decisions remain open where details
+are absent; see [the decision register](decisions-and-blockers.md).
+
+## Catering unit prices
+
+On November 13, Isaac relayed catering prices of **$4.50 per regular paleta**
+and **$3.00 per heart-shaped paleta**. Pricing revision `2.0.0` applies those
+rates to new quotes and orders. The previous volume discounts and $0.50 heart
+surcharge are superseded; a heart-shaped unit costs $3.00 in total.
+
+The existing minimum of 50 paletas, delivery/full-service charges, dry-ice fees
+and deposit calculation are retained. For example, 50 regular paletas cost
+$225.00 and 50 hearts cost $150.00 before service or dry-ice charges. Further
+quantity discounts, mixed-shape ordering policy and other unconfirmed policies
+are not established by this price update. The public form still selects one
+shape for the order and shows both unit prices in the shape dropdown and the
+pricing facts. Flavors remain independently selectable within that shape.
+
+Heart-shaped units use the `heart_shaped_popsicles` pricing line item, replacing
+the old surcharge item. The flat quote breakdown correspondingly uses
+`heart_shaped_popsicles_cents`; regular units retain `base_popsicles_cents`.
+Line items remain nonnegative integer cents and sum to the total. Existing
+saved orders and idempotent submission replays retain their original price and
+revision. No database migration is needed.
 
 ## Customer reviews
 
@@ -138,3 +161,32 @@ confirmation and owner display. Build, frontend formatting, Python lint/format,
 foundation and whitespace checks passed. The menu and picker were visually
 inspected on desktop and mobile; picker controls were checked at 320, 375 and
 1440 pixels. No schema migration or flavor inventory reservation is introduced.
+
+The November 13 unit-price follow-up passed all **1,241 backend tests** against
+a fresh disposable MySQL 8.4.13 container, which was removed afterwards, and all
+47 affected public/catering browser cases. Quote/order parity, the old quantity
+boundaries, mixed-shape arithmetic, deposits, saved price snapshots and replay
+behavior are covered. Backend log:
+`/private/tmp/b10-catering-prices-backend-full.log`.
+
+Build, formatting, Ruff, foundation and whitespace checks passed. After widening
+the shape selector for full price labels, checkout and all three narrow-dialog
+checks passed again. The actual running localhost form also returned $250.00
+for 50 regular paletas and $175.00 for 50 hearts, each including the existing
+$25.00 base delivery fee, with deposits of $125.00 and $87.50. These were unsaved
+quotes; no live order was submitted. The local backend was restarted to load
+pricing revision 2.0.0.
+
+## Service-area and quote follow-up (November 13)
+
+Isaac requested a simple green in-area indicator instead of visible driving
+mileage, and approved continuing outside-area requests to quote estimates. The
+owner decides availability and travel/service fees. Estimates itemize known
+paleta/extra prices, omit logistics and any deposit, and provide owner contact
+links. The existing 30-mile calculation remains behind the scenes; the user did
+not approve a new distance method or radius.
+
+The later November 13 ZIP follow-up supersedes the earlier driving-method note:
+Isaac fixed Stafford ZIP 77477 as the center of a 30-mile ZIP-area geographic
+radius. Local Census representative points now determine area status without
+a street match or API call. Unknown/outside ZIPs retain owner-review estimates.

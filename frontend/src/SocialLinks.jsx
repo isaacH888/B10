@@ -3,7 +3,7 @@ import "./social-links.css";
 export default function SocialLinks() {
   return (
     <div className="social-links">
-      <p className="social-links__label">Follow our socials!</p>
+      <p className="social-links__label">Follow Our Socials!</p>
       <nav className="social-links__icons" aria-label="Social media">
         <a
           className="social-links__link"

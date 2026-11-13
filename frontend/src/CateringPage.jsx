@@ -1,12 +1,17 @@
-import { useAuth } from "./auth/AuthContext.jsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import SocialLinks from "./SocialLinks.jsx";
+import { useNavigate } from "react-router-dom";
 import FlavorPicker, { FlavorMixSummary } from "./FlavorPicker.jsx";
 import { flavorMixIssue, validFlavorDraft } from "./flavors.js";
+import {
+  AddressField,
+  ServiceAreaNotice,
+  ADDRESS_FIELDS,
+  locationFromForm,
+  locationKey,
+  serviceAreaKey,
+} from "./CateringAddress.jsx";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
-import logoImage from "./assets/logo.png";
 import venueImage from "./assets/Venue.webp";
 import { apiRequest } from "./auth/api.js";
 import {
@@ -23,6 +28,11 @@ import {
 function formatCents(cents) {
   return "$" + (cents / 100).toFixed(2);
 }
+
+const PALETA_SHAPES = [
+  { value: "standard", label: "Regular", unitCents: 450 },
+  { value: "heart", label: "Heart-shaped", unitCents: 300 },
+];
 
 function CateringContact() {
   return (
@@ -85,9 +95,9 @@ const TOTAL_STEPS = 5;
 
 const stepTitles = [
   "Contact",
-  "Service & location",
-  "Event schedule",
-  "Paletas & extras",
+  "Service & Location",
+  "Event Schedule",
+  "Paletas & Extras",
   "Review",
 ];
 
@@ -242,7 +252,17 @@ function StepContact({ form, onChange, errors }) {
   );
 }
 
-function StepEvent({ form, onChange, errors }) {
+function StepEvent({
+  form,
+  onChange,
+  errors,
+  addressConfig,
+  addressResult,
+  addressBusy,
+  onAddressResolved,
+  onAddressBusy,
+  onCheckAddress,
+}) {
   return (
     <fieldset>
       <legend>{stepTitles[1]}</legend>
@@ -296,16 +316,30 @@ function StepEvent({ form, onChange, errors }) {
             *
           </span>
         </label>
-        <input
+        <AddressField
           id="cf-line1"
-          {...fieldAccessibility(errors, "location_line1", "cf-line1")}
+          {...fieldAccessibility(
+            errors,
+            "location_line1",
+            "cf-line1",
+            "cf-address-help",
+          )}
           type="text"
           value={form.location_line1}
-          onChange={(e) => onChange("location_line1", e.target.value)}
-          autoComplete="street-address"
+          onChange={(value) => onChange("location_line1", value)}
+          enabled={addressConfig.enabled}
+          addressKey={locationKey(locationFromForm(form))}
+          onResolved={onAddressResolved}
+          onBusyChange={onAddressBusy}
+          maxLength={200}
           placeholder="123 Example Street"
           required
         />
+        <p id="cf-address-help" className="field-hint">
+          {addressConfig.enabled
+            ? "Start typing, then choose a suggestion to fill the city, state and ZIP code. Include the city, state or ZIP for addresses farther away. You can also enter the address manually."
+            : "Include the full event address, city, state and ZIP code."}
+        </p>
         {errors.location_line1 && (
           <p id="cf-line1-error" className="field-error" role="alert">
             {errors.location_line1}
@@ -364,7 +398,7 @@ function StepEvent({ form, onChange, errors }) {
 
         <div className="form-field">
           <label htmlFor="cf-postal">
-            Postal code{" "}
+            ZIP Code{" "}
             <span className="required-mark" aria-hidden="true">
               *
             </span>
@@ -385,6 +419,22 @@ function StepEvent({ form, onChange, errors }) {
           )}
         </div>
       </div>
+      <ServiceAreaNotice
+        config={addressConfig}
+        result={addressResult}
+        checking={addressBusy}
+      />
+
+      {(addressConfig.service_area_enabled ?? addressConfig.enabled) && (
+        <button
+          type="button"
+          className="address-check-button"
+          onClick={onCheckAddress}
+          disabled={addressBusy}
+        >
+          {addressBusy ? "Checking address…" : "Check service area"}
+        </button>
+      )}
     </fieldset>
   );
 }
@@ -525,10 +575,15 @@ function StepOrderDetails({ form, onChange, errors }) {
             value={form.popsicle_shape}
             onChange={(e) => onChange("popsicle_shape", e.target.value)}
           >
-            <option value="standard">Standard</option>
-            <option value="heart">Heart-shaped</option>
+            {PALETA_SHAPES.map((shape) => (
+              <option key={shape.value} value={shape.value}>
+                {shape.label} — {formatCents(shape.unitCents)} each
+              </option>
+            ))}
           </select>
-          <p className="field-hint">Heart-shaped may affect pricing.</p>
+          <p className="field-hint">
+            Prices are per paleta. Service fees and dry ice are additional.
+          </p>
         </div>
       </div>
 
@@ -581,6 +636,66 @@ function StepOrderDetails({ form, onChange, errors }) {
   );
 }
 
+function QuoteEstimate({ quote, customer }) {
+  const estimate = quote.estimate;
+  if (!estimate) return null;
+  const location = quote.event?.location;
+  const details = [
+    `I'd like the owner to review catering quote ${quote.id}.`,
+    `Name: ${customer.name.trim()}.`,
+    `Email: ${customer.email.trim()}.`,
+    `Phone: ${customer.phone.trim()}.`,
+    `Paletas: ${quote.catering_request?.quantity} (${quote.catering_request?.popsicle_shape || "standard"}).`,
+    `Service: ${quote.catering_request?.service_type}.`,
+    `Event: ${quote.event?.type || "Please confirm"}.`,
+    `Event starts: ${quote.event?.starts_at || "Please confirm"}.`,
+    quote.event?.ends_at ? `Event ends: ${quote.event.ends_at}.` : "",
+    `Time zone: ${quote.event?.timezone || EVENT_TIME_ZONE}.`,
+    location
+      ? `Address: ${[location.line1, location.city, location.region, location.postal_code].filter(Boolean).join(", ")}.`
+      : "",
+    ...(quote.catering_request?.flavor_allocations || []).map(
+      (item) => `${item.flavor}: ${item.quantity}`,
+    ),
+    quote.catering_request?.flavor_requests
+      ? `Flavor and allergy requests: ${quote.catering_request.flavor_requests}`
+      : "",
+    quote.event?.notes ? `Event notes: ${quote.event.notes}` : "",
+    ...estimate.line_items.map(
+      (item) => `${item.description}: ${formatCents(item.amount_cents)}`,
+    ),
+    `Paletas and extras subtotal: ${formatCents(estimate.subtotal_cents)}.`,
+    "Please confirm availability and any service or travel fees. I understand the estimate is not a confirmed booking.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const email = `mailto:info@popssibilities.com?subject=${encodeURIComponent(`Catering quote review: ${quote.id}`)}&body=${encodeURIComponent(details)}`;
+  return (
+    <section className="quote-estimate" aria-label="Quote estimate">
+      <h3>Quote Estimate</h3>
+      <ul>
+        {estimate.line_items.map((item) => (
+          <li key={item.code}>
+            <span>{item.description}</span>
+            <strong>{formatCents(item.amount_cents)}</strong>
+          </li>
+        ))}
+      </ul>
+      <p className="quote-total">
+        Paletas &amp; extras: {formatCents(estimate.subtotal_cents)}
+      </p>
+      <p>
+        Service and travel fees are not included. The owner will confirm
+        availability and the final total.
+      </p>
+      <p>
+        <strong>No payment is due until the owner approves your event.</strong>
+      </p>
+      <a href={email}>Email the owner about this quote</a>
+    </section>
+  );
+}
+
 function StepSummary({
   form,
   quoteStatus,
@@ -621,7 +736,7 @@ function StepSummary({
       </section>
       <section className="summary-section" aria-label="Service and location">
         <div className="summary-heading">
-          <h3>Service &amp; location</h3>
+          <h3>Service &amp; Location</h3>
           <button
             type="button"
             onClick={() => onEdit(2)}
@@ -645,7 +760,7 @@ function StepSummary({
       </section>
       <section className="summary-section" aria-label="Event schedule">
         <div className="summary-heading">
-          <h3>Event schedule</h3>
+          <h3>Event Schedule</h3>
           <button
             type="button"
             onClick={() => onEdit(3)}
@@ -674,7 +789,7 @@ function StepSummary({
       </section>
       <section className="summary-section" aria-label="Paletas and extras">
         <div className="summary-heading">
-          <h3>Paletas &amp; extras</h3>
+          <h3>Paletas &amp; Extras</h3>
           <button
             type="button"
             onClick={() => onEdit(4)}
@@ -689,7 +804,7 @@ function StepSummary({
           <dd>{form.quantity} paletas</dd>
           <dt>Shape</dt>
           <dd>
-            {form.popsicle_shape === "heart" ? "Heart-shaped" : "Standard"}
+            {form.popsicle_shape === "heart" ? "Heart-shaped" : "Regular"}
           </dd>
           {form.flavor_allocations.length > 0 && (
             <>
@@ -740,7 +855,7 @@ function StepSummary({
 
       {["priced", "submitting"].includes(quoteStatus) && quote && (
         <div className="quote-result">
-          <h3>Your quote</h3>
+          <h3>Your Quote</h3>
           {quote.pricing.line_items.map((item) => (
             <p
               key={item.code}
@@ -789,11 +904,14 @@ function StepSummary({
         </div>
       )}
 
+      {["inquiry", "requires_review"].includes(quoteStatus) &&
+        quote?.estimate && <QuoteEstimate quote={quote} customer={form} />}
+
       {quoteStatus === "requires_review" && (
         <div className="catering-notice" role="status">
           <p>
-            Your request needs a manual pricing review. Please contact our team
-            for a custom quote. Your order has not been submitted.
+            {submitError ||
+              "Your quote estimate needs the owner's review. Please contact us to confirm the final price and availability. Your order has not been submitted."}
           </p>
           <p>No payment is due at this time.</p>
           <CateringContact />
@@ -812,13 +930,19 @@ function StepSummary({
       {quoteStatus === "inquiry" && quote?.next_action && (
         <div className="catering-notice" role="alert">
           <p>{quote.next_action.message}</p>
-          <a
-            href={quote.next_action.inquiry_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Submit a custom event inquiry
-          </a>
+          {quote.next_action.inquiry_url && (
+            <a
+              href={quote.next_action.inquiry_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Submit a custom event inquiry
+            </a>
+          )}
+          <CateringContact />
+          <button type="button" className="btn-back" onClick={() => onEdit(2)}>
+            Edit event address
+          </button>
         </div>
       )}
 
@@ -974,6 +1098,69 @@ function CateringModal({ onClose, draft, onDraftChange }) {
   const [quoteStatus, setQuoteStatus] = useState("idle");
   const [quote, setQuote] = useState(null);
   const [submitError, setSubmitError] = useState("");
+  const [addressConfig, setAddressConfig] = useState({
+    enabled: false,
+    service_area_enabled: false,
+    radius_miles: 30,
+    origin_name: "Stafford, TX 77477",
+    origin_postal_code: "77477",
+  });
+  const [addressConfigLoading, setAddressConfigLoading] = useState(true);
+  const [addressResult, setAddressResult] = useState(null);
+  const [addressSelecting, setAddressSelecting] = useState(false);
+  const [addressChecking, setAddressChecking] = useState(false);
+  const addressGeneration = useRef(0);
+  const addressController = useRef(null);
+  const addressCheckTimer = useRef(null);
+  const latestForm = useRef(form);
+  latestForm.current = form;
+  const currentAddressKey = serviceAreaKey(locationFromForm(form));
+  const currentAddressResult =
+    addressResult?.key === currentAddressKey ? addressResult : null;
+  const addressBusy = addressSelecting || addressChecking;
+  const serviceAreaEnabled =
+    addressConfig.service_area_enabled ?? addressConfig.enabled;
+
+  useEffect(() => {
+    clearTimeout(addressCheckTimer.current);
+    if (
+      !serviceAreaEnabled ||
+      currentAddressResult ||
+      !/^\d{5}(?:-\d{4})?$/.test(form.location_postal_code.trim())
+    )
+      return;
+    addressCheckTimer.current = setTimeout(() => {
+      void checkAddress(locationFromForm(latestForm.current));
+    }, 250);
+    return () => clearTimeout(addressCheckTimer.current);
+  }, [currentAddressKey, serviceAreaEnabled]);
+
+  useEffect(() => {
+    let current = true;
+    const controller = new AbortController();
+    apiRequest("/catering/address/config", { signal: controller.signal })
+      .then((data) => {
+        if (
+          current &&
+          typeof data.enabled === "boolean" &&
+          Number.isFinite(data.radius_miles) &&
+          data.radius_miles > 0 &&
+          typeof data.origin_name === "string"
+        )
+          setAddressConfig(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (current) setAddressConfigLoading(false);
+      });
+    return () => {
+      current = false;
+      controller.abort();
+      addressGeneration.current++;
+      addressController.current?.abort();
+      clearTimeout(addressCheckTimer.current);
+    };
+  }, []);
   // Generated once per submission attempt; reused on retry to prevent duplicates.
   const idempotencyKey = useRef(null);
   const modalRef = useRef(null);
@@ -1052,6 +1239,17 @@ function CateringModal({ onClose, draft, onDraftChange }) {
   }
 
   function handleChange(field, value) {
+    if (
+      ADDRESS_FIELDS.includes(field) &&
+      serviceAreaKey(
+        locationFromForm({ ...latestForm.current, [field]: value }),
+      ) !== currentAddressKey
+    ) {
+      addressGeneration.current++;
+      addressController.current?.abort();
+      setAddressResult(null);
+      setAddressChecking(false);
+    }
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => {
       if (!prev[field] && !(field === "quantity" && prev.flavor_allocations))
@@ -1068,12 +1266,104 @@ function CateringModal({ onClose, draft, onDraftChange }) {
     idempotencyKey.current = null;
   }
 
-  function handleNext() {
+  function handleAddressResolved(data) {
+    if (data.location.country_code !== "US") {
+      setErrors((prev) => ({
+        ...prev,
+        location_line1: "Please enter a US event address.",
+      }));
+      return;
+    }
+    const location = data.location;
+    setForm((prev) => ({
+      ...prev,
+      location_line1: location.line1,
+      location_city: location.city,
+      location_region: location.region,
+      location_postal_code: location.postal_code,
+    }));
+    const key = serviceAreaKey(location);
+    setAddressResult((previous) =>
+      data.service_area
+        ? { ...data.service_area, key }
+        : previous?.key === key
+          ? previous
+          : null,
+    );
+    setErrors((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([key]) => !ADDRESS_FIELDS.includes(key)),
+      ),
+    );
+    setQuoteStatus("idle");
+    setQuote(null);
+    setSubmitError("");
+    idempotencyKey.current = null;
+  }
+
+  async function checkCurrentAddress() {
+    const snapshot = latestForm.current;
+    if (!/^\d{5}(?:-\d{4})?$/.test(snapshot.location_postal_code.trim())) {
+      setErrors((prev) => ({
+        ...prev,
+        location_postal_code:
+          "Enter a valid US ZIP code to check the service area.",
+      }));
+      setValidationFocus((value) => value + 1);
+      return null;
+    }
+    return checkAddress(locationFromForm(snapshot));
+  }
+
+  async function checkAddress(location) {
+    clearTimeout(addressCheckTimer.current);
+    const key = serviceAreaKey(location);
+    const generation = ++addressGeneration.current;
+    addressController.current?.abort();
+    const controller = new AbortController();
+    addressController.current = controller;
+    setAddressChecking(true);
+    let result;
+    try {
+      result = await apiRequest("/catering/address/check", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location }),
+      });
+    } catch {
+      result = {
+        status: "unavailable",
+        message:
+          "We could not check this ZIP code. You can continue to a quote estimate for owner review.",
+      };
+    } finally {
+      if (generation === addressGeneration.current) setAddressChecking(false);
+    }
+    if (
+      generation !== addressGeneration.current ||
+      key !== serviceAreaKey(locationFromForm(latestForm.current))
+    )
+      return null;
+    const bound = { ...result, key };
+    setAddressResult(bound);
+    return bound;
+  }
+
+  async function handleNext() {
     const stepErrors = validateStep(currentStep, form);
     if (Object.keys(stepErrors).length > 0) {
       setErrors(stepErrors);
       setValidationFocus((value) => value + 1);
       return;
+    }
+    if (currentStep === 2 && serviceAreaEnabled) {
+      if (currentAddressResult?.status === "invalid_address") {
+        setErrors({ location_line1: currentAddressResult.message });
+        setValidationFocus((value) => value + 1);
+        return;
+      }
+      if (!currentAddressResult && !addressChecking) void checkCurrentAddress();
     }
     setErrors({});
     setCurrentStep((prev) => prev + 1);
@@ -1148,6 +1438,19 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       onDraftChange({ form: { ...initialForm }, step: 1 });
       navigate("/order/confirm", { state: { order } });
     } catch (error) {
+      if (
+        ["outside_service_area", "address_verification_required"].includes(
+          error?.code,
+        )
+      ) {
+        setQuote(null);
+        setQuoteStatus("requires_review");
+        setSubmitError(
+          error.serverMessage ||
+            "Please contact our team to review the event address.",
+        );
+        return;
+      }
       // Keep the same idempotency key on retry to prevent duplicate orders.
       const refreshQuote = ["quote_expired", "quote_mismatch"].includes(
         error?.code,
@@ -1262,6 +1565,12 @@ function CateringModal({ onClose, draft, onDraftChange }) {
                   form={form}
                   onChange={handleChange}
                   errors={errors}
+                  addressConfig={addressConfig}
+                  addressResult={currentAddressResult}
+                  addressBusy={addressBusy}
+                  onAddressResolved={handleAddressResolved}
+                  onAddressBusy={setAddressSelecting}
+                  onCheckAddress={checkCurrentAddress}
                 />
               )}
               {currentStep === 3 && (
@@ -1315,7 +1624,15 @@ function CateringModal({ onClose, draft, onDraftChange }) {
               </button>
             )}
             {currentStep < TOTAL_STEPS && (
-              <button type="button" className="btn-next" onClick={handleNext}>
+              <button
+                type="button"
+                className="btn-next"
+                onClick={handleNext}
+                disabled={
+                  currentStep === 2 &&
+                  (addressSelecting || addressConfigLoading)
+                }
+              >
                 Next
               </button>
             )}
@@ -1332,8 +1649,6 @@ function CateringModal({ onClose, draft, onDraftChange }) {
 // ---------------------------------------------------------------------------
 
 export function CateringPage() {
-  const { sessions } = useAuth();
-  const signedIn = sessions.customer.status === "authenticated";
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState(readDraft);
   const triggerRef = useRef(null);
@@ -1350,235 +1665,168 @@ export function CateringPage() {
 
   return (
     <div className="cat-shell">
-      {/* ---- Status bar: dark purple strip at very top ---- */}
-      <div className="cat-status-bar" aria-label="Site announcement">
-        <p className="cat-status-bar__text">
-          Mexican Paletas. Endless Popssibilities.
-        </p>
-      </div>
-
-      {/* ---- Navbar: hot pink ---- */}
-      <header className="cat-nav">
-        <a href="/" className="cat-nav__brand" aria-label="Popssibilities home">
-          <img
-            src={logoImage}
-            alt="Popssibilities"
-            className="cat-nav__logo"
-            width={58}
-            height={58}
-          />
-        </a>
-        <nav className="cat-nav__links" aria-label="Main navigation">
-          <a href="/#paleta-life">The paleta life</a>
-          <a href="/#flavors">Flavors</a>
-          <a href="/#our-story">Our story</a>
-          <a href="/order" aria-label="Catering order">
-            Catering
-          </a>
-        </nav>
-        <Link
-          className="cat-btn cat-btn--red cat-nav__login"
-          to={signedIn ? "/account" : "/login"}
-        >
-          {signedIn ? "My account" : "Sign in"}
-        </Link>
-      </header>
-
-      <main id="main-content">
-        {/* ---- Hero: full-bleed image, text overlaid at bottom ---- */}
-        <section className="cat-hero" aria-labelledby="cat-hero-heading">
-          <img
-            src={heroImage}
-            alt="Colorful paletas at a catering event"
-            className="cat-hero__image"
-          />
-          <div className="cat-hero__overlay" aria-hidden="true" />
-          <div className="cat-hero__content">
-            <h1 id="cat-hero-heading" className="cat-hero__heading">
-              Bring the Chill
-              <br />
-              to Your Event
-            </h1>
-            <p className="cat-hero__sub">
-              From weddings to corporate events, our hand-crafted paletas make
-              every moment sweeter. Delivery or full service within 30 miles of
-              Houston.
-            </p>
-            <button
-              type="button"
-              className="cat-btn cat-btn--red"
-              onClick={openForm}
-            >
-              Request a quote
-            </button>
-          </div>
-        </section>
-
-        {/* ---- Features: yellow background ---- */}
-        <section
-          className="cat-features"
-          aria-labelledby="cat-features-heading"
-        >
-          <h2 id="cat-features-heading" className="cat-section-title">
-            Why Popssibilities?
-          </h2>
-          <p className="cat-section-sub">
-            Everything you need for a sweet, stress-free event.
-          </p>
-          <div className="cat-features__grid">
-            <div className="cat-feature-card">
-              <div className="cat-feature-card__icon" aria-hidden="true">
-                &bull;
-              </div>
-              <h3>Premium Paletas</h3>
-              <p>Hand-crafted with organic ingredients and fresh fruit.</p>
-            </div>
-            <div className="cat-feature-card">
-              <div className="cat-feature-card__icon" aria-hidden="true">
-                &bull;
-              </div>
-              <h3>Rotating Flavors</h3>
-              <p>
-                Audrey’s flavors vary from batch to batch. Share your
-                preferences and we’ll confirm what’s available for your event.
-              </p>
-            </div>
-            <div className="cat-feature-card">
-              <div className="cat-feature-card__icon" aria-hidden="true">
-                &bull;
-              </div>
-              <h3>Full Event Service</h3>
-              <p>
-                Full service includes 1–2 staff, 30 minutes of setup, 2.5 hours
-                of serving, and 30 minutes of breakdown.
-              </p>
-            </div>
-          </div>
-          <AllergyNotice className="cat-features__note" />
-        </section>
-
-        {/* ---- How it works: white background, red numbers ---- */}
-        <section className="cat-how" aria-labelledby="cat-how-heading">
-          <h2 id="cat-how-heading" className="cat-section-title">
-            How it works
-          </h2>
-          <p className="cat-section-sub">
-            From quote to delivery in just a few steps.
-          </p>
-          <ol className="cat-how__steps">
-            <li className="cat-how__step">
-              <span className="cat-how__step-num" aria-hidden="true">
-                01
-              </span>
-              <div>
-                <h3>Fill out the form</h3>
-                <p>
-                  Tell us about your event, how many paletas you need, and any
-                  flavor requests.
-                </p>
-              </div>
-            </li>
-            <li className="cat-how__step">
-              <span className="cat-how__step-num" aria-hidden="true">
-                02
-              </span>
-              <div>
-                <h3>Get your quote</h3>
-                <p>
-                  Get a price estimate or guidance on a custom quote. Delivery
-                  within 30 miles: $25&ndash;$75.
-                </p>
-              </div>
-            </li>
-            <li className="cat-how__step">
-              <span className="cat-how__step-num" aria-hidden="true">
-                03
-              </span>
-              <div>
-                <h3>Confirm with a deposit</h3>
-                <p>
-                  After our team approves availability, follow the payment
-                  instructions we send. Your date is secured after the required
-                  deposit is verified.
-                </p>
-              </div>
-            </li>
-            <li className="cat-how__step">
-              <span className="cat-how__step-num" aria-hidden="true">
-                04
-              </span>
-              <div>
-                <h3>We handle the rest</h3>
-                <p>
-                  Delivery or full-service staff&mdash;we show up ready so you
-                  can enjoy your event.
-                </p>
-              </div>
-            </li>
-          </ol>
-          <div className="cat-how__rules" aria-label="Pricing quick facts">
-            <span>Minimum 50 paletas</span>
-            <span aria-hidden="true">&middot;</span>
-            <span>Delivery within 30 miles: $25&ndash;$75</span>
-            <span aria-hidden="true">&middot;</span>
-            <span>Dry ice: $15 per block</span>
-            <span aria-hidden="true">&middot;</span>
-            <span>50% deposit to confirm</span>
-          </div>
-        </section>
-
-        {/* ---- CTA: red background, white text ---- */}
-        <section className="cat-cta" aria-labelledby="cat-cta-heading">
-          <h2 id="cat-cta-heading" className="cat-cta__heading">
-            Planning an event?
-          </h2>
-          <p className="cat-cta__sub">
-            Share your event details to request a quote. Availability is
-            reviewed before your booking is confirmed.
+      {/* ---- Hero: full-bleed image, text overlaid at bottom ---- */}
+      <section className="cat-hero" aria-labelledby="cat-hero-heading">
+        <img
+          src={heroImage}
+          alt="Colorful paletas at a catering event"
+          className="cat-hero__image"
+        />
+        <div className="cat-hero__overlay" aria-hidden="true" />
+        <div className="cat-hero__content">
+          <h1 id="cat-hero-heading" className="cat-hero__heading">
+            Bring the Chill
+            <br />
+            to Your Event
+          </h1>
+          <p className="cat-hero__sub">
+            From weddings to corporate events, our hand-crafted paletas make
+            every moment sweeter. Delivery or full service within 30 miles of
+            Houston.
           </p>
           <button
             type="button"
-            className="cat-btn cat-btn--outline-white"
+            className="cat-btn cat-btn--red"
             onClick={openForm}
           >
             Request a quote
           </button>
-        </section>
-      </main>
-
-      {/* ---- Footer ---- */}
-      <footer className="cat-footer">
-        <div className="cat-footer__inner">
-          <div className="cat-footer__brand">
-            <img
-              src={logoImage}
-              alt=""
-              aria-hidden="true"
-              className="cat-footer__logo"
-              width={36}
-              height={36}
-            />
-            <span className="cat-footer__name">POPSSIBILITIES</span>
-          </div>
-          <p className="cat-footer__tagline">
-            Houston, TX &middot; info@popssibilities.com &middot; 281-248-7514
-          </p>
-          <nav className="cat-footer__links" aria-label="Footer navigation">
-            <a href="/#paleta-life">The paleta life</a>
-            <a href="/#flavors">Flavors</a>
-            <a href="/order" aria-label="Catering order">
-              Catering
-            </a>
-            <a href="/#our-story">About</a>
-          </nav>
-          <SocialLinks />
-          <p className="cat-footer__copy">
-            &copy; {new Date().getFullYear()} Popssibilities. All rights
-            reserved.
-          </p>
         </div>
-      </footer>
+      </section>
 
+      {/* ---- Features: yellow background ---- */}
+      <section className="cat-features" aria-labelledby="cat-features-heading">
+        <h2 id="cat-features-heading" className="cat-section-title">
+          Why Popssibilities?
+        </h2>
+        <p className="cat-section-sub">
+          Everything you need for a sweet, stress-free event.
+        </p>
+        <div className="cat-features__grid">
+          <div className="cat-feature-card">
+            <div className="cat-feature-card__icon" aria-hidden="true">
+              &bull;
+            </div>
+            <h3>Premium Paletas</h3>
+            <p>Hand-crafted with organic ingredients and fresh fruit.</p>
+          </div>
+          <div className="cat-feature-card">
+            <div className="cat-feature-card__icon" aria-hidden="true">
+              &bull;
+            </div>
+            <h3>Rotating Flavors</h3>
+            <p>
+              Audrey’s flavors vary from batch to batch. Share your preferences
+              and we’ll confirm what’s available for your event.
+            </p>
+          </div>
+          <div className="cat-feature-card">
+            <div className="cat-feature-card__icon" aria-hidden="true">
+              &bull;
+            </div>
+            <h3>Full Event Service</h3>
+            <p>
+              Full service includes 1–2 staff, 30 minutes of setup, 2.5 hours of
+              serving, and 30 minutes of breakdown.
+            </p>
+          </div>
+        </div>
+        <AllergyNotice className="cat-features__note" />
+      </section>
+
+      {/* ---- How it works: white background, red numbers ---- */}
+      <section className="cat-how" aria-labelledby="cat-how-heading">
+        <h2 id="cat-how-heading" className="cat-section-title">
+          How it works
+        </h2>
+        <p className="cat-section-sub">
+          From quote to delivery in just a few steps.
+        </p>
+        <ol className="cat-how__steps">
+          <li className="cat-how__step">
+            <span className="cat-how__step-num" aria-hidden="true">
+              01
+            </span>
+            <div>
+              <h3>Fill out the form</h3>
+              <p>
+                Tell us about your event, how many paletas you need, and any
+                flavor requests.
+              </p>
+            </div>
+          </li>
+          <li className="cat-how__step">
+            <span className="cat-how__step-num" aria-hidden="true">
+              02
+            </span>
+            <div>
+              <h3>Get your quote</h3>
+              <p>
+                Get a price estimate or guidance on a custom quote. Delivery
+                within 30 miles: $25&ndash;$75.
+              </p>
+            </div>
+          </li>
+          <li className="cat-how__step">
+            <span className="cat-how__step-num" aria-hidden="true">
+              03
+            </span>
+            <div>
+              <h3>Confirm with a deposit</h3>
+              <p>
+                After our team approves availability, follow the payment
+                instructions we send. Your date is secured after the required
+                deposit is verified.
+              </p>
+            </div>
+          </li>
+          <li className="cat-how__step">
+            <span className="cat-how__step-num" aria-hidden="true">
+              04
+            </span>
+            <div>
+              <h3>We handle the rest</h3>
+              <p>
+                Delivery or full-service staff&mdash;we show up ready so you can
+                enjoy your event.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <div className="cat-how__rules" aria-label="Pricing quick facts">
+          {PALETA_SHAPES.map((shape) => (
+            <span key={shape.value}>
+              {shape.label}: {formatCents(shape.unitCents)} each{" "}
+              <span aria-hidden="true">&middot;</span>
+            </span>
+          ))}
+          <span>Minimum 50 paletas</span>
+          <span aria-hidden="true">&middot;</span>
+          <span>Delivery within 30 miles: $25&ndash;$75</span>
+          <span aria-hidden="true">&middot;</span>
+          <span>Dry ice: $15 per block</span>
+          <span aria-hidden="true">&middot;</span>
+          <span>50% deposit to confirm</span>
+        </div>
+      </section>
+
+      {/* ---- CTA: red background, white text ---- */}
+      <section className="cat-cta" aria-labelledby="cat-cta-heading">
+        <h2 id="cat-cta-heading" className="cat-cta__heading">
+          Planning an event?
+        </h2>
+        <p className="cat-cta__sub">
+          Share your event details to request a quote. Availability is reviewed
+          before your booking is confirmed.
+        </p>
+        <button
+          type="button"
+          className="cat-btn cat-btn--outline-white"
+          onClick={openForm}
+        >
+          Request a quote
+        </button>
+      </section>
       {modalOpen && (
         <CateringModal
           onClose={closeForm}

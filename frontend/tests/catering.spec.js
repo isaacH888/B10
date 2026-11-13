@@ -116,6 +116,10 @@ test("checkout sends real API requests and shows the server's price and identifi
 }) => {
   const calls = await api(page);
   await orderDetails(page);
+  await expect(page.locator("#cf-shape").getByRole("option")).toHaveText([
+    "Regular — $4.50 each",
+    "Heart-shaped — $3.00 each",
+  ]);
   await quote(page);
   await expect(page.getByText("Total: $347.65", { exact: true })).toBeVisible();
   await page
@@ -123,7 +127,7 @@ test("checkout sends real API requests and shows the server's price and identifi
     .click();
   await expect(
     page.getByRole("heading", {
-      name: "Catering request received",
+      name: "Catering Request Received",
       exact: true,
     }),
   ).toBeVisible();
@@ -509,7 +513,7 @@ test.describe("Houston event schedule", () => {
         .getByRole("button", { name: "Submit catering request", exact: true })
         .click();
       await expect(
-        page.getByRole("heading", { name: "Catering request received" }),
+        page.getByRole("heading", { name: "Catering Request Received" }),
       ).toBeVisible();
       await expect(
         page.getByText(`3:00 PM ${abbreviation}`, { exact: false }),

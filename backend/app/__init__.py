@@ -112,6 +112,9 @@ def create_app(test_config=None):
         )
     app.register_blueprint(email, url_prefix="/api/v1")
     app.register_blueprint(quotes_bp, url_prefix="/api/v1")
+    from .addresses import register_addresses
+
+    register_addresses(app)
     app.register_blueprint(orders_bp, url_prefix="/api/v1")
     from .admin_orders import admin_orders
 

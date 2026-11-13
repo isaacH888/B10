@@ -324,6 +324,17 @@
         "reason_code": "outside_delivery_radius",
         "message": "Delivery beyond 30 miles requires a custom event inquiry.",
         "inquiry_url": "https://example.invalid/contact"
+      },
+      "estimate": {
+        "currency": "USD",
+        "line_items": [
+          {
+            "code": "popsicles",
+            "description": "50 regular paletas at $4.50 each",
+            "amount_cents": 22500
+          }
+        ],
+        "subtotal_cents": 22500
       }
     },
     "meta": {

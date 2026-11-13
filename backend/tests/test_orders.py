@@ -9,6 +9,7 @@ a fake PyMySQL connection, so no MySQL server is needed.
 import json
 import math
 import re
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -154,7 +155,7 @@ def test_valid_order_returns_201_with_data_and_meta_envelope(client):
     assert re.fullmatch(r"order_[0-9a-f]{32}", data["id"])
     assert data["version"] == 1 and data["status"] == "pending_review"
     assert data["quote_id"] == "quote_example_001"
-    assert data["pricing_revision"] == "pricing_config_1.1.0"
+    assert data["pricing_revision"] == "pricing_config_2.1.0"
     assert data["payment_links"] == []
     assert data["workflow"] == {
         "customer_email": "pending",
@@ -220,40 +221,67 @@ def test_line_items_sum_to_total_and_deposit_matches_summary(client):
     data = post_order(client).json["data"]
     pricing = data["pricing"]
     assert pricing["currency"] == "USD"
-    # 50 popsicles at $3.50 plus the $25.00 delivery base fee.
+    # 50 popsicles at $4.50 plus the $25.00 delivery base fee.
     assert {item["code"]: item["amount_cents"] for item in pricing["line_items"]} == {
-        "popsicles": 17500,
+        "popsicles": 22500,
         "delivery_fee": 2500,
     }
     assert (
         sum(item["amount_cents"] for item in pricing["line_items"])
         == pricing["total_cents"]
-        == 20000
+        == 25000
     )
-    assert pricing["deposit_due_cents"] == 10000
+    assert pricing["deposit_due_cents"] == 12500
     assert data["deposit"] == {
         "status": "pending",
-        "amount_due_cents": 10000,
+        "amount_due_cents": 12500,
         "amount_confirmed_cents": 0,
     }
 
 
-def test_deposit_rounds_up_to_a_whole_cent(client):
-    # 101 popsicles at $3.25 plus $25.00 delivery is 35325 cents; half is 17662.5, so 17663.
+def test_deposit_rounds_up_to_a_whole_cent(client, app):
+    # A synthetic $25.01 fee exercises odd-cent rounding with the current rates.
+    app.extensions["pricing_rules"] = replace(
+        app.extensions["pricing_rules"], delivery_base_cents=2501
+    )
     pricing = post_order(client, order_payload(quantity=101)).json["data"]["pricing"]
-    assert pricing["total_cents"] == 35325
-    assert pricing["deposit_due_cents"] == math.ceil(35325 / 2) == 17663
+    assert pricing["total_cents"] == 47951
+    assert pricing["deposit_due_cents"] == math.ceil(47951 / 2) == 23976
 
 
-def test_order_price_equals_the_quote_endpoint_price(client):
+@pytest.mark.parametrize("shape", ["standard", "heart"])
+def test_order_price_equals_the_quote_endpoint_price(client, shape):
     payload = order_payload(
-        quantity=120, popsicle_shape="heart", dry_ice_blocks=2, service_type="full_service"
+        quantity=120, popsicle_shape=shape, dry_ice_blocks=2, service_type="full_service"
     )
     quote = client.post(
         "/api/v1/quotes",
         json={"catering_request": payload["catering_request"], "event": payload["event"]},
     )
     assert post_order(client, payload).json["data"]["pricing"] == quote.json["data"]["pricing"]
+
+
+def test_price_revision_preserves_saved_order_and_idempotent_replay(client, app):
+    current_rules = app.extensions["pricing_rules"]
+    previous_tier = replace(current_rules.tiers[0], unit_price_cents=350)
+    app.extensions["pricing_rules"] = replace(
+        current_rules, tiers=(previous_tier,), revision="pricing_config_1.1.0"
+    )
+    payload = order_payload()
+    previous = post_order(client, payload).json["data"]
+    assert previous["pricing"]["total_cents"] == 20000
+
+    app.extensions["pricing_rules"] = current_rules
+    stored = client.get(f"/api/v1/orders/{previous['id']}").json["data"]
+    replay = post_order(client, payload).json["data"]
+    for order in (stored, replay):
+        assert order["pricing"] == previous["pricing"]
+        assert order["pricing_revision"] == "pricing_config_1.1.0"
+    updated = post_order(
+        client, payload, headers={"Idempotency-Key": "new-price-revision-key"}
+    ).json["data"]
+    assert updated["pricing"]["total_cents"] == 25000
+    assert updated["pricing_revision"] == "pricing_config_2.1.0"
 
 
 @pytest.mark.parametrize("path", ["pricing", "total_cents", "deposit_due_cents", "amount_cents"])
@@ -539,7 +567,7 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
     assert " response_json, request_hash, submission_json)" in orders_sql
     assert orders_params[0] == response.json["data"]["id"]  # public_id, not the BIGINT key
     assert orders_params[1] == 1  # customer_id is the customers row id
-    assert orders_params[6:8] == (20000, 10000)
+    assert orders_params[6:8] == (25000, 12500)
     assert orders_params[8] == datetime(2099, 1, 15, 21, 0)  # naive UTC for DATETIME(6)
     assert orders_params[9] == "America/Chicago"
     assert re.fullmatch(r"[0-9a-f]{64}", orders_params[-2])  # request_hash
@@ -547,8 +575,8 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
     _, item_rows = inserts(connection)[2]
     # order_id is the orders BIGINT key (the second insert), never the public id.
     assert item_rows == [
-        (2, "popsicles", "50 popsicles, Tier 1 (50-99), $3.50 each", 17500),
-        (2, "delivery_fee", "Delivery, 0 miles", 2500),
+        (2, "popsicles", "50 regular paletas at $4.50 each", 22500),
+        (2, "delivery_fee", "Delivery within our standard service area", 2500),
     ]
 
 
@@ -647,7 +675,7 @@ def test_retrieve_existing_order_returns_200_with_the_stored_fields(client):
     assert (
         data["id"] == created["id"] and data["status"] == "pending_review" and data["version"] == 1
     )
-    assert data["pricing"]["total_cents"] == 20000 and data["deposit"]["amount_due_cents"] == 10000
+    assert data["pricing"]["total_cents"] == 25000 and data["deposit"]["amount_due_cents"] == 12500
     assert_matches_openapi_order_response(response.json, "AdminOrderResponse")
 
 
@@ -709,7 +737,7 @@ def test_status_update_never_changes_money_fields(client):
     data = patch_status(client, created["id"], {"version": 1, "status": "confirmed"}).json["data"]
     assert data["pricing"] == created["pricing"] and data["deposit"] == created["deposit"]
     values = list(cents_values(data))
-    assert 35325 in values and all(type(value) is int and value >= 0 for value in values)
+    assert 47950 in values and all(type(value) is int and value >= 0 for value in values)
 
 
 def test_same_status_is_a_noop_after_a_valid_version_check(client):

@@ -52,11 +52,12 @@ from .flavors import FlavorAllocationError, clean_flavor_allocations
 from .health import connection_options, database_configured
 from .quotes import (
     _CONTRACT_FIELD_PATHS,
+    AddressReviewRequired,
+    OutsideDeliveryRadius,
     QuoteError,
     calculate_order_quote,
     contract_priced_quote,
-    normalize_quote_payload,
-    validate_quote_payload,
+    prepare_quote_payload,
 )
 
 orders_bp = Blueprint("orders", __name__)
@@ -303,7 +304,7 @@ def validate_order_request(body):
 def _price(rules, clean):
     """Recompute the server price with the quote engine (integer cents, Fraction)."""
     raw = {"catering_request": clean["catering_request"], "event": clean["event"]}
-    validated = validate_quote_payload(rules, normalize_quote_payload(raw))
+    validated = prepare_quote_payload(rules, raw)
     return contract_priced_quote(rules, raw, validated, calculate_order_quote(rules, validated))
 
 
@@ -354,6 +355,13 @@ def _build_order(clean, quote):
 def _save_in_memory(key, digest, order):
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
+        previous = store["orders"].get(key)
+    if previous:
+        if previous[0] != digest:
+            raise IdempotencyConflict
+        return previous[1]
+    order = order()
+    with store["lock"]:
         saved = store["orders"].setdefault(key, (digest, order))
         if saved[1] is order:
             store["by_id"][order["id"]] = _admin_view(order)
@@ -377,6 +385,9 @@ def _save_in_database(key, digest, order):
                     raise IdempotencyConflict
                 connection.rollback()
                 return json.loads(row[1])
+            # Existing submissions replay before any provider call; verify new
+            # addresses before the first write in this transaction.
+            order = order()
             customer = order["customer"]
             cursor.execute(
                 "INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
@@ -672,8 +683,24 @@ def submit_order():
     if errors:
         return _error(422, "validation_error", "One or more fields are invalid.", errors)
 
-    try:
+    digest = hashlib.sha256(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    save = _save_in_database if database_configured(current_app.config) else _save_in_memory
+
+    def new_order():
         quote = _price(current_app.extensions["pricing_rules"], clean)
+        return _build_order(clean, quote)
+
+    try:
+        saved = save(key, digest, new_order)
+    except (AddressReviewRequired, OutsideDeliveryRadius) as error:
+        code = (
+            "outside_service_area"
+            if isinstance(error, OutsideDeliveryRadius)
+            else "address_verification_required"
+        )
+        return _error(422, code, error.message, [_field("event.location", error.message)])
     except QuoteError as error:
         return _error(
             422,
@@ -681,14 +708,6 @@ def submit_order():
             error.message,
             [_field(_CONTRACT_FIELD_PATHS.get(error.field, error.field or "body"), error.message)],
         )
-
-    order = _build_order(clean, quote)
-    digest = hashlib.sha256(
-        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    save = _save_in_database if database_configured(current_app.config) else _save_in_memory
-    try:
-        saved = save(key, digest, order)
     except IdempotencyConflict:
         return _error(
             409,

@@ -3,7 +3,7 @@
   "info": {
     "title": "Popssibilities - Proposed API Contract",
     "version": "0.3.0-draft",
-    "description": "Authentication and infrastructure routes are implemented. Business pricing/order/provider interfaces remain proposed and unimplemented. Examples contain synthetic data only."
+    "description": "Authentication, catering quotes/orders and owner workspace routes are implemented locally; proposed operations and deployment limits are documented in the API contract. All examples are synthetic."
   },
   "servers": [
     {
@@ -24,7 +24,7 @@
       "post": {
         "operationId": "calculateQuote",
         "summary": "Calculate quote",
-        "description": "Validate event and catering details; return server-owned pricing or requires_review with null pricing. No final pricing tier, heart price, delivery formula, service fee, or dry-ice allocation is established. Quantity must be at least 50. Technical limits and 15-minute expiry are proposed. Never accept client totals. Recorded Q&A identifies Wingman Kitchens Houston at 4783 Lexington Blvd, Missouri City, TX as origin; postal code and distance method remain open. Beyond 30 miles return requires_review/null pricing with next_action contact_inquiry. Do not silently calculate a normal delivery fee or submit an out-of-area order.",
+        "description": "Catering pricing uses $4.50 regular and $3.00 heart-shaped unit prices. Eligibility and the existing delivery-fee formula use geographic ZIP-area distance from fixed Stafford ZIP 77477, with a 30-mile radius. Full event contact/address fields remain required. Unknown or outside-area ZIPs receive owner-review product/extra estimates without accepted pricing or deposits. Browser-supplied distances and totals are ignored. Pricing revision 2.1.0 records the service-area method change.",
         "tags": ["Public"],
         "x-owner": "Anh Hyunh",
         "security": [],
@@ -177,6 +177,17 @@
                           "reason_code": "outside_delivery_radius",
                           "message": "Delivery beyond 30 miles requires a custom event inquiry.",
                           "inquiry_url": "https://example.invalid/contact"
+                        },
+                        "estimate": {
+                          "currency": "USD",
+                          "line_items": [
+                            {
+                              "code": "popsicles",
+                              "description": "50 regular paletas at $4.50 each",
+                              "amount_cents": 22500
+                            }
+                          ],
+                          "subtotal_cents": 22500
                         }
                       },
                       "meta": {
@@ -9349,6 +9360,390 @@
         },
         "description": "Owner-only CSV summary with fresh MFA, no-store and spreadsheet formula neutralization. Collection export is capped at 10,000 matching rows and rejects excess rather than truncating."
       }
+    },
+    "/catering/address/config": {
+      "get": {
+        "operationId": "getCateringAddressConfiguration",
+        "summary": "Address assistance configuration",
+        "description": "Address suggestions use a private Geoapify key. Service-area checks run locally using Census ZIP-area points from fixed Stafford 77477, independently of the key, street matches or routing services. ZIP+4 uses its first five digits. The public form shows only green in-area status or owner-review guidance and allows outside-area quote estimates. Missing ZIP data never approves service. Synthetic examples are not customer data.",
+        "tags": ["Public"],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Address assistance response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CateringAddressConfigResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "value": {
+                      "data": {
+                        "enabled": true,
+                        "radius_miles": 30,
+                        "origin_name": "Stafford, TX 77477",
+                        "origin_postal_code": "77477",
+                        "distance_method": "zip_centroid_radius",
+                        "service_area_enabled": true
+                      },
+                      "meta": {
+                        "request_id": "synthetic_address_request"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catering/address/suggestions": {
+      "post": {
+        "operationId": "suggestCateringAddresses",
+        "summary": "Suggest US event addresses",
+        "description": "Address suggestions use a private Geoapify key. Service-area checks run locally using Census ZIP-area points from fixed Stafford 77477, independently of the key, street matches or routing services. ZIP+4 uses its first five digits. The public form shows only green in-area status or owner-review guidance and allows outside-area quote estimates. Missing ZIP data never approves service. Synthetic examples are not customer data.",
+        "tags": ["Public"],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Address assistance response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CateringAddressSuggestionsResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "value": {
+                      "data": {
+                        "suggestions": [
+                          {
+                            "place_id": "synthetic.selection.signature",
+                            "label": "100 Example Street, Houston, TX, USA"
+                          }
+                        ]
+                      },
+                      "meta": {
+                        "request_id": "synthetic_address_request"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CateringAddressSuggestionRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "value": {
+                    "input": "100 Exam",
+                    "session_token": "123e4567-e89b-42d3-a456-426614174000"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catering/address/resolve": {
+      "post": {
+        "operationId": "resolveCateringAddress",
+        "summary": "Fill address components, optionally checking service area",
+        "description": "Address suggestions use a private Geoapify key. Service-area checks run locally using Census ZIP-area points from fixed Stafford 77477, independently of the key, street matches or routing services. ZIP+4 uses its first five digits. The public form shows only green in-area status or owner-review guidance and allows outside-area quote estimates. Missing ZIP data never approves service. Synthetic examples are not customer data.",
+        "tags": ["Public"],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Address assistance response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CateringAddressResolveResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "value": {
+                      "data": {
+                        "location": {
+                          "line1": "100 Example Street",
+                          "city": "Houston",
+                          "region": "TX",
+                          "postal_code": "77000",
+                          "country_code": "US"
+                        },
+                        "service_area": {
+                          "enabled": true,
+                          "radius_miles": 30,
+                          "origin_name": "Stafford, TX 77477",
+                          "status": "within_area",
+                          "distance_miles": 12.5,
+                          "distance_meters": 20116,
+                          "message": "This address is within our 30-mile catering area.",
+                          "origin_postal_code": "77477",
+                          "distance_method": "zip_centroid_radius",
+                          "service_area_enabled": true
+                        },
+                        "attributions": []
+                      },
+                      "meta": {
+                        "request_id": "synthetic_address_request"
+                      }
+                    }
+                  },
+                  "autofill_only": {
+                    "value": {
+                      "data": {
+                        "location": {
+                          "line1": "100 Example Street",
+                          "city": "Houston",
+                          "region": "TX",
+                          "postal_code": "77000",
+                          "country_code": "US"
+                        },
+                        "attributions": []
+                      },
+                      "meta": {
+                        "request_id": "synthetic_address_request"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CateringAddressResolveRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "value": {
+                    "place_id": "synthetic.selection.signature",
+                    "session_token": "123e4567-e89b-42d3-a456-426614174000"
+                  }
+                },
+                "autofill_only": {
+                  "value": {
+                    "place_id": "synthetic.selection.signature",
+                    "session_token": "123e4567-e89b-42d3-a456-426614174000",
+                    "check_service_area": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catering/address/check": {
+      "post": {
+        "operationId": "checkCateringServiceArea",
+        "summary": "Check ZIP service area from Stafford 77477",
+        "description": "Address suggestions use a private Geoapify key. Service-area checks run locally using Census ZIP-area points from fixed Stafford 77477, independently of the key, street matches or routing services. ZIP+4 uses its first five digits. The public form shows only green in-area status or owner-review guidance and allows outside-area quote estimates. Missing ZIP data never approves service. Synthetic examples are not customer data.",
+        "tags": ["Public"],
+        "x-owner": "Anh Hyunh",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Address assistance response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CateringServiceAreaResponse"
+                },
+                "examples": {
+                  "synthetic": {
+                    "value": {
+                      "data": {
+                        "enabled": true,
+                        "radius_miles": 30,
+                        "origin_name": "Stafford, TX 77477",
+                        "status": "within_area",
+                        "distance_miles": 12.5,
+                        "distance_meters": 20116,
+                        "message": "This address is within our 30-mile catering area.",
+                        "origin_postal_code": "77477",
+                        "distance_method": "zip_centroid_radius",
+                        "service_area_enabled": true
+                      },
+                      "meta": {
+                        "request_id": "synthetic_address_request"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin, validation, admission or provider failure. No raw provider errors or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CateringAddressCheckRequest"
+              },
+              "examples": {
+                "synthetic": {
+                  "value": {
+                    "location": {
+                      "line1": "100 Example Street",
+                      "city": "Houston",
+                      "region": "TX",
+                      "postal_code": "77000",
+                      "country_code": "US"
+                    }
+                  }
+                },
+                "zip_only": {
+                  "value": {
+                    "location": {
+                      "postal_code": "77477"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9703,6 +10098,9 @@
                 "type": "null"
               }
             ]
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/QuoteProductEstimate"
           }
         },
         "required": [
@@ -9771,6 +10169,21 @@
                   "type": "object"
                 }
               }
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "requires_review"
+                },
+                "pricing": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": ["estimate"]
             },
             "then": {
               "properties": {
@@ -10463,7 +10876,10 @@
           },
           "reason_code": {
             "type": "string",
-            "enum": ["outside_delivery_radius"]
+            "enum": [
+              "outside_delivery_radius",
+              "address_verification_unavailable"
+            ]
           },
           "message": {
             "type": "string",
@@ -11706,6 +12122,371 @@
           }
         },
         "required": ["flavor", "quantity"]
+      },
+      "CateringAddressConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Address suggestions are configured; this does not control local ZIP checks."
+          },
+          "radius_miles": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "origin_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "origin_postal_code": {
+            "type": "string",
+            "const": "77477",
+            "description": "Fixed service-area anchor: Stafford ZIP 77477; legacy kitchen settings cannot move it."
+          },
+          "distance_method": {
+            "type": "string",
+            "const": "zip_centroid_radius",
+            "description": "Approximate geographic distance between Census ZIP-area representative points; no driving or street-address lookup."
+          },
+          "service_area_enabled": {
+            "type": "boolean",
+            "description": "ZIP service-area checks are available independently of the address-suggestion API key."
+          }
+        },
+        "required": [
+          "enabled",
+          "radius_miles",
+          "origin_name",
+          "origin_postal_code",
+          "distance_method",
+          "service_area_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "CateringServiceArea": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Address suggestions are configured; this does not control local ZIP checks."
+          },
+          "radius_miles": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "origin_name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "within_area",
+              "outside_area",
+              "unavailable",
+              "invalid_address"
+            ]
+          },
+          "distance_miles": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "description": "ZIP-area center distance from 77477. Informational, not an exact street or driving distance; mileage is hidden in the public UI."
+          },
+          "distance_meters": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ZIP-area center distance from 77477. Informational, not an exact street or driving distance; mileage is hidden in the public UI."
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "origin_postal_code": {
+            "type": "string",
+            "const": "77477",
+            "description": "Fixed service-area anchor: Stafford ZIP 77477; legacy kitchen settings cannot move it."
+          },
+          "distance_method": {
+            "type": "string",
+            "const": "zip_centroid_radius",
+            "description": "Approximate geographic distance between Census ZIP-area representative points; no driving or street-address lookup."
+          },
+          "service_area_enabled": {
+            "type": "boolean",
+            "description": "ZIP service-area checks are available independently of the address-suggestion API key."
+          }
+        },
+        "required": [
+          "enabled",
+          "radius_miles",
+          "origin_name",
+          "status",
+          "distance_miles",
+          "message",
+          "origin_postal_code",
+          "distance_method",
+          "service_area_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "CateringAddressSuggestion": {
+        "type": "object",
+        "properties": {
+          "place_id": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Opaque signed address selection, bound to the search session and valid for 15 minutes; not a provider place ID."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "attributions": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CateringAddressAttribution"
+            }
+          }
+        },
+        "required": ["place_id", "label"],
+        "additionalProperties": false
+      },
+      "CateringAddressSuggestionRequest": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 200
+          },
+          "session_token": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Fresh UUIDv4 used to bind suggestions and selection; not a provider billing session."
+          }
+        },
+        "required": ["input", "session_token"],
+        "additionalProperties": false
+      },
+      "CateringAddressResolveRequest": {
+        "type": "object",
+        "properties": {
+          "place_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "description": "Opaque signed address selection, bound to the search session and valid for 15 minutes; not a provider place ID."
+          },
+          "session_token": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "check_service_area": {
+            "type": "boolean",
+            "default": true,
+            "description": "Set false to fill signed address components immediately and check ZIP eligibility separately. This flag never approves service or changes quote/order enforcement."
+          }
+        },
+        "required": ["place_id", "session_token"],
+        "additionalProperties": false
+      },
+      "CateringAddressCheckRequest": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/PostalAreaLocation"
+          }
+        },
+        "required": ["location"],
+        "additionalProperties": false
+      },
+      "CateringAddressEntry": {
+        "type": "object",
+        "properties": {
+          "line1": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "region": {
+            "type": "string",
+            "maxLength": 2
+          },
+          "postal_code": {
+            "type": "string",
+            "maxLength": 10
+          },
+          "country_code": {
+            "type": "string",
+            "maxLength": 2
+          }
+        },
+        "required": ["line1", "city", "region", "postal_code", "country_code"],
+        "additionalProperties": false
+      },
+      "CateringAddressAttribution": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2000
+          }
+        },
+        "required": ["name", "url"],
+        "additionalProperties": false
+      },
+      "CateringAddressResolution": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/CateringAddressEntry"
+          },
+          "service_area": {
+            "$ref": "#/components/schemas/CateringServiceArea",
+            "description": "Included when check_service_area is true (the default)."
+          },
+          "attributions": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CateringAddressAttribution"
+            }
+          }
+        },
+        "required": ["location", "attributions"],
+        "additionalProperties": false
+      },
+      "CateringAddressConfigResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CateringAddressConfig"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "CateringServiceAreaResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CateringServiceArea"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "CateringAddressResolveResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CateringAddressResolution"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "CateringAddressSuggestionsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "suggestions": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                  "$ref": "#/components/schemas/CateringAddressSuggestion"
+                }
+              }
+            },
+            "required": ["suggestions"],
+            "additionalProperties": false
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        },
+        "required": ["data", "meta"],
+        "additionalProperties": false
+      },
+      "QuoteProductEstimate": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Preliminary paletas and extras estimate only. Service/travel fees and availability require owner review; this is not accepted booking pricing and no deposit is due.",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "const": "USD"
+          },
+          "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/LineItem"
+            }
+          },
+          "subtotal_cents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": ["currency", "line_items", "subtotal_cents"]
+      },
+      "PostalAreaLocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["postal_code"],
+        "properties": {
+          "postal_code": {
+            "type": "string",
+            "pattern": "^[0-9]{5}(-[0-9]{4})?$",
+            "description": "US ZIP or ZIP+4; the first five digits determine the area."
+          },
+          "country_code": {
+            "type": "string",
+            "default": "US",
+            "enum": ["US"]
+          },
+          "line1": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "line2": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "region": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
       }
     },
     "securitySchemes": {

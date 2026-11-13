@@ -446,13 +446,20 @@ def test_challenge_payloads_cannot_override_identity_or_proof(native_app, body):
     assert native_app.test_providers["admin"].totp_calls == 0
 
 
-def test_native_denial_diagnostics_do_not_log_provider_secrets(native_app, caplog):
+@pytest.mark.parametrize("reason", [None, "cognito_credentials_rejected", SECRET])
+def test_native_denial_diagnostics_do_not_log_provider_secrets(native_app, caplog, reason):
     client = native_app.test_client()
     data = password(client)
-    native_app.test_providers["admin"].fail = AuthError("authentication_failed", "Safe failure")
+    native_app.test_providers["admin"].fail = AuthError(
+        "authentication_failed", "Safe failure", reason=reason
+    )
     result = post(client, data, code="123456")
     denied = [e for e in native_app.test_store.events if e[0] == "admin_native_login_denied"][-1]
-    assert denied[1]["detail"] == {"area": "admin", "error_code": "authentication_failed"}
+    expected = {"area": "admin", "error_code": "authentication_failed"}
+    if reason == "cognito_credentials_rejected":
+        expected["reason"] = reason
+        assert reason not in result.get_data(as_text=True)
+    assert denied[1]["detail"] == expected
     for secret in ("123456", "synthetic-password", "private-cognito-session", SECRET):
         assert (
             secret not in json.dumps(denied)

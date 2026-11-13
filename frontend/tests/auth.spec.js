@@ -238,7 +238,7 @@ test("signed-out customers are redirected to sign-in", async ({ page }) => {
     page.getByRole("button", { name: "Continue with email and password" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Session details" }),
+    page.getByRole("heading", { name: "Session Details" }),
   ).not.toBeVisible();
 });
 
@@ -659,7 +659,7 @@ test("a verified native password and TOTP login opens the protected team account
     page.getByRole("table", { name: "Sample bookings" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Session details" }),
+    page.getByRole("heading", { name: "Session Details" }),
   ).toBeVisible();
   expect(
     requests
@@ -805,7 +805,7 @@ test("disabled administrator access clears the team account", async ({
   });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Session details" }),
+    page.getByRole("heading", { name: "Session Details" }),
   ).toBeVisible();
   active = false;
   await page.clock.fastForward(61000);
@@ -816,7 +816,7 @@ test("disabled administrator access clears the team account", async ({
     page.getByText("admin@example.com", { exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Session details" }),
+    page.getByRole("heading", { name: "Session Details" }),
   ).not.toBeVisible();
 });
 
@@ -825,7 +825,7 @@ test("the team account fits a narrow viewport", async ({ page }) => {
   await mockApi(page, { admin: makeSession("admin") });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Session details" }),
+    page.getByRole("heading", { name: "Session Details" }),
   ).toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),

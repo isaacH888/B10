@@ -127,7 +127,9 @@ class NativeAdminFlow:
         if len(matches) != 1:
             # Do not disclose which accounts have private grants.
             raise AuthError(
-                "authentication_failed", "Sign-in could not be completed. Please start again."
+                "authentication_failed",
+                "Sign-in could not be completed. Please start again.",
+                reason="native_identity_not_authorized",
             )
         return matches[0]
 

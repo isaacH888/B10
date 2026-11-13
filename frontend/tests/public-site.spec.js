@@ -82,6 +82,52 @@ test("the approved sample flavors are discoverable from navigation and lead to c
   await expect(page).toHaveURL(/\/order$/);
 });
 
+test("home and catering retain the same header, footer and customer navigation", async ({
+  page,
+}) => {
+  await sessions(page, { signedIn: true });
+  await page.goto("/");
+  await page.evaluate(() => document.fonts.ready);
+  const header = page.getByRole("banner");
+  const footer = page.getByRole("contentinfo");
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  const appearance = (element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      font: style.fontFamily,
+      height: element.getBoundingClientRect().height,
+    };
+  };
+  const homeHeader = await header.evaluate(appearance);
+  const homeFooter = await footer.evaluate(appearance);
+  const footerText = await footer.innerText();
+
+  await navigation.getByRole("link", { name: "Catering order" }).click();
+  await expect(page).toHaveURL(/\/order$/);
+  await expect(header).toHaveCount(1);
+  await expect(footer).toHaveCount(1);
+  await expect(page.getByRole("main")).toHaveCount(1);
+  expect(await header.evaluate(appearance)).toEqual(homeHeader);
+  expect(await footer.evaluate(appearance)).toEqual(homeFooter);
+  expect(await footer.innerText()).toBe(footerText);
+  await expect(
+    navigation.getByRole("link", { name: "Catering order" }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(header.getByRole("link", { name: "My Account" })).toBeVisible();
+
+  await navigation.getByRole("link", { name: "Our Story" }).click();
+  await expect(page).toHaveURL(/\/#our-story$/);
+  await expect(page.locator("#story-heading")).toBeInViewport();
+  await header.getByRole("link", { name: "My Account" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(
+    page.getByRole("heading", { name: "Welcome, Reviewer." }),
+  ).toBeVisible();
+  await expect(page.getByRole("banner")).toHaveCount(1);
+  await expect(page.getByRole("contentinfo")).toHaveCount(1);
+});
+
 test("homepage sign-in opens the branded screen and retains provider authentication", async ({
   page,
 }) => {
@@ -107,7 +153,7 @@ test("homepage sign-in opens the branded screen and retains provider authenticat
       }),
   );
   await page.goto("/");
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Sign In", exact: true }).click();
   await expect(page.getByText("BIENVENIDO!", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Continue with email and password" })
@@ -123,7 +169,7 @@ test("a restored customer session is accessible from the public navigation", asy
 }) => {
   await sessions(page, { signedIn: true });
   await page.goto("/");
-  await page.getByRole("link", { name: "My account", exact: true }).click();
+  await page.getByRole("link", { name: "My Account", exact: true }).click();
   await expect(page).toHaveURL(/\/account$/);
   await expect(
     page.getByRole("heading", { name: "Welcome, Reviewer." }),
@@ -140,7 +186,7 @@ test("public content stays available during an authentication outage", async ({
   await sessions(page, { unavailable: true });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Sign In", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Sign-in is temporarily unavailable.",
   );
@@ -154,7 +200,7 @@ test("section links keep their anchor while navigation to catering starts at the
   await page.evaluate(() => document.fonts.ready);
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("link", { name: "Our story", exact: true })
+    .getByRole("link", { name: "Our Story", exact: true })
     .click();
   await expect(page).toHaveURL(/#our-story$/);
   await expect(page.locator("#story-heading")).toBeInViewport();
@@ -263,11 +309,38 @@ for (const width of [320, 375, 768, 1440]) {
           }),
         ).toBeVisible();
       } else {
+        const header = page.getByRole("banner");
+        const headerTop = (await header.boundingBox()).y;
+        await page.evaluate(() =>
+          window.scrollTo(0, document.body.scrollHeight),
+        );
+        await expect(header).toBeInViewport({ ratio: 1 });
+        await expect
+          .poll(async () => (await header.boundingBox()).y)
+          .toBe(headerTop);
         await expect(
           page
             .getByRole("navigation", { name: "Main navigation" })
             .getByRole("link", { name: "Catering order" }),
         ).toBeVisible();
+        await page
+          .getByRole("navigation", { name: "Main navigation" })
+          .getByRole("link", { name: "Our Story", exact: true })
+          .click();
+        await expect(page).toHaveURL(/\/#our-story$/);
+        await expect
+          .poll(() =>
+            page
+              .locator("#our-story")
+              .evaluate((section) =>
+                Math.round(
+                  section.getBoundingClientRect().top -
+                    document.querySelector("header").getBoundingClientRect()
+                      .bottom,
+                ),
+              ),
+          )
+          .toBeGreaterThanOrEqual(8);
       }
     }
   });

@@ -3,10 +3,10 @@
 Ported from docs/reference/legacy-node:
   - configLoader.js     -> load_business_rules()
   - quoteValidator.js   -> validate_quote_payload()
-  - feeCalculator.js    -> calculate_heart_shape_surcharge() & friends
+  - feeCalculator.js    -> shape and logistics fee calculators
   - pricingEngine.js    -> calculate_order_quote()
 
-Contract adaptations (docs/api-contract.md), the only intentional differences:
+Contract adaptations (docs/api-contract.md):
   - Route is ``POST /quotes`` under ``/api/v1``.
   - Money is integer cents (``*_cents``); the legacy float dollars are gone.
     All arithmetic is exact (Fraction), so no float rounding drift.
@@ -14,9 +14,9 @@ Contract adaptations (docs/api-contract.md), the only intentional differences:
     array. The legacy per-rule code (e.g. ``ERR_BELOW_MINIMUM_ORDER``) is kept
     on ``QuoteError.reason`` for services, tests and logs, not in the envelope.
   - Client decision (supersedes the legacy 400): a DELIVERY distance beyond the
-    radius is not an error. It returns 200 ``requires_review`` with null pricing
-    and a ``contact_inquiry`` next action, so the form can redirect the customer
-    to the Custom Event Inquiry / Contact Us page. Controlled by the config's
+    radius is not an error. Legacy calculations return 200 ``requires_review``
+    with null pricing and a contact inquiry action. Contract requests also include
+    a paletas/extras estimate for owner review, without logistics or a deposit. Controlled by the config's
     ``exceeded_radius_action``. Missing, non-numeric or negative distances are
     still 422.
   - Two request formats are accepted. A payload with ``catering_request`` is the
@@ -24,9 +24,12 @@ Contract adaptations (docs/api-contract.md), the only intentional differences:
     payload is the legacy flat format and keeps the flat response envelope.
     ``normalize_quote_payload`` adapts the first format to the second so both
     share one validator and one pricing engine.
+  - The November 13 client-supplied catering prices supersede the legacy
+    volume discounts and heart surcharge: regular paletas cost $4.50 each,
+    and heart-shaped paletas cost $3.00 each.
 
 Business rules live in ``pricing.config.json`` and are never hard-coded here
-beyond the legacy fallback defaults.
+beyond the configuration defaults.
 """
 
 import copy
@@ -49,19 +52,23 @@ quotes_bp = Blueprint("quotes", __name__)
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("pricing.config.json")
 VALID_SERVICE_TYPES = ("DELIVERY", "FULL_SERVICE", "PICKUP")
 
-# Legacy ``?? default`` fallbacks (configLoader.js / ``businessRules.x?.y ?? n``),
-# in the same shape as pricing.config.json's ``business_rules``.
+# Current defaults use the same shape as pricing.config.json's business_rules.
 _DEFAULT_BUSINESS_RULES = {
     "moq": {"minimum_order_quantity": 50},
     "volume_tiers": [
-        {"tier_name": "Tier 1", "min_quantity": 50, "max_quantity": 99, "unit_price": 3.50},
-        {"tier_name": "Tier 2", "min_quantity": 100, "max_quantity": 199, "unit_price": 3.25},
-        {"tier_name": "Tier 3", "min_quantity": 200, "max_quantity": None, "unit_price": 3.00},
+        {
+            "tier_name": "Regular paletas",
+            "min_quantity": 50,
+            "max_quantity": None,
+            "unit_price": 4.50,
+        },
     ],
-    "customizations": {"heart_shaped_surcharge_per_unit": 0.50},
+    "customizations": {"heart_shaped_unit_price": 3.00},
     "logistics": {
         "dry_ice": {"price_per_block": 15.00},
         "delivery": {
+            "origin_facility_name": "Wingman Kitchens Houston",
+            "origin_facility_address": "4783 Lexington Blvd, Missouri City, TX 77459",
             "base_fee": 25.00,
             "max_fee": 75.00,
             "max_radius_miles": 30.0,
@@ -156,11 +163,13 @@ class Tier:
 class PricingRules:
     minimum_order_quantity: int
     tiers: tuple
-    heart_surcharge_cents: int
+    heart_unit_price_cents: int
     dry_ice_block_cents: int
     delivery_base_cents: int
     delivery_max_cents: int
     delivery_max_radius_miles: float
+    delivery_origin_name: str
+    delivery_origin_address: str
     exceeded_radius_action: str
     full_service_flat_cents: int
     deposit_rate: Fraction
@@ -206,9 +215,9 @@ def parse_business_rules(business_rules, version=None):
     return PricingRules(
         minimum_order_quantity=rules["moq"]["minimum_order_quantity"],
         tiers=tiers,
-        heart_surcharge_cents=_dollars_to_cents(
-            rules["customizations"]["heart_shaped_surcharge_per_unit"],
-            "heart_shaped_surcharge_per_unit",
+        heart_unit_price_cents=_dollars_to_cents(
+            rules["customizations"]["heart_shaped_unit_price"],
+            "heart_shaped_unit_price",
         ),
         dry_ice_block_cents=_dollars_to_cents(
             rules["logistics"]["dry_ice"]["price_per_block"], "dry_ice.price_per_block"
@@ -216,6 +225,8 @@ def parse_business_rules(business_rules, version=None):
         delivery_base_cents=_dollars_to_cents(delivery["base_fee"], "delivery.base_fee"),
         delivery_max_cents=_dollars_to_cents(delivery["max_fee"], "delivery.max_fee"),
         delivery_max_radius_miles=radius,
+        delivery_origin_name=delivery["origin_facility_name"],
+        delivery_origin_address=delivery["origin_facility_address"],
         exceeded_radius_action=str(delivery["exceeded_radius_action"]),
         full_service_flat_cents=_dollars_to_cents(
             rules["logistics"]["full_service"]["flat_fee"], "full_service.flat_fee"
@@ -252,7 +263,8 @@ def _load_rules_on_registration(state):
 # --------------------------------------------------------------------------- #
 
 
-def calculate_heart_shape_surcharge(rules, total_qty, heart_qty=0):
+def calculate_heart_shape_price(rules, total_qty, heart_qty=0):
+    """Price heart-shaped units at their own rate, rather than a surcharge."""
     if not _is_number(heart_qty) or heart_qty < 0:
         raise QuoteError(
             "Quantities cannot be negative.",
@@ -267,7 +279,7 @@ def calculate_heart_shape_surcharge(rules, total_qty, heart_qty=0):
             "heart_shaped_quantity",
             heart_qty,
         )
-    return _round_half_up(_fraction(heart_qty) * rules.heart_surcharge_cents)
+    return _round_half_up(_fraction(heart_qty) * rules.heart_unit_price_cents)
 
 
 def calculate_dry_ice_fee(rules, blocks=0):
@@ -464,7 +476,7 @@ def validate_quote_payload(rules, payload):
 
 
 def select_tier(rules, total_quantity):
-    """Highest tier whose minimum is met (legacy: >=200, >=100, else tier 1)."""
+    """Select the configured regular-unit price band (currently one flat rate)."""
     applied = rules.tiers[0]
     for tier in rules.tiers:
         if total_quantity >= tier.min_quantity:
@@ -476,10 +488,10 @@ def calculate_order_quote(rules, payload):
     """Price an already-validated payload. All amounts are integer cents."""
     total_quantity = payload["total_quantity"]
     tier = select_tier(rules, total_quantity)
-    base_cents = total_quantity * tier.unit_price_cents
-
-    heart_cents = calculate_heart_shape_surcharge(
-        rules, total_quantity, payload.get("heart_shaped_quantity", 0)
+    heart_quantity = payload.get("heart_shaped_quantity", 0)
+    heart_cents = calculate_heart_shape_price(rules, total_quantity, heart_quantity)
+    base_cents = _round_half_up(
+        (total_quantity - _fraction(heart_quantity)) * tier.unit_price_cents
     )
     dry_ice_cents = calculate_dry_ice_fee(rules, payload.get("dry_ice_blocks", 0))
     delivery_cents, full_service_cents = calculate_logistics_fees(
@@ -497,7 +509,7 @@ def calculate_order_quote(rules, payload):
         "tier_applied": {"name": tier.label, "unit_price_cents": tier.unit_price_cents},
         "breakdown": {
             "base_popsicles_cents": base_cents,
-            "heart_shaped_surcharge_cents": heart_cents,
+            "heart_shaped_popsicles_cents": heart_cents,
             "dry_ice_cents": dry_ice_cents,
             "delivery_fee_cents": delivery_cents,
             "full_service_fee_cents": full_service_cents,
@@ -580,13 +592,51 @@ def normalize_quote_payload(raw_payload):
     distance = raw_payload.get("delivery_distance_miles")
     if distance is None:
         distance = event.get("delivery_distance_miles")
-    if distance is None and flat.get("service_type") == "DELIVERY":
-        # Synthetic payloads carry no measured distance; the contract's backend-side
-        # distance lookup (D04) does not exist yet, so this prices at the base fee.
-        distance = 0.0
     if distance is not None:
         flat["delivery_distance_miles"] = distance
     return flat
+
+
+class AddressReviewRequired(QuoteError):
+    """Owner review is required before accepted booking pricing or an order."""
+
+
+def prepare_quote_payload(rules, raw_payload):
+    """Ignore browser-supplied distances; check the event ZIP from Stafford 77477."""
+    flat = normalize_quote_payload(raw_payload)
+    if not is_contract_payload(raw_payload):
+        return validate_quote_payload(rules, flat)
+    # Validate the ordinary quantity/shape inputs before spending on routing.
+    ordinary = dict(flat)
+    if ordinary.get("service_type") == "DELIVERY":
+        ordinary["delivery_distance_miles"] = 0
+    validated = validate_quote_payload(rules, ordinary)
+    if validated["service_type"] not in {"DELIVERY", "FULL_SERVICE"}:
+        raise QuoteError(
+            "Choose delivery or full service for catering.", "ERR_INVALID_DATA_TYPE", "service_type"
+        )
+    event = raw_payload.get("event")
+    location = event.get("location") if isinstance(event, dict) else None
+    from .addresses import clean_location
+
+    if clean_location(location) is None:
+        raise AddressReviewRequired(
+            "Enter a complete US event address, city, state and ZIP code.",
+            "ERR_ADDRESS_REVIEW_REQUIRED",
+            "event.location",
+        )
+    area = current_app.extensions["address_service"].check(location, request.remote_addr)
+    if area["status"] == "outside_area":
+        raise OutsideDeliveryRadius(area["message"], area["distance_miles"])
+    if area["status"] != "within_area":
+        raise AddressReviewRequired(
+            area["message"], "ERR_ADDRESS_REVIEW_REQUIRED", "event.location"
+        )
+    if validated["service_type"] == "DELIVERY":
+        from .addresses import METERS_PER_MILE
+
+        validated["delivery_distance_miles"] = float(area["distance_meters"] / METERS_PER_MILE)
+    return validated
 
 
 # --------------------------------------------------------------------------- #
@@ -601,19 +651,22 @@ def _money(cents):
 def _line_items(rules, payload, calculation):
     breakdown = calculation["breakdown"]
     tier = calculation["tier_applied"]
-    items = [
-        {
-            "code": "popsicles",
-            "description": f"{payload['total_quantity']} popsicles, {tier['name']}, {_money(tier['unit_price_cents'])} each",
-            "amount_cents": breakdown["base_popsicles_cents"],
-        }
-    ]
+    regular_quantity = payload["total_quantity"] - payload["heart_shaped_quantity"]
+    items = []
+    if regular_quantity:
+        items.append(
+            {
+                "code": "popsicles",
+                "description": f"{_fmt(regular_quantity)} regular paletas at {_money(tier['unit_price_cents'])} each",
+                "amount_cents": breakdown["base_popsicles_cents"],
+            }
+        )
     optional = [
         (
-            "heart_shaped_surcharge",
-            f"Heart-shaped surcharge, {_fmt(payload['heart_shaped_quantity'])} units at "
-            f"{_money(rules.heart_surcharge_cents)}",
-            breakdown["heart_shaped_surcharge_cents"],
+            "heart_shaped_popsicles",
+            f"{_fmt(payload['heart_shaped_quantity'])} heart-shaped paletas at "
+            f"{_money(rules.heart_unit_price_cents)} each",
+            breakdown["heart_shaped_popsicles_cents"],
         ),
         (
             "dry_ice",
@@ -622,7 +675,7 @@ def _line_items(rules, payload, calculation):
         ),
         (
             "delivery_fee",
-            f"Delivery, {_fmt(payload['delivery_distance_miles'])} miles",
+            "Delivery within our standard service area",
             breakdown["delivery_fee_cents"],
         ),
         ("full_service_fee", "Full service flat fee", breakdown["full_service_fee_cents"]),
@@ -670,9 +723,9 @@ def contract_priced_quote(rules, raw_payload, payload, calculation):
 
 
 def contract_review_quote(rules, raw_payload, message):
-    """OpenAPI ``Quote`` for an out-of-area delivery: null pricing plus the inquiry action."""
+    """Give an out-of-area customer an estimate; the owner confirms logistics."""
     review = requires_review_quote(message)
-    return _contract_quote(
+    quote = _contract_quote(
         raw_payload,
         "requires_review",
         None,
@@ -680,6 +733,43 @@ def contract_review_quote(rules, raw_payload, message):
         review["unresolved_decisions"],
         review["next_action"],
     )
+    quote["estimate"] = contract_product_estimate(rules, raw_payload)
+    quote["next_action"]["message"] = (
+        "This event is outside our usual service area. You can review the paletas and extras "
+        "estimate below. Contact the owner to confirm availability and service or travel fees. "
+        "This estimate does not confirm a booking; no payment is due."
+    )
+    return quote
+
+
+def contract_product_estimate(rules, raw_payload):
+    """Known product prices only; no assumed delivery/service fee or deposit."""
+    products = {**normalize_quote_payload(raw_payload), "service_type": "PICKUP"}
+    validated = validate_quote_payload(rules, products)
+    calculation = calculate_order_quote(rules, validated)
+    return {
+        "currency": "USD",
+        "line_items": _line_items(rules, validated, calculation),
+        "subtotal_cents": calculation["pricing_summary"]["total_cents"],
+    }
+
+
+def contract_address_review_quote(rules, raw_payload, message):
+    quote = _contract_quote(
+        raw_payload,
+        "requires_review",
+        None,
+        rules,
+        ["D04"],
+        {
+            "type": "contact_inquiry",
+            "reason_code": "address_verification_unavailable",
+            "message": message,
+            "inquiry_url": _inquiry_url(),
+        },
+    )
+    quote["estimate"] = contract_product_estimate(rules, raw_payload)
+    return quote
 
 
 # --------------------------------------------------------------------------- #
@@ -708,7 +798,7 @@ def requires_review_quote(message):
         "breakdown": None,
         "pricing_summary": None,
         "currency": "USD",
-        "unresolved_decisions": ["D04"],  # delivery distance method/postal code still open
+        "unresolved_decisions": ["D04"],  # owner review of service/travel fees is required
         "next_action": {
             "type": "contact_inquiry",
             "reason_code": "outside_delivery_radius",
@@ -743,14 +833,15 @@ def create_quote():
     rules = current_app.extensions["pricing_rules"]
     contract = is_contract_payload(payload)
     try:
-        flat = normalize_quote_payload(payload)
-        validated = validate_quote_payload(rules, flat)
+        validated = prepare_quote_payload(rules, payload)
         calculation = calculate_order_quote(rules, validated)
         quote = (
             contract_priced_quote(rules, payload, validated, calculation)
             if contract
             else calculation
         )
+    except AddressReviewRequired as error:
+        quote = contract_address_review_quote(rules, payload, error.message)
     except OutsideDeliveryRadius as error:
         quote = (
             contract_review_quote(rules, payload, error.message)

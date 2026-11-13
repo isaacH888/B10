@@ -1,31 +1,5 @@
 /* Adapted from Aneena's frontend-aneena sample; scope the design to public pages. */
-@font-face {
-  font-family: "Anton";
-  src: url("./assets/fonts/Anton-Regular.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "DM Sans";
-  src: url("./assets/fonts/DM-Sans.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 100 1000;
-  font-display: swap;
-}
-.public-site,
-.customer-signin {
-  --red: #da2935;
-  --pink: #f7c2ce;
-  --cream: #fff3d8;
-  --purple: #6761a8;
-  --ink: #35162f;
-  --yellow: #ffcf4b;
-  --blue: #293eaa;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) * {
+:where(.public-home, .customer-signin) * {
   box-sizing: border-box;
 }
 
@@ -37,58 +11,21 @@
   color: var(--ink);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) a {
+:where(.public-home, .customer-signin) a {
   color: inherit;
   text-decoration: none;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) button,
-:where(.public-home, .public-chrome, .customer-signin) input {
+:where(.public-home, .customer-signin) button,
+:where(.public-home, .customer-signin) input {
   font: inherit;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) button {
+:where(.public-home, .customer-signin) button {
   cursor: pointer;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .announcement {
-  background: var(--red);
-  color: #fff;
-  text-align: center;
-  padding: 10px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .site-header {
-  background: var(--pink);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 22px max(4.5vw, 24px);
-  gap: 25px;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .nav-logo {
-  width: 76px;
-  height: 70px;
-  object-fit: contain;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .site-header nav {
-  display: flex;
-  align-items: center;
-  gap: 34px;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .signin {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .pill {
+:where(.public-home, .customer-signin) .pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -100,12 +37,12 @@
   white-space: nowrap;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .red {
+:where(.public-home, .customer-signin) .red {
   background: var(--red);
   color: white;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero {
+:where(.public-home, .customer-signin) .hero {
   background: var(--pink);
   min-height: 690px;
   display: grid;
@@ -114,61 +51,60 @@
   padding: 35px 4.5% 80px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .eyebrow {
+:where(.public-home, .customer-signin) .eyebrow {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero h1,
-:where(.public-home, .public-chrome, .customer-signin) h2,
-:where(.public-home, .public-chrome, .customer-signin) h3,
-:where(.public-home, .public-chrome, .customer-signin) .footer-brand,
-:where(.public-home, .public-chrome, .customer-signin) .welcome,
-:where(.public-home, .public-chrome, .customer-signin) .auth-card h1 {
+:where(.public-home, .customer-signin) .hero h1,
+:where(.public-home, .customer-signin) h2,
+:where(.public-home, .customer-signin) h3,
+:where(.public-home, .customer-signin) .welcome,
+:where(.public-home, .customer-signin) .auth-card h1 {
   font-family: Anton, Impact, "Arial Narrow", sans-serif;
   font-weight: 400;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero h1 {
+:where(.public-home, .customer-signin) .hero h1 {
   font-size: clamp(65px, 8vw, 132px);
   line-height: 1.04;
   color: var(--red);
   margin: 22px 0;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero p {
+:where(.public-home, .customer-signin) .hero p {
   font-size: 19px;
   line-height: 1.5;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero-actions {
+:where(.public-home, .customer-signin) .hero-actions {
   display: flex;
   align-items: center;
   gap: 24px;
   margin: 22px 0;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .text-link {
+:where(.public-home, .customer-signin) .text-link {
   font-size: 13px;
   font-weight: 700;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero small {
+:where(.public-home, .customer-signin) .hero small {
   font-size: 12px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero-art {
+:where(.public-home, .customer-signin) .hero-art {
   position: relative;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .hero-art img {
+:where(.public-home, .customer-signin) .hero-art img {
   width: 100%;
   display: block;
   mix-blend-mode: multiply;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .ticker {
+:where(.public-home, .customer-signin) .ticker {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -180,25 +116,25 @@
   overflow: hidden;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .ticker span {
+:where(.public-home, .customer-signin) .ticker span {
   font-family: Anton, Impact, sans-serif;
   font-size: 25px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .ticker b {
+:where(.public-home, .customer-signin) .ticker b {
   color: var(--yellow);
   font-size: 26px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .cream {
+:where(.public-home, .customer-signin) .cream {
   background: var(--cream);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .life {
+:where(.public-home, .customer-signin) .life {
   padding: 85px 4.5% 100px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .section-heading {
+:where(.public-home, .customer-signin) .section-heading {
   display: flex;
   justify-content: space-between;
   align-items: end;
@@ -206,30 +142,30 @@
   margin-bottom: 45px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .red-text {
+:where(.public-home, .customer-signin) .red-text {
   color: var(--red);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) h2 {
+:where(.public-home, .customer-signin) h2 {
   font-size: clamp(40px, 4.8vw, 75px);
   line-height: 1.06;
   color: var(--red);
   margin: 18px 0;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .section-heading p {
+:where(.public-home, .customer-signin) .section-heading p {
   font-size: 18px;
   line-height: 1.5;
   margin: 0 0 8px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .features {
+:where(.public-home, .customer-signin) .features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .feature {
+:where(.public-home, .customer-signin) .feature {
   border-radius: 24px;
   min-height: 345px;
   padding: 30px;
@@ -238,35 +174,35 @@
   align-items: flex-start;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .yellow {
+:where(.public-home, .customer-signin) .yellow {
   background: var(--yellow);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .pink {
+:where(.public-home, .customer-signin) .pink {
   background: var(--pink);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .blue {
+:where(.public-home, .customer-signin) .blue {
   background: var(--blue);
   color: white;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .burst {
+:where(.public-home, .customer-signin) .burst {
   font-size: 60px;
   line-height: 1;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .feature h3 {
+:where(.public-home, .customer-signin) .feature h3 {
   font-size: 36px;
   line-height: 1.1;
   margin: auto 0 30px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .feature small {
+:where(.public-home, .customer-signin) .feature small {
   font-size: 12px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .story {
+:where(.public-home, .customer-signin) .story {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 7%;
@@ -404,13 +340,13 @@
   }
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .story-copy p {
+:where(.public-home, .customer-signin) .story-copy p {
   font-size: 18px;
   line-height: 1.6;
   max-width: 520px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .outline {
+:where(.public-home, .customer-signin) .outline {
   border: 1.5px solid var(--red);
   color: var(--red);
   margin-top: 15px;
@@ -429,36 +365,7 @@
   overflow-wrap: anywhere;
 }
 
-.public-chrome .skip-link {
-  position: absolute;
-  top: 0;
-  left: 1rem;
-  z-index: 200;
-  padding: 0.75rem;
-  background: var(--cream);
-  transform: translateY(-120%);
-}
-
-.public-chrome .skip-link:focus {
-  transform: translateY(0);
-}
-
-.public-chrome .signin {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.public-chrome .signin svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .pill {
+:where(.public-home, .customer-signin) .pill {
   gap: 0.4rem;
 }
 
@@ -508,47 +415,7 @@
   font-size: 0.875rem;
 }
 
-@media (max-width: 520px) {
-  .public-chrome .site-header nav .pill {
-    display: inline-flex;
-    padding: 0.6rem 0.9rem;
-  }
-
-  .public-chrome .footer-top nav {
-    flex-wrap: wrap;
-  }
-}
-
-:where(.public-home, .public-chrome, .customer-signin) footer {
-  padding: 28px 4.5% 35px;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .footer-top,
-:where(.public-home, .public-chrome, .customer-signin) .footer-bottom {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  font-size: 11px;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .footer-top nav {
-  display: flex;
-  gap: 22px;
-}
-
-.public-chrome .social-links {
-  margin-bottom: 24px;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .footer-brand {
-  text-align: center;
-  font-size: clamp(50px, 11.7vw, 200px);
-  color: var(--red);
-  letter-spacing: -0.025em;
-  line-height: 1.4;
-}
-
-:where(.public-home, .public-chrome, .customer-signin) .auth-body {
+:where(.public-home, .customer-signin) .auth-body {
   background: #e6e6e6;
   min-height: 100vh;
   display: grid;
@@ -556,22 +423,22 @@
   padding: 28px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-shell {
+:where(.public-home, .customer-signin) .auth-shell {
   width: min(1200px, 100%);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-stripe {
+:where(.public-home, .customer-signin) .auth-stripe {
   height: 38px;
   background: var(--red);
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-columns {
+:where(.public-home, .customer-signin) .auth-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 570px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-visual {
+:where(.public-home, .customer-signin) .auth-visual {
   background: var(--pink);
   position: relative;
   display: grid;
@@ -579,7 +446,7 @@
   overflow: hidden;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .back-home {
+:where(.public-home, .customer-signin) .back-home {
   position: absolute;
   top: 20px;
   left: 25px;
@@ -587,20 +454,20 @@
   z-index: 2;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-image {
+:where(.public-home, .customer-signin) .auth-image {
   width: 90%;
   display: grid;
   place-items: center;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-image img {
+:where(.public-home, .customer-signin) .auth-image img {
   max-width: 100%;
   max-height: 470px;
   object-fit: contain;
   mix-blend-mode: multiply;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-panel {
+:where(.public-home, .customer-signin) .auth-panel {
   background: var(--purple);
   display: flex;
   align-items: center;
@@ -610,7 +477,7 @@
   gap: 12px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .welcome {
+:where(.public-home, .customer-signin) .welcome {
   color: #fff;
   font-size: clamp(37px, 4.5vw, 70px);
   letter-spacing: 0.12em;
@@ -620,13 +487,13 @@
   color: transparent;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .sun {
+:where(.public-home, .customer-signin) .sun {
   font-size: 54px;
   color: var(--yellow);
   line-height: 1;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-card {
+:where(.public-home, .customer-signin) .auth-card {
   background: var(--cream);
   border-radius: 26px;
   padding: 30px 35px 45px;
@@ -635,42 +502,37 @@
   text-align: center;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-card h1 {
+:where(.public-home, .customer-signin) .auth-card h1 {
   font-size: 34px;
   margin: 0 0 22px;
 }
 
-:where(.public-home, .public-chrome, .customer-signin) .auth-card .pill {
+:where(.public-home, .customer-signin) .auth-card .pill {
   margin-top: 4px;
 }
 
 @media (max-width: 800px) {
-  :where(.public-home, .public-chrome, .customer-signin) .site-header nav {
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin) .hero {
+  :where(.public-home, .customer-signin) .hero {
     grid-template-columns: 1fr;
     min-height: 0;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .hero-art {
+  :where(.public-home, .customer-signin) .hero-art {
     max-width: 550px;
     margin: auto;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .features,
-  :where(.public-home, .public-chrome, .customer-signin) .story {
+  :where(.public-home, .customer-signin) .features,
+  :where(.public-home, .customer-signin) .story {
     grid-template-columns: 1fr;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .section-heading {
+  :where(.public-home, .customer-signin) .section-heading {
     align-items: start;
     flex-direction: column;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .story {
+  :where(.public-home, .customer-signin) .story {
     margin-top: 60px;
   }
 
@@ -679,70 +541,45 @@
     margin-inline: auto;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .auth-columns {
+  :where(.public-home, .customer-signin) .auth-columns {
     grid-template-columns: 1fr;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .auth-visual {
+  :where(.public-home, .customer-signin) .auth-visual {
     min-height: 300px;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .auth-image img {
+  :where(.public-home, .customer-signin) .auth-image img {
     max-height: 270px;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .auth-panel {
+  :where(.public-home, .customer-signin) .auth-panel {
     padding: 35px 5%;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .welcome {
+  :where(.public-home, .customer-signin) .welcome {
     font-size: 48px;
   }
 }
 
 @media (max-width: 520px) {
-  :where(.public-home, .public-chrome, .customer-signin) .site-header {
-    flex-wrap: wrap;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin) .site-header nav {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin)
-    .site-header
-    nav
-    .pill {
-    display: none;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin) .hero h1 {
+  :where(.public-home, .customer-signin) .hero h1 {
     font-size: 60px;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .hero-actions {
+  :where(.public-home, .customer-signin) .hero-actions {
     flex-wrap: wrap;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .life {
+  :where(.public-home, .customer-signin) .life {
     padding-top: 50px;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .footer-top {
-    flex-direction: column;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin) .footer-brand {
-    font-size: 13vw;
-  }
-
-  :where(.public-home, .public-chrome, .customer-signin) .auth-body {
+  :where(.public-home, .customer-signin) .auth-body {
     padding: 0;
   }
 
-  :where(.public-home, .public-chrome, .customer-signin) .auth-stripe {
+  :where(.public-home, .customer-signin) .auth-stripe {
     height: 22px;
   }
 }
