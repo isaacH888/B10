@@ -69,3 +69,37 @@ stable submission retries, expiry, errors and navigation. Narrow booking-dialog
 checks cover 320, 375 and 768 pixels; public-page checks also cover 1440 pixels.
 
 Publication updates `dev`; staging and production deployment are separate work.
+
+## Catering visual refresh — November 13, 2026
+
+The catering request dialog now uses white form surfaces, a pale progress sidebar,
+larger fields and pill buttons, and separate review cards. On smaller screens,
+the sidebar becomes a compact progress indicator. Fields scroll independently
+while the close button and Back/Next navigation remain visible. Flavor selection,
+address suggestions, service-area notices and quote breakdowns use the same
+spacing, borders and accents. The public landing-page content is unchanged.
+
+The reference was Crumbl's signed-in catering selection, flavor quantities, bag
+and checkout screens. Inspection stopped at payment; no payment details were
+entered and no order was placed. This adaptation retains Popssibilities' five
+steps, optional flavor allocations, pricing, ZIP-area checks, owner-review path,
+draft behavior and availability/deposit workflow. No backend changes were needed.
+
+Event type now offers five common choices (Birthday, Graduation, Wedding, Baby
+shower and Corporate event) plus Custom. Custom reveals a required text field.
+Existing free-text drafts restore under Custom; the chosen or entered event name
+continues to use the existing event type field in review and API requests.
+
+Both native event calendars disable days before today in Houston/Central time.
+The limit refreshes when a date field receives focus and every minute while the
+schedule step is open. Today remains selectable; the existing validation still
+requires the event start to be a future time and the end to follow the start.
+
+Validation: all 168 frontend browser tests passed, including the 51 catering and
+address tests, along with the frontend formatting check, production build and
+shared foundation check. Six responsive cases were also
+captured and reviewed at 320, 375 and 768 pixels. Desktop contact, service,
+schedule, flavor and review screens were inspected in the local preview using
+synthetic details, which were cleared afterward. Live quote/order submission was
+not used for the visual review. This refresh targets `dev`; staging and production
+deployment remain separate work.

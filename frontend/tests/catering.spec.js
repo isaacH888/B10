@@ -18,7 +18,8 @@ async function orderDetails(
   await page.locator("#cf-region").fill("TX");
   await page.locator("#cf-postal").fill("77000");
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.locator("#cf-event-type").fill("Synthetic celebration");
+  await page.locator("#cf-event-type").selectOption("custom");
+  await page.locator("#cf-custom-event-type").fill("Synthetic celebration");
   await page.locator("#cf-starts-at").fill(start);
   if (end) await page.locator("#cf-ends-at").fill(end);
   await page.getByRole("button", { name: "Next", exact: true }).click();
@@ -110,6 +111,74 @@ async function quote(page) {
     page.getByRole("button", { name: "Submit catering request", exact: true }),
   ).toBeVisible();
 }
+
+test("common event types are shown in review and sent as the event name", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Event type", exact: true })
+    .selectOption("Birthday");
+  await expect(page.getByLabel("Custom event type")).toHaveCount(0);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await quote(page);
+  await expect(
+    page.getByRole("region", { name: "Event schedule" }),
+  ).toContainText("Birthday");
+  expect(calls.quotes[0].event.type).toBe("Birthday");
+
+  await page.getByRole("button", { name: "Edit event schedule" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Event type", exact: true }),
+  ).toHaveValue("Birthday");
+  await page
+    .getByRole("combobox", { name: "Event type", exact: true })
+    .selectOption("Graduation");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await quote(page);
+  expect(calls.quotes[1].event.type).toBe("Graduation");
+});
+
+test("custom event names restore from drafts and must be entered before continuing", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Request a quote", exact: true })
+    .first()
+    .click();
+  const choice = page.getByRole("combobox", {
+    name: "Event type",
+    exact: true,
+  });
+  const custom = page.getByRole("textbox", {
+    name: "Custom event type",
+    exact: true,
+  });
+  await expect(choice).toHaveValue("custom");
+  await expect(custom).toHaveValue("Synthetic celebration");
+
+  await choice.selectOption("");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(choice).toBeFocused();
+  await expect(choice).toHaveAccessibleDescription("Event type is required.");
+  await choice.selectOption("custom");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(custom).toBeFocused();
+  await expect(custom).toHaveAccessibleDescription("Event type is required.");
+  await custom.fill("Retirement celebration");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await quote(page);
+  await expect(
+    page.getByRole("region", { name: "Event schedule" }),
+  ).toContainText("Retirement celebration");
+  expect(calls.quotes[0].event.type).toBe("Retirement celebration");
+});
 
 test("checkout sends real API requests and shows the server's price and identifier", async ({
   page,
@@ -487,6 +556,53 @@ test("manual-review quotes do not claim that an order was submitted", async ({
 
 test.describe("Houston event schedule", () => {
   test.use({ timezoneId: "Asia/Tokyo" });
+
+  test("calendars exclude past Central days, allow today, and refresh after midnight", async ({
+    page,
+  }) => {
+    // Tokyo is already on Nov 14; Houston is still on Nov 13.
+    await page.clock.setFixedTime(new Date("2026-11-14T05:30:00Z"));
+    const calls = await api(page);
+    await orderDetails(page, {
+      start: "2026-11-12T12:00",
+      end: "2026-11-12T13:00",
+    });
+    const start = page.locator("#cf-starts-at");
+    const end = page.locator("#cf-ends-at");
+    for (const field of [start, end]) {
+      await expect(field).toHaveAttribute("min", "2026-11-13T00:00");
+      expect(
+        await field.evaluate((input) => input.validity.rangeUnderflow),
+      ).toBe(true);
+    }
+    await expect(start).toBeFocused();
+    await expect(page.getByRole("alert")).toContainText(
+      "Event start must be in the future.",
+    );
+    expect(calls.quotes).toHaveLength(0);
+
+    // A later time today is accepted, even though the device date is tomorrow.
+    await start.fill("2026-11-13T23:45");
+    await end.fill("");
+    expect(await start.evaluate((input) => input.validity.rangeUnderflow)).toBe(
+      false,
+    );
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("#cf-quantity")).toBeVisible();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+
+    await page.clock.setFixedTime(new Date("2026-11-14T06:30:00Z"));
+    await end.focus();
+    for (const field of [start, end]) {
+      await expect(field).toHaveAttribute("min", "2026-11-14T00:00");
+    }
+    expect(await start.evaluate((input) => input.validity.rangeUnderflow)).toBe(
+      true,
+    );
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(start).toBeFocused();
+    expect(calls.quotes).toHaveLength(0);
+  });
 
   for (const [month, offset, abbreviation] of [
     ["01", "-06:00", "CST"],

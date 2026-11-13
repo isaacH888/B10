@@ -11,6 +11,15 @@ const partsFormatter = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
+export function eventDayStart(timestamp = Date.now()) {
+  const parts = Object.fromEntries(
+    partsFormatter
+      .formatToParts(new Date(timestamp))
+      .map(({ type, value }) => [type, value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T00:00`;
+}
+
 function wallTime(timestamp) {
   const parts = Object.fromEntries(
     partsFormatter

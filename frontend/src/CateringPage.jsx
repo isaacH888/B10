@@ -12,10 +12,11 @@ import {
 } from "./CateringAddress.jsx";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
-import venueImage from "./assets/Venue.webp";
+import paletasImage from "./assets/paletas-flavor-preview.png";
 import { apiRequest } from "./auth/api.js";
 import {
   centralTimeToIso,
+  eventDayStart,
   EVENT_TIME_ZONE,
   formatEventTime,
 } from "./eventTime.js";
@@ -32,6 +33,14 @@ function formatCents(cents) {
 const PALETA_SHAPES = [
   { value: "standard", label: "Regular", unitCents: 450 },
   { value: "heart", label: "Heart-shaped", unitCents: 300 },
+];
+
+const EVENT_TYPES = [
+  "Birthday",
+  "Graduation",
+  "Wedding",
+  "Baby shower",
+  "Corporate event",
 ];
 
 function CateringContact() {
@@ -267,7 +276,7 @@ function StepEvent({
     <fieldset>
       <legend>{stepTitles[1]}</legend>
 
-      {/* Service type as styled radio cards matching Figma */}
+      {/* Service choices retain the existing delivery and staffed-event flow. */}
       <div
         className="form-field"
         role="group"
@@ -440,6 +449,23 @@ function StepEvent({
 }
 
 function StepEventDetails({ form, onChange, errors }) {
+  const [earliestDate, setEarliestDate] = useState(eventDayStart);
+  function refreshEarliestDate() {
+    setEarliestDate(eventDayStart());
+  }
+  useEffect(() => {
+    const timer = window.setInterval(refreshEarliestDate, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const [eventTypeChoice, setEventTypeChoice] = useState(() =>
+    EVENT_TYPES.includes(form.event_type)
+      ? form.event_type
+      : form.event_type
+        ? "custom"
+        : "",
+  );
+  const isCustomEvent = eventTypeChoice === "custom";
+
   return (
     <fieldset>
       <legend>{stepTitles[2]}</legend>
@@ -456,21 +482,68 @@ function StepEventDetails({ form, onChange, errors }) {
             *
           </span>
         </label>
-        <input
+        <select
           id="cf-event-type"
-          {...fieldAccessibility(errors, "event_type", "cf-event-type")}
-          type="text"
-          value={form.event_type}
-          onChange={(e) => onChange("event_type", e.target.value)}
-          placeholder="Baby shower party"
+          {...fieldAccessibility(
+            isCustomEvent ? {} : errors,
+            "event_type",
+            "cf-event-type",
+          )}
+          value={eventTypeChoice}
+          onChange={(event) => {
+            const choice = event.target.value;
+            setEventTypeChoice(choice);
+            onChange("event_type", choice === "custom" ? "" : choice);
+          }}
           required
-        />
-        {errors.event_type && (
+        >
+          <option value="">Select an event type</option>
+          {EVENT_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+          <option value="custom">Custom</option>
+        </select>
+        {!isCustomEvent && errors.event_type && (
           <p id="cf-event-type-error" className="field-error" role="alert">
             {errors.event_type}
           </p>
         )}
       </div>
+
+      {isCustomEvent && (
+        <div className="form-field">
+          <label htmlFor="cf-custom-event-type">
+            Custom event type{" "}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
+          </label>
+          <input
+            id="cf-custom-event-type"
+            {...fieldAccessibility(
+              errors,
+              "event_type",
+              "cf-custom-event-type",
+            )}
+            type="text"
+            value={form.event_type}
+            onChange={(event) => onChange("event_type", event.target.value)}
+            placeholder="e.g. Retirement celebration"
+            required
+          />
+          {errors.event_type && (
+            <p
+              id="cf-custom-event-type-error"
+              className="field-error"
+              role="alert"
+            >
+              {errors.event_type}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="form-row">
         <div className="form-field">
@@ -489,6 +562,8 @@ function StepEventDetails({ form, onChange, errors }) {
               "event-timezone-hint",
             )}
             type="datetime-local"
+            min={earliestDate}
+            onFocus={refreshEarliestDate}
             value={form.event_starts_at}
             onChange={(e) => onChange("event_starts_at", e.target.value)}
             required
@@ -511,6 +586,8 @@ function StepEventDetails({ form, onChange, errors }) {
               "event-timezone-hint",
             )}
             type="datetime-local"
+            min={earliestDate}
+            onFocus={refreshEarliestDate}
             value={form.event_ends_at}
             onChange={(e) => onChange("event_ends_at", e.target.value)}
           />
@@ -713,122 +790,125 @@ function StepSummary({
     <fieldset>
       <legend>{stepTitles[4]}</legend>
 
-      <section className="summary-section" aria-label="Contact details">
-        <div className="summary-heading">
-          <h3>Contact</h3>
-          <button
-            type="button"
-            onClick={() => onEdit(1)}
-            disabled={busy}
-            aria-label="Edit contact"
-          >
-            Edit
-          </button>
-        </div>
-        <dl>
-          <dt>Name</dt>
-          <dd>{form.name}</dd>
-          <dt>Email</dt>
-          <dd>{form.email}</dd>
-          <dt>Phone</dt>
-          <dd>{form.phone}</dd>
-        </dl>
-      </section>
-      <section className="summary-section" aria-label="Service and location">
-        <div className="summary-heading">
-          <h3>Service &amp; Location</h3>
-          <button
-            type="button"
-            onClick={() => onEdit(2)}
-            disabled={busy}
-            aria-label="Edit service and location"
-          >
-            Edit
-          </button>
-        </div>
-        <dl>
-          <dt>Service</dt>
-          <dd>
-            {form.service_type === "full_service" ? "Full service" : "Delivery"}
-          </dd>
-          <dt>Address</dt>
-          <dd>
-            {form.location_line1}, {form.location_city}, {form.location_region}{" "}
-            {form.location_postal_code}
-          </dd>
-        </dl>
-      </section>
-      <section className="summary-section" aria-label="Event schedule">
-        <div className="summary-heading">
-          <h3>Event Schedule</h3>
-          <button
-            type="button"
-            onClick={() => onEdit(3)}
-            disabled={busy}
-            aria-label="Edit event schedule"
-          >
-            Edit
-          </button>
-        </div>
-        <dl>
-          <dt>Event</dt>
-          <dd>{form.event_type}</dd>
-          <dt>Starts</dt>
-          <dd>{formatEnteredTime(form.event_starts_at)}</dd>
-          <dt>Ends</dt>
-          <dd>{formatEnteredTime(form.event_ends_at)}</dd>
-          <dt>Time zone</dt>
-          <dd>Houston / Central time</dd>
-          {form.event_notes && (
-            <>
-              <dt>Notes</dt>
-              <dd>{form.event_notes}</dd>
-            </>
-          )}
-        </dl>
-      </section>
-      <section className="summary-section" aria-label="Paletas and extras">
-        <div className="summary-heading">
-          <h3>Paletas &amp; Extras</h3>
-          <button
-            type="button"
-            onClick={() => onEdit(4)}
-            disabled={busy}
-            aria-label="Edit paletas and extras"
-          >
-            Edit
-          </button>
-        </div>
-        <dl>
-          <dt>Quantity</dt>
-          <dd>{form.quantity} paletas</dd>
-          <dt>Shape</dt>
-          <dd>
-            {form.popsicle_shape === "heart" ? "Heart-shaped" : "Regular"}
-          </dd>
-          {form.flavor_allocations.length > 0 && (
-            <>
-              <dt>Flavor mix</dt>
-              <dd>
-                <FlavorMixSummary allocations={form.flavor_allocations} />
-              </dd>
-            </>
-          )}
-          {form.flavor_requests && (
-            <>
-              <dt>Requests</dt>
-              <dd>{form.flavor_requests}</dd>
-            </>
-          )}
-          {form.dry_ice_blocks && (
-            <>
-              <dt>Dry ice</dt>
-              <dd>{form.dry_ice_blocks} blocks</dd>
-            </>
-          )}
-        </dl>
-      </section>
-
+      <div className="summary-grid">
+        <section className="summary-section" aria-label="Contact details">
+          <div className="summary-heading">
+            <h3>Contact</h3>
+            <button
+              type="button"
+              onClick={() => onEdit(1)}
+              disabled={busy}
+              aria-label="Edit contact"
+            >
+              Edit
+            </button>
+          </div>
+          <dl>
+            <dt>Name</dt>
+            <dd>{form.name}</dd>
+            <dt>Email</dt>
+            <dd>{form.email}</dd>
+            <dt>Phone</dt>
+            <dd>{form.phone}</dd>
+          </dl>
+        </section>
+        <section className="summary-section" aria-label="Service and location">
+          <div className="summary-heading">
+            <h3>Service &amp; Location</h3>
+            <button
+              type="button"
+              onClick={() => onEdit(2)}
+              disabled={busy}
+              aria-label="Edit service and location"
+            >
+              Edit
+            </button>
+          </div>
+          <dl>
+            <dt>Service</dt>
+            <dd>
+              {form.service_type === "full_service"
+                ? "Full service"
+                : "Delivery"}
+            </dd>
+            <dt>Address</dt>
+            <dd>
+              {form.location_line1}, {form.location_city},{" "}
+              {form.location_region} {form.location_postal_code}
+            </dd>
+          </dl>
+        </section>
+        <section className="summary-section" aria-label="Event schedule">
+          <div className="summary-heading">
+            <h3>Event Schedule</h3>
+            <button
+              type="button"
+              onClick={() => onEdit(3)}
+              disabled={busy}
+              aria-label="Edit event schedule"
+            >
+              Edit
+            </button>
+          </div>
+          <dl>
+            <dt>Event</dt>
+            <dd>{form.event_type}</dd>
+            <dt>Starts</dt>
+            <dd>{formatEnteredTime(form.event_starts_at)}</dd>
+            <dt>Ends</dt>
+            <dd>{formatEnteredTime(form.event_ends_at)}</dd>
+            <dt>Time zone</dt>
+            <dd>Houston / Central time</dd>
+            {form.event_notes && (
+              <>
+                <dt>Notes</dt>
+                <dd>{form.event_notes}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+        <section className="summary-section" aria-label="Paletas and extras">
+          <div className="summary-heading">
+            <h3>Paletas &amp; Extras</h3>
+            <button
+              type="button"
+              onClick={() => onEdit(4)}
+              disabled={busy}
+              aria-label="Edit paletas and extras"
+            >
+              Edit
+            </button>
+          </div>
+          <dl>
+            <dt>Quantity</dt>
+            <dd>{form.quantity} paletas</dd>
+            <dt>Shape</dt>
+            <dd>
+              {form.popsicle_shape === "heart" ? "Heart-shaped" : "Regular"}
+            </dd>
+            {form.flavor_allocations.length > 0 && (
+              <>
+                <dt>Flavor mix</dt>
+                <dd>
+                  <FlavorMixSummary allocations={form.flavor_allocations} />
+                </dd>
+              </>
+            )}
+            {form.flavor_requests && (
+              <>
+                <dt>Requests</dt>
+                <dd>{form.flavor_requests}</dd>
+              </>
+            )}
+            {form.dry_ice_blocks && (
+              <>
+                <dt>Dry ice</dt>
+                <dd>{form.dry_ice_blocks} blocks</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      </div>
       <p className="request-explanation">
         Submitting a catering request does not secure your date. Our team
         reviews availability and sends payment instructions. Your booking is
@@ -856,14 +936,14 @@ function StepSummary({
       {["priced", "submitting"].includes(quoteStatus) && quote && (
         <div className="quote-result">
           <h3>Your Quote</h3>
-          {quote.pricing.line_items.map((item) => (
-            <p
-              key={item.code}
-              style={{ margin: "0.2rem 0", fontSize: "0.88rem" }}
-            >
-              {item.description}: {formatCents(item.amount_cents)}
-            </p>
-          ))}
+          <ul className="quote-line-items">
+            {quote.pricing.line_items.map((item) => (
+              <li key={item.code}>
+                <span>{item.description}</span>
+                <strong>{formatCents(item.amount_cents)}</strong>
+              </li>
+            ))}
+          </ul>
           <p className="quote-total">
             Total: {formatCents(quote.pricing.total_cents)}
           </p>
@@ -1514,12 +1594,60 @@ function CateringModal({ onClose, draft, onDraftChange }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-step-title"
+        aria-describedby="modal-step-subtitle"
         onKeyDown={handleModalKeyDown}
       >
-        {/* Left image panel - full height, 50% width */}
-        <div className="modal-image-panel">
-          <img src={venueImage} alt="" />
-        </div>
+        <aside
+          className="catering-progress-panel"
+          aria-label="Catering request progress"
+        >
+          <p className="catering-progress-panel__eyebrow">
+            Popssibilities catering
+          </p>
+          <p className="catering-progress-panel__title">
+            A little more pop
+            <br />
+            for your party.
+          </p>
+          <ol className="catering-steps">
+            {stepTitles.map((title, index) => (
+              <li
+                key={title}
+                aria-current={currentStep === index + 1 ? "step" : undefined}
+                className={index + 1 < currentStep ? "is-complete" : undefined}
+              >
+                <span className="catering-steps__number" aria-hidden="true">
+                  {index + 1 < currentStep ? (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      focusable="false"
+                    >
+                      <path d="m3 8 3 3 7-7" />
+                    </svg>
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <span>{title}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="catering-progress-panel__note">
+            <img src={paletasImage} alt="" />
+            <p>
+              Fresh fruit. Handcrafted paletas.
+              <br />
+              An event that’s uniquely yours.
+            </p>
+          </div>
+        </aside>
 
         {/* Right form panel - title, scrollable fields, footer */}
         <div className="modal-form-panel">
@@ -1538,6 +1666,14 @@ function CateringModal({ onClose, draft, onDraftChange }) {
                 &times;
               </button>
             </div>
+            <div className="modal-progress-track" aria-hidden="true">
+              {stepTitles.map((title, index) => (
+                <span
+                  key={title}
+                  className={index < currentStep ? "is-active" : undefined}
+                />
+              ))}
+            </div>
             <h2
               id="modal-step-title"
               className="modal-step-title"
@@ -1546,11 +1682,8 @@ function CateringModal({ onClose, draft, onDraftChange }) {
             >
               {stepTitles[currentStep - 1]}
             </h2>
-            <p className="modal-step-subtitle">
+            <p id="modal-step-subtitle" className="modal-step-subtitle">
               {stepSubtitles[currentStep - 1]}
-            </p>
-            <p className="draft-hint">
-              Closing keeps your progress. Use Start over to clear it.
             </p>
             <div className="modal-body">
               {currentStep === 1 && (
@@ -1603,6 +1736,9 @@ function CateringModal({ onClose, draft, onDraftChange }) {
 
           {/* Back/Next navigation sits at the bottom of the right form panel */}
           <div className="modal-footer">
+            <p className="draft-hint">
+              Closing keeps your progress. Use Start over to clear it.
+            </p>
             <button
               type="button"
               className="draft-reset"

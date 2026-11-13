@@ -298,7 +298,8 @@ test("outside-area customers can continue to a quote estimate for owner review",
     page.getByRole("heading", { name: "Event Schedule", exact: true }),
   ).toBeVisible();
   expect(calls.checks[0].location.postal_code).toBe("79900");
-  await page.locator("#cf-event-type").fill("Synthetic event");
+  await page.locator("#cf-event-type").selectOption("custom");
+  await page.locator("#cf-custom-event-type").fill("Synthetic event");
   await page.locator("#cf-starts-at").fill("2099-01-15T15:00");
   await page.locator("#cf-ends-at").fill("2099-01-15T17:00");
   await page
@@ -460,7 +461,8 @@ test("Geoapify unavailable keeps manual entry and has working contact links for 
   await expect(page.getByText(/Enter your event ZIP code/)).toBeVisible();
   await manualAddress(page);
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.locator("#cf-event-type").fill("Synthetic event");
+  await page.locator("#cf-event-type").selectOption("custom");
+  await page.locator("#cf-custom-event-type").fill("Synthetic event");
   await page.locator("#cf-starts-at").fill("2099-01-15T15:00");
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();

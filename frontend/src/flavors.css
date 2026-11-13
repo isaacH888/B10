@@ -50,18 +50,18 @@
   margin-bottom: 24px;
 }
 .flavor-picker {
-  margin: 0 0 20px;
-  padding: 16px;
-  border: 1px solid #b1a576;
-  border-radius: 12px;
-  background: #fff9e9;
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid #e6e2e6;
+  border-radius: 14px;
+  background: #fff;
 }
 .flavor-picker h3 {
   margin: 0 0 8px;
   font:
     700 16px/1.4 system-ui,
     sans-serif;
-  color: #293ca2;
+  color: var(--ink);
 }
 .flavor-picker h3 small {
   font-size: 12px;
@@ -79,25 +79,27 @@
 }
 .flavor-picker__actions button,
 .flavor-picker__add {
-  padding: 8px 10px;
-  border: 1px solid #293ca2;
-  border-radius: 8px;
-  color: #293ca2;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  min-height: 36px;
+  padding: 10px 14px;
+  border: 1px solid #ddd3e0;
+  border-radius: 999px;
+  color: var(--purple);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 44px;
 }
 .flavor-picker__actions button:hover,
 .flavor-picker__add:hover {
-  background: #e9eaff;
+  background: #fcf5fa;
 }
 .flavor-picker__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 65px 28px;
+  grid-template-columns: minmax(0, 1fr) 90px 44px;
   align-items: end;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #eee9ef;
+  margin-bottom: 4px;
 }
 .flavor-picker__row .form-field {
   min-width: 0;
@@ -107,19 +109,23 @@
   min-width: 0;
 }
 .flavor-picker .flavor-picker__remove {
-  height: 36px;
+  height: 48px;
   padding: 0;
-  border: 0;
-  background: transparent;
+  border: 1px solid #eee9ef;
+  border-radius: 10px;
+  background: #fff;
   color: #8d1728;
   font-size: 24px;
 }
 .flavor-picker__progress {
-  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f7f2f9;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.5;
   margin: 0 0 12px;
-  color: #293ca2;
+  color: var(--purple);
 }
 .flavor-picker .field-error {
   margin-top: 8px;
@@ -129,7 +135,7 @@
   cursor: default;
 }
 .flavor-picker button:focus-visible {
-  outline: 3px solid #293ca2;
+  outline: 3px solid var(--purple);
   outline-offset: 2px;
 }
 .flavor-mix-summary {
@@ -157,12 +163,15 @@
     max-width: 240px;
   }
 }
-@media (max-width: 360px) {
+@media (max-width: 600px) {
   .flavor-picker {
-    padding: 10px;
+    padding: 14px;
   }
   .flavor-picker__row {
-    grid-template-columns: minmax(0, 1fr) 55px 24px;
-    gap: 5px;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 10px;
+  }
+  .flavor-picker__row .form-field:first-child {
+    grid-column: 1 / -1;
   }
 }
