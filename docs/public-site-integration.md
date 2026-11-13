@@ -17,7 +17,7 @@ JavaScript and README are not application entry points; development still uses
 
 | Route | Behavior |
 | --- | --- |
-| `/` | Public homepage, story sections and links into catering/sign-in |
+| `/` | Public homepage, sample flavor menu, story sections and links into catering/sign-in |
 | `/login` | Branded customer screen using the existing Cognito password/Google flow |
 | `/account` | Existing protected customer session and sample email action |
 | `/order` | Existing catering form and quote/order API integration |
@@ -33,8 +33,11 @@ quote/order calls and booking automation retain their current behavior.
 The public header restores an authenticated customer's My account link from the
 existing session context. Public content remains available when authentication is
 unavailable. On November 12, Isaac removed newsletter signup from scope. The
-newsletter section and its navigation links have been removed. A social media
-link will be added once the team supplies the page URL.
+newsletter section and its navigation links have been removed. Isaac supplied
+the Instagram and Facebook profile URLs on November 12. Both public and catering
+footers now include "Follow our socials!" with accessible linked icons that open
+those profiles in a new tab. See
+[client content confirmations](client-content-confirmations.md) for the URLs.
 
 The [November 12 catering UX validation](catering-ux-validation.md) records the
 schedule, draft, review, wording and navigation improvements and current checks.

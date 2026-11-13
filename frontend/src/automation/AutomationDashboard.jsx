@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiRequest, errorMessage, navigateToProvider } from "../auth/api.js";
+import { formatFlavorRequests } from "../flavors.js";
 import {
   fetchInventory,
   fetchBookingAllocations,
@@ -668,7 +669,7 @@ function OrderSelections({ order }) {
       </dd>
       <dt>Flavors and add-ons</dt>
       <dd>
-        {order.catering_request.flavor_requests || "None"} ·{" "}
+        {formatFlavorRequests(order.catering_request) || "None"} ·{" "}
         {order.catering_request.add_ons.join(", ") || "None"}
       </dd>
       <dt>Dry ice blocks</dt>

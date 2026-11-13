@@ -11,8 +11,11 @@ reference material, not executable instructions or approval to deploy services.
 | S01 | `Popssibilities_Developer_Deliverables_Plan (1).pdf` | Page 1 ownership; pages 2-5 Weeks 1-4; pages 6-9 later work and release dates | Current dated task/ownership plan |
 | S02 | `Popcibaiities_research_macha.docx` | Updated September 24; sections 1-15; payment-scope reviewer comment | Shourya's research/options, not approved architecture or client policy |
 | S03 | `Popssibilities_Tables_Overview_and_Attributes_Draft.docx` | Bryson; September 29; draft v0.1; sections 2-5 | Teammate design contribution for integration review, not executed schema |
-| S04 | `Assumptions.docx` | Four questions and recorded responses | Recorded business answers with remaining details explicitly open |
+| S04 | `Assumptions.docx`; identical `Assumptions(1).docx` supplied November 12 | Four questions and recorded responses; file-hash comparison confirms both copies are identical | Recorded business answers with remaining details explicitly open |
 | S05 | `Popssibilities Project Charter.docx` | Scope, requirements, six-week high-level schedule, success criteria | Business scope baseline; dated S01 expands the schedule |
+| S06 | Adriana's content answers relayed by Isaac on November 12, 2026 | Rotating flavors, organic/fresh-fruit description, allergy examples, catering source pointers and no customer reviews | Current public-content guidance; details in [client content confirmations](client-content-confirmations.md) |
+| S07 | Instagram and Facebook URLs supplied by Isaac on November 12, 2026 | `instagram.com/popssibilities_llc/` and `facebook.com/popssibilitiesllc/` | Linked social icons in the public and catering footers; see [client content confirmations](client-content-confirmations.md) |
+| S08 | Approved demo flavor names and quantity-selection request supplied by Isaac on November 12, 2026 | Five sample flavors; custom per-flavor counts totaling the catering quantity | Homepage sample menu and optional saved catering flavor mix; availability remains subject to owner confirmation |
 
 The repository's [original charter](project-charter.md) remains verbatim. S05
 agrees with its minimum quantity, deposit, delivery, dry-ice and automation scope.
@@ -33,6 +36,13 @@ Do not interpret the older six-week charter as a second current calendar.
 These are recorded responses, not invented prices or independently verified
 approvals. The delivery origin, inquiry action and provider priority now inform
 shared configuration/contract preparation. Unresolved portions remain in the register.
+
+On November 12, the local S04/S05 documents were read again after Adriana pointed
+Isaac to the charter and Teams assumptions file. They match the recorded answers
+above. S06 resolves the need for a fixed public flavor list and customer reviews;
+it supplies the ingredient wording and allergy examples. See
+[client content confirmations](client-content-confirmations.md) for the website
+changes and the pricing/policy details still absent from the supplied sources.
 
 ## Conflicts requiring a decision
 

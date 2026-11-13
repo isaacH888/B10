@@ -1,0 +1,168 @@
+.public-home .flavor-menu {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(24px, 6vw, 90px);
+  margin-top: 100px;
+  padding: clamp(24px, 4vw, 60px);
+  border-radius: 28px;
+  background: var(--pink);
+}
+.flavor-menu__photo {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.flavor-menu__photo img {
+  width: min(100%, 360px);
+  height: auto;
+  display: block;
+}
+.flavor-menu__copy {
+  min-width: 0;
+}
+.flavor-menu__copy > p {
+  font-size: 17px;
+  line-height: 1.6;
+}
+.flavor-menu__list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+  display: grid;
+  gap: 12px;
+}
+.flavor-menu__list li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 18px;
+  font-weight: 700;
+}
+.flavor-menu__list span {
+  color: var(--red);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.flavor-menu__copy .flavor-menu__availability {
+  font-size: 13px;
+  max-width: 440px;
+  margin-bottom: 24px;
+}
+.flavor-picker {
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px solid #b1a576;
+  border-radius: 12px;
+  background: #fff9e9;
+}
+.flavor-picker h3 {
+  margin: 0 0 8px;
+  font:
+    700 16px/1.4 system-ui,
+    sans-serif;
+  color: #293ca2;
+}
+.flavor-picker h3 small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.flavor-picker__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.flavor-picker button {
+  font: inherit;
+  cursor: pointer;
+}
+.flavor-picker__actions button,
+.flavor-picker__add {
+  padding: 8px 10px;
+  border: 1px solid #293ca2;
+  border-radius: 8px;
+  color: #293ca2;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 36px;
+}
+.flavor-picker__actions button:hover,
+.flavor-picker__add:hover {
+  background: #e9eaff;
+}
+.flavor-picker__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 65px 28px;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.flavor-picker__row .form-field {
+  min-width: 0;
+  margin: 0;
+}
+.flavor-picker__row select {
+  min-width: 0;
+}
+.flavor-picker .flavor-picker__remove {
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #8d1728;
+  font-size: 24px;
+}
+.flavor-picker__progress {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0 0 12px;
+  color: #293ca2;
+}
+.flavor-picker .field-error {
+  margin-top: 8px;
+}
+.flavor-picker button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.flavor-picker button:focus-visible {
+  outline: 3px solid #293ca2;
+  outline-offset: 2px;
+}
+.flavor-mix-summary {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.flavor-mix-summary li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+}
+.flavor-mix-summary strong {
+  white-space: nowrap;
+}
+@media (max-width: 800px) {
+  .public-home .flavor-menu {
+    grid-template-columns: 1fr;
+    margin-top: 60px;
+  }
+  .flavor-menu__photo img {
+    max-width: 240px;
+  }
+}
+@media (max-width: 360px) {
+  .flavor-picker {
+    padding: 10px;
+  }
+  .flavor-picker__row {
+    grid-template-columns: minmax(0, 1fr) 55px 24px;
+    gap: 5px;
+  }
+}

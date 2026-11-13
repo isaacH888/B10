@@ -536,6 +536,10 @@
   gap: 22px;
 }
 
+.public-chrome .social-links {
+  margin-bottom: 24px;
+}
+
 :where(.public-home, .public-chrome, .customer-signin) .footer-brand {
   text-align: center;
   font-size: clamp(50px, 11.7vw, 200px);

@@ -240,6 +240,23 @@
   margin: 0;
 }
 
+.cat-features__note {
+  max-width: 920px;
+  margin: 2rem auto 0;
+  font-size: 0.88rem;
+  color: #4b004b;
+}
+
+.catering-allergy-note {
+  line-height: 1.6;
+}
+
+.catering-allergy-note a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 /* ----- How it works: white background ----- */
 .cat-how {
   padding: 5.5rem 3rem;
@@ -368,6 +385,13 @@
   font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.35);
   margin: 0;
+}
+
+.cat-footer .social-links {
+  --social-accent: #f8bfcb;
+  --social-accent-text: #1a1a2e;
+  --social-focus: #ffcc4b;
+  color: #fff;
 }
 
 /* ===========================================================================

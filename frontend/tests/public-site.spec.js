@@ -62,6 +62,26 @@ test("the public homepage loads the uploaded images and opens the existing cater
   expect(errors).toEqual([]);
 });
 
+test("the approved sample flavors are discoverable from navigation and lead to catering", async ({
+  page,
+}) => {
+  await sessions(page);
+  await page.goto("/");
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Flavors", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#flavors$/);
+  const menu = page.getByRole("region", { name: /MEET A FEW\s*FAVORITES\./ });
+  await expect(menu).toBeInViewport();
+  const flavors = page.getByRole("list", { name: "Sample flavors" });
+  await expect(flavors.getByRole("listitem")).toHaveCount(5);
+  await expect(flavors).toContainText("Mango Dragonfruit");
+  await expect(flavors).toContainText("Watermelon Strawberry and Kiwi");
+  await page.getByRole("link", { name: "Build your catering mix" }).click();
+  await expect(page).toHaveURL(/\/order$/);
+});
+
 test("homepage sign-in opens the branded screen and retains provider authentication", async ({
   page,
 }) => {

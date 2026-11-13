@@ -4,6 +4,8 @@ import { linkedBooking, savedOrder } from "./order-fixtures.js";
 async function workspace(page, options = {}) {
   const requests = [];
   const order = savedOrder();
+  if (options.flavorMix)
+    order.catering_request.flavor_allocations = options.flavorMix;
   await page.route("**/api/v1/**", (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -98,6 +100,24 @@ test("order list and detail render saved API data without fictional samples", as
     page.getByRole("button", { name: /Export summary/ }),
   ).toBeDisabled();
   expect(requests.every((r) => r.method === "GET")).toBe(true);
+});
+
+test("owner order details show the saved requested flavor quantities", async ({
+  page,
+}) => {
+  await workspace(page, {
+    flavorMix: [
+      { flavor: "Mango Lime", quantity: 30 },
+      { flavor: "Mango Dragonfruit", quantity: 20 },
+    ],
+  });
+  await page.goto("/admin/orders/order_example_001");
+  await expect(
+    page
+      .locator(".od-section__two-col")
+      .filter({ hasText: "FLAVOR REQUESTS" })
+      .getByText("Mango Lime: 30 · Mango Dragonfruit: 20", { exact: true }),
+  ).toBeVisible();
 });
 
 test("linked order displays current booking dates, payment totals and management link", async ({

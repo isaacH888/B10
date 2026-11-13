@@ -24,15 +24,22 @@ review, validation, and publication to `dev` after successful checks.
   states include working email and telephone contact links.
 - Page navigation starts at the top while section links retain their anchors.
 - The newsletter section, navigation links and unused styling are removed.
-  A social media link awaits the actual page URL.
+  The subsequently supplied Instagram and Facebook URLs are linked from the
+  public and catering footers under "Follow our socials!".
 
 ## Scope and handoff
 
-The changes affect the public frontend and documentation. Existing API fields,
-server-supplied prices, authentication and database schema remain compatible.
+The initial UX changes affect the public frontend and documentation. The approved
+demo flavor follow-up also adds optional structured flavor quantities with quote
+and order validation; see [client content confirmations](client-content-confirmations.md).
+Existing request fields, server-supplied prices, authentication and database schema
+remain compatible.
 Dillion owns catering interactions, Aneena owns shared visuals, and Isaac
-coordinates this integration. Company story, photography, menu/allergen details
-and business policy content still come through Adriana and her mom.
+coordinates this integration. The subsequent
+[client content confirmations](client-content-confirmations.md) record the supplied
+story/photos, rotating flavors, ingredient/allergy wording, catering sources and
+the absence of customer reviews. Remaining policy details stay with Adriana and
+her mom.
 
 The reviewed diff contains synthetic browser fixtures and application source;
 local settings, credentials, generated builds and test reports are excluded.

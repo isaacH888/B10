@@ -9561,6 +9561,14 @@
                 "type": "null"
               }
             ]
+          },
+          "flavor_allocations": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/FlavorAllocation"
+            },
+            "description": "Optional requested flavor mix. Non-empty quantities must total catering_request.quantity. Omitted or empty lets the owner choose; this is not a stock reservation."
           }
         },
         "required": ["quantity", "popsicle_shape", "service_type"],
@@ -11681,6 +11689,23 @@
         },
         "required": ["data", "meta"],
         "additionalProperties": false
+      },
+      "FlavorAllocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "flavor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          }
+        },
+        "required": ["flavor", "quantity"]
       }
     },
     "securitySchemes": {

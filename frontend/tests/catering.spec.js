@@ -144,6 +144,194 @@ test("checkout sends real API requests and shows the server's price and identifi
   expect(calls.orders[0].key).toMatch(/^[a-f0-9-]{36}$/);
 });
 
+test("an even five-flavor mix is included in the quote, order, review and confirmation", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Split evenly across all 5" }).click();
+  const flavors = [
+    "Mango Lime",
+    "Strawberry Lime",
+    "Mango Dragonfruit",
+    "Strawberries and Cream",
+    "Watermelon Strawberry and Kiwi",
+  ];
+  for (let index = 0; index < flavors.length; index++) {
+    await expect(
+      page.getByLabel(`Flavor ${index + 1}`, { exact: true }),
+    ).toHaveValue(flavors[index]);
+    await expect(
+      page.getByLabel(`Qty ${index + 1}`, { exact: true }),
+    ).toHaveValue("10");
+  }
+  await expect(page.getByRole("status")).toContainText(
+    "50 of 50 paletas assigned",
+  );
+  await page
+    .locator("#cf-flavors")
+    .fill("Please confirm ingredients for our guests.");
+  await quote(page);
+  const mix = flavors.map((flavor) => ({ flavor, quantity: 10 }));
+  expect(calls.quotes[0].catering_request.flavor_allocations).toEqual(mix);
+  const summary = page.getByRole("list", { name: "Flavor quantities" });
+  await expect(summary.getByRole("listitem")).toHaveCount(5);
+  await page
+    .getByRole("button", { name: "Submit catering request", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/order\/confirm$/);
+  expect(calls.orders[0].body.catering_request.flavor_allocations).toEqual(mix);
+  expect(calls.orders[0].body.catering_request.flavor_requests).toBe(
+    "Please confirm ingredients for our guests.",
+  );
+  await expect(
+    page.getByRole("list", { name: "Flavor quantities" }),
+  ).toContainText("Watermelon Strawberry and Kiwi");
+});
+
+test("custom dropdown quantities support fewer flavors and prevent duplicate choices", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page);
+  await page
+    .getByRole("button", { name: "+ Add a flavor", exact: true })
+    .click();
+  await page.getByLabel("Qty 1", { exact: true }).fill("30");
+  await page
+    .getByRole("button", { name: "+ Add a flavor", exact: true })
+    .click();
+  await page
+    .getByLabel("Flavor 2", { exact: true })
+    .selectOption("Mango Dragonfruit");
+  await expect(page.getByLabel("Qty 2", { exact: true })).toHaveValue("20");
+  await expect(
+    page
+      .getByLabel("Flavor 2", { exact: true })
+      .locator('option[value="Mango Lime"]'),
+  ).toBeDisabled();
+  await quote(page);
+  expect(calls.quotes[0].catering_request.flavor_allocations).toEqual([
+    { flavor: "Mango Lime", quantity: 30 },
+    { flavor: "Mango Dragonfruit", quantity: 20 },
+  ]);
+});
+
+test("flavor totals must match and uneven totals split into whole quantities", async ({
+  page,
+}) => {
+  await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Split evenly across all 5" }).click();
+  await page.getByLabel("Qty 1", { exact: true }).fill("9");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("You have 49 selected");
+  await expect(page.getByLabel("Qty 1", { exact: true })).toBeFocused();
+  await page.getByLabel("Qty 1", { exact: true }).fill("11");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("You have 51 selected");
+  await page.locator("#cf-quantity").fill("52");
+  await page.getByRole("button", { name: "Split evenly across all 5" }).click();
+  for (let index = 0; index < 5; index++) {
+    await expect(
+      page.getByLabel(`Qty ${index + 1}`, { exact: true }),
+    ).toHaveValue(index < 2 ? "11" : "10");
+  }
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Get quote", exact: true }),
+  ).toBeVisible();
+});
+
+for (const value of ["0", "1.5", ""]) {
+  test(`rejects a selected flavor quantity ${JSON.stringify(value)}`, async ({
+    page,
+  }) => {
+    await api(page);
+    await orderDetails(page);
+    await page
+      .getByRole("button", { name: "Split evenly across all 5" })
+      .click();
+    await page.getByLabel("Qty 1", { exact: true }).fill(value);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "whole number of at least 1",
+    );
+    await expect(page.getByLabel("Qty 1", { exact: true })).toBeFocused();
+  });
+}
+
+test("flavor quantities survive reload and can be cleared for Audrey to choose", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Split evenly across all 5" }).click();
+  await page.getByLabel("Qty 1", { exact: true }).fill("20");
+  await page.getByLabel("Qty 2", { exact: true }).fill("5");
+  await page.getByLabel("Qty 3", { exact: true }).fill("5");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Request a quote", exact: true })
+    .first()
+    .click();
+  await expect(page.getByLabel("Qty 1", { exact: true })).toHaveValue("20");
+  await expect(page.getByLabel("Qty 3", { exact: true })).toHaveValue("5");
+  await page
+    .getByRole("button", { name: "Let Audrey choose", exact: true })
+    .click();
+  await quote(page);
+  expect(calls.quotes[0].catering_request).not.toHaveProperty(
+    "flavor_allocations",
+  );
+});
+
+test("older drafts without a flavor mix still restore the customer's details", async ({
+  page,
+}) => {
+  await api(page);
+  await orderDetails(page);
+  await page.evaluate(() => {
+    const key = "popssibilities.catering-draft.v1";
+    const saved = JSON.parse(sessionStorage.getItem(key));
+    delete saved.form.flavor_allocations;
+    sessionStorage.setItem(key, JSON.stringify(saved));
+  });
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Request a quote", exact: true })
+    .first()
+    .click();
+  await expect(page.locator("#cf-quantity")).toBeVisible();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Contact details" }),
+  ).toContainText("Synthetic Reviewer");
+});
+
+test("changing a flavor mix invalidates an earlier quote and retry key", async ({
+  page,
+}) => {
+  const calls = await api(page, { orderFailures: 1 });
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Split evenly across all 5" }).click();
+  await quote(page);
+  await page
+    .getByRole("button", { name: "Submit catering request", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit paletas and extras" }).click();
+  await page.getByLabel("Qty 1", { exact: true }).fill("11");
+  await page.getByLabel("Qty 2", { exact: true }).fill("9");
+  await quote(page);
+  await page
+    .getByRole("button", { name: "Submit catering request", exact: true })
+    .click();
+  expect(calls.orders[1].key).not.toBe(calls.orders[0].key);
+  expect(
+    calls.orders[1].body.catering_request.flavor_allocations[0].quantity,
+  ).toBe(11);
+});
+
 test("an unavailable quote API cannot produce an order confirmation", async ({
   page,
 }) => {

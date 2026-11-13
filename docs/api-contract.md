@@ -214,6 +214,15 @@ Error example: `422` with code `validation_error` and field
 
 ## Submit order
 
+`CateringRequest` supports an optional `flavor_allocations` array of up to five
+objects with `flavor` (1–100 characters) and positive integer `quantity` (at most
+100000). A non-empty array must sum exactly to `catering_request.quantity`.
+Duplicate names are rejected after trimming and case folding. Both quote and
+order routes validate these rules. An empty or omitted array lets the owner
+choose the mix; existing clients remain compatible. `flavor_requests` continues
+to carry custom requests and allergy notes. Flavor choices do not add charges.
+These are requested quantities, not inventory item IDs or stock reservations.
+
 `POST /orders` receives customer name/email/phone, complete catering/event objects,
 and `quote_id`. Require `Idempotency-Key`; reject client totals or deposit declarations.
 Verify quote expiry, revision, request equality, and final price before persistence.

@@ -8,14 +8,16 @@ outcome, approver and acceptance evidence are recorded.
 ## Business decisions
 
 Kelly Vo and Adriana Gonzalez coordinate client answers. Isaac records impact;
-feature owners implement agreed outcomes. Recorded answers below come from S04,
-not independent verification or approval inferred from research.
+feature owners implement agreed outcomes. Recorded answers below come from S04
+and the November 12 S06 content update, not approval inferred from research. See
+[client content confirmations](client-content-confirmations.md) for the current
+flavor, ingredient, allergy and review guidance.
 
 | ID | Current evidence and remaining question | Responsible owners |
 | --- | --- | --- |
 | D01 | Quantity tiers, unit prices, boundaries and effective dates still unknown | Client / Anh; Dillion display; Bryson snapshots |
 | D02 | Confirm heart-shaped price and mixed-shape order policy | Client / Anh / Dillion / Bryson |
-| D03 | Confirm flavors, add-ons, charges and manual-review requests | Client / Anh / Dillion |
+| D03 | November 12 S06/S08: rotating availability with five approved demo flavors and optional per-flavor quantities. Organic/fresh-fruit wording and allergy examples supplied. Confirm actual event availability, add-on charges and manual-review pricing where needed | Client / Anh / Dillion |
 | D04 | Origin recorded: Wingman Kitchens Houston, 4783 Lexington Blvd, Missouri City, TX; beyond 30 miles redirects to inquiry. Confirm postal code/geocoding, distance method, $25-$75 formula and inquiry URL | Client / Anh / Dillion |
 | D05 | Recorded full service is 3.5 hours (.5 setup, 2.5 serving, .5 breakdown), 1-2 people. $150 appears in the question, not explicit price approval; confirm fee, staffing, timestamp meaning, overtime and delivery inclusion | Client / Anh / Dillion / Shourya calendar |
 | D06 | Confirm dry-ice allocation/count and when $15/block applies | Client / Anh / Dillion |

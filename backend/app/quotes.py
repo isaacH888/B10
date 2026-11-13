@@ -42,6 +42,8 @@ from urllib.parse import urlsplit
 
 from flask import Blueprint, current_app, g, jsonify, request
 
+from .flavors import FlavorAllocationError, clean_flavor_allocations
+
 quotes_bp = Blueprint("quotes", __name__)
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("pricing.config.json")
@@ -535,9 +537,9 @@ def normalize_quote_payload(raw_payload):
     """Adapt an OpenAPI ``QuoteRequest`` to the flat payload the validator expects.
 
     A payload without ``catering_request`` is already flat and is returned
-    unchanged, which preserves the legacy behavior exactly. Values are mapped
-    but not validated here; ``validate_quote_payload`` does that, so a bad
-    value produces the same 422 as in the legacy format.
+    unchanged, which preserves the legacy behavior exactly. Pricing values are
+    mapped for ``validate_quote_payload``. Optional flavor quantities are checked
+    here so both contract quote and order requests reject invalid mixes before pricing.
     """
     if not is_contract_payload(raw_payload):
         return raw_payload
@@ -545,6 +547,12 @@ def normalize_quote_payload(raw_payload):
         raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
     )
     event = raw_payload.get("event") if isinstance(raw_payload.get("event"), dict) else {}
+
+    if "flavor_allocations" in catering:
+        try:
+            clean_flavor_allocations(catering["flavor_allocations"], catering.get("quantity"))
+        except FlavorAllocationError as error:
+            raise QuoteError(str(error), "ERR_INVALID_FLAVOR_MIX", error.field) from None
 
     flat = {"total_quantity": catering.get("quantity")}
 

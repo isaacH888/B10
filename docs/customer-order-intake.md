@@ -18,6 +18,9 @@ Legacy status PATCH requests return `409 booking_managed` after linking, prevent
 competing administrative workflows. Use the linked booking in the owner workspace.
 The booking retains the complete source-order snapshot, including contact details,
 flavors, add-ons, address, event notes, quote reference and pricing.
+Optional `catering_request.flavor_allocations` preserves requested flavor names
+and quantities in the source order and booking snapshot. The owner can read the
+mix during intake; actual inventory assignments remain separate explicit actions.
 
 ## New owner API
 

@@ -48,6 +48,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 from .auth.errors import AuthError
 from .auth.guards import require_admin
 from .auth.service import PERMISSIONS
+from .flavors import FlavorAllocationError, clean_flavor_allocations
 from .health import connection_options, database_configured
 from .quotes import (
     _CONTRACT_FIELD_PATHS,
@@ -196,12 +197,12 @@ def _catering_request(errors, value):
         value,
         path,
         ("quantity", "popsicle_shape", "service_type"),
-        ("flavor_requests", "add_ons", "dry_ice_blocks"),
+        ("flavor_requests", "flavor_allocations", "add_ons", "dry_ice_blocks"),
     )
     if data is None:
         return None
     dry_ice = data.get("dry_ice_blocks")
-    return {
+    cleaned = {
         "quantity": _integer(errors, data, "quantity", path, 50, 100000),
         "popsicle_shape": _choice(errors, data, "popsicle_shape", path, ("standard", "heart")),
         "flavor_requests": _string(errors, data, "flavor_requests", path, 2000, blank=True) or "",
@@ -211,6 +212,14 @@ def _catering_request(errors, value):
         if dry_ice is None
         else _integer(errors, data, "dry_ice_blocks", path, 0, 1000),
     }
+    if "flavor_allocations" in data:
+        try:
+            cleaned["flavor_allocations"] = clean_flavor_allocations(
+                data["flavor_allocations"], cleaned["quantity"]
+            )
+        except FlavorAllocationError as error:
+            errors.append(_field(error.field, str(error)))
+    return cleaned
 
 
 def _location(errors, value):

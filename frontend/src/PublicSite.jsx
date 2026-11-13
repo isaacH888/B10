@@ -1,6 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext.jsx";
 import StoryGallery from "./StoryGallery.jsx";
+import SocialLinks from "./SocialLinks.jsx";
+import FlavorMenu from "./FlavorMenu.jsx";
 import logo from "./assets/aneena-logo.png";
 import paletas from "./assets/aneena-paletas-hero.png";
 import "./public-site.css";
@@ -36,6 +38,7 @@ function PublicHeader() {
         </Link>
         <nav aria-label="Main navigation">
           <a href="/#paleta-life">The paleta life</a>
+          <a href="/#flavors">Flavors</a>
           <a href="/#our-story">Our story</a>
           <Link className="pill red" to="/order">
             Catering order <span aria-hidden="true">↗</span>
@@ -61,12 +64,14 @@ function PublicFooter() {
           <span>MEXICAN PALETAS · STAFFORD, TX</span>
           <nav aria-label="Footer navigation">
             <a href="/#paleta-life">The paleta life</a>
+            <a href="/#flavors">Flavors</a>
             <a href="/#our-story">Our story</a>
             <Link to="/order">Catering</Link>
             <Link to="/admin/login">Team sign-in</Link>
           </nav>
         </div>
         <div className="footer-brand">POPSSIBILITIES</div>
+        <SocialLinks />
         <div className="footer-bottom">
           <span>© {new Date().getFullYear()} Popssibilities.</span>
           <span>Endless Popssibilities.</span>
@@ -199,6 +204,7 @@ export function PublicHome() {
             <small>Make an ordinary day a little more colorful.</small>
           </article>
         </div>
+        <FlavorMenu />
         <section
           id="our-story"
           className="story"

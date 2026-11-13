@@ -1,4 +1,5 @@
 import { apiRequest } from "../auth/api.js";
+import { formatFlavorRequests } from "../flavors.js";
 
 const STATUS_LABELS = {
   pending: "Pending request",
@@ -97,10 +98,10 @@ export function adaptOrder({ order, booking }) {
         : `${event.location.city}, ${event.location.region} ${event.location.postal_code}`,
     },
     arrivalWindow: `${date(start, zone, timeOptions)}${end ? ` – ${date(end, zone, timeOptions)}` : ""} (${zone})`,
-    flavors: catering.flavor_requests || "No specific flavors requested",
+    flavors: formatFlavorRequests(catering) || "No specific flavors requested",
     shapes: catering.popsicle_shape === "heart" ? "Heart" : "Standard",
     addOns: catering.add_ons.length ? catering.add_ons.join(", ") : "None",
-    flavorRequests: catering.flavor_requests || "None",
+    flavorRequests: formatFlavorRequests(catering) || "None",
     specialInstructions: event.notes || "None",
     lineItems: pricing.line_items.map((item) => ({
       desc: item.description,

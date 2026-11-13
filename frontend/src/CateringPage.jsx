@@ -1,6 +1,9 @@
 import { useAuth } from "./auth/AuthContext.jsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SocialLinks from "./SocialLinks.jsx";
+import FlavorPicker, { FlavorMixSummary } from "./FlavorPicker.jsx";
+import { flavorMixIssue, validFlavorDraft } from "./flavors.js";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
 import logoImage from "./assets/logo.png";
@@ -26,6 +29,17 @@ function CateringContact() {
     <p className="catering-contact">
       <a href="mailto:info@popssibilities.com">Email our team</a> or{" "}
       <a href="tel:+12812487514">call 281-248-7514</a>.
+    </p>
+  );
+}
+
+function AllergyNotice({ id, className }) {
+  return (
+    <p id={id} className={`catering-allergy-note ${className}`}>
+      <strong>Allergy information:</strong> Ingredients vary by flavor and may
+      include nuts, coconut, strawberries, pineapple, and other fruits. Please{" "}
+      <a href="mailto:info@popssibilities.com">contact our team</a> about
+      specific ingredients and allergies before ordering.
     </p>
   );
 }
@@ -63,6 +77,7 @@ const initialForm = {
   quantity: 50,
   popsicle_shape: "standard",
   flavor_requests: "",
+  flavor_allocations: [],
   dry_ice_blocks: "",
 };
 
@@ -91,24 +106,31 @@ const DRAFT_LIFETIME = 2 * 60 * 60 * 1000;
 function readDraft() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY));
+    const allocations = saved?.form?.flavor_allocations ?? [];
     if (
       saved &&
       Date.now() - saved.savedAt < DRAFT_LIFETIME &&
       Number.isInteger(saved.step) &&
       saved.step >= 1 &&
       saved.step <= TOTAL_STEPS &&
-      Object.keys(initialForm).every(
-        (key) =>
-          (typeof saved.form?.[key] === "string" ||
-            (["quantity", "dry_ice_blocks"].includes(key) &&
-              typeof saved.form?.[key] === "number" &&
-              Number.isFinite(saved.form[key]))) &&
-          String(saved.form[key]).length <= 2000,
-      )
+      validFlavorDraft(allocations) &&
+      Object.keys(initialForm)
+        .filter((key) => key !== "flavor_allocations")
+        .every(
+          (key) =>
+            (typeof saved.form?.[key] === "string" ||
+              (["quantity", "dry_ice_blocks"].includes(key) &&
+                typeof saved.form?.[key] === "number" &&
+                Number.isFinite(saved.form[key]))) &&
+            String(saved.form[key]).length <= 2000,
+        )
     ) {
       return {
         form: Object.fromEntries(
-          Object.keys(initialForm).map((key) => [key, saved.form[key]]),
+          Object.keys(initialForm).map((key) => [
+            key,
+            key === "flavor_allocations" ? allocations : saved.form[key],
+          ]),
         ),
         step: saved.step,
       };
@@ -510,18 +532,30 @@ function StepOrderDetails({ form, onChange, errors }) {
         </div>
       </div>
 
+      <FlavorPicker
+        quantity={form.quantity}
+        rows={form.flavor_allocations}
+        onChange={(rows) => onChange("flavor_allocations", rows)}
+        error={errors.flavor_allocations}
+      />
+
       <div className="form-field">
         <label htmlFor="cf-flavors">
-          Flavor and add-on requests (optional)
+          Custom flavor, add-on, or allergy notes (optional)
         </label>
         <textarea
           id="cf-flavors"
+          aria-describedby="cf-flavor-hint cf-allergy-hint"
           value={form.flavor_requests}
           onChange={(e) => onChange("flavor_requests", e.target.value)}
           rows={2}
           maxLength={2000}
-          placeholder="e.g. Strawberry, mango, no nuts, dietary needs"
+          placeholder="Share preferred flavors, add-ons, or allergy information"
         />
+        <p id="cf-flavor-hint" className="field-hint">
+          Flavors vary by batch. We’ll confirm available options for your event.
+        </p>
+        <AllergyNotice id="cf-allergy-hint" className="field-hint" />
       </div>
 
       <div className="form-field">
@@ -657,6 +691,14 @@ function StepSummary({
           <dd>
             {form.popsicle_shape === "heart" ? "Heart-shaped" : "Standard"}
           </dd>
+          {form.flavor_allocations.length > 0 && (
+            <>
+              <dt>Flavor mix</dt>
+              <dd>
+                <FlavorMixSummary allocations={form.flavor_allocations} />
+              </dd>
+            </>
+          )}
           {form.flavor_requests && (
             <>
               <dt>Requests</dt>
@@ -855,6 +897,10 @@ function validateStep(step, form) {
       errors.quantity = "Minimum order is 50 paletas.";
     else if (qty > 100000)
       errors.quantity = "Maximum order is 100,000 paletas.";
+    if (!errors.quantity) {
+      const issue = flavorMixIssue(form.flavor_allocations, form.quantity);
+      if (issue) errors.flavor_allocations = issue.message;
+    }
     const dryIce = form.dry_ice_blocks;
     if (
       dryIce !== "" &&
@@ -895,6 +941,11 @@ function buildRequestBody(form, quoteId) {
       notes: form.event_notes.trim(),
     },
   };
+  if (form.flavor_allocations.length) {
+    body.catering_request.flavor_allocations = form.flavor_allocations.map(
+      ({ flavor, quantity }) => ({ flavor, quantity: Number(quantity) }),
+    );
+  }
   if (quoteId) {
     return {
       customer: {
@@ -927,8 +978,10 @@ function CateringModal({ onClose, draft, onDraftChange }) {
   const idempotencyKey = useRef(null);
   const modalRef = useRef(null);
   const headingRef = useRef(null);
-  const hasDetails = Object.keys(initialForm).some(
-    (key) => String(form[key]) !== String(initialForm[key]),
+  const hasDetails = Object.keys(initialForm).some((key) =>
+    key === "flavor_allocations"
+      ? form[key].length > 0
+      : String(form[key]) !== String(initialForm[key]),
   );
 
   useEffect(() => {
@@ -1001,9 +1054,11 @@ function CateringModal({ onClose, draft, onDraftChange }) {
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => {
-      if (!prev[field]) return prev;
+      if (!prev[field] && !(field === "quantity" && prev.flavor_allocations))
+        return prev;
       const next = { ...prev };
       delete next[field];
+      if (field === "quantity") delete next.flavor_allocations;
       return next;
     });
     // Back/edit/Next must never submit a price or retry key for older details.
@@ -1315,6 +1370,7 @@ export function CateringPage() {
         </a>
         <nav className="cat-nav__links" aria-label="Main navigation">
           <a href="/#paleta-life">The paleta life</a>
+          <a href="/#flavors">Flavors</a>
           <a href="/#our-story">Our story</a>
           <a href="/order" aria-label="Catering order">
             Catering
@@ -1375,19 +1431,16 @@ export function CateringPage() {
                 &bull;
               </div>
               <h3>Premium Paletas</h3>
-              <p>
-                Hand-crafted with real fruit and natural ingredients. Every
-                paleta is made fresh for your event.
-              </p>
+              <p>Hand-crafted with organic ingredients and fresh fruit.</p>
             </div>
             <div className="cat-feature-card">
               <div className="cat-feature-card__icon" aria-hidden="true">
                 &bull;
               </div>
-              <h3>Custom Flavors</h3>
+              <h3>Rotating Flavors</h3>
               <p>
-                Choose from our signature menu or work with us on a custom
-                flavor made just for your event.
+                Audrey’s flavors vary from batch to batch. Share your
+                preferences and we’ll confirm what’s available for your event.
               </p>
             </div>
             <div className="cat-feature-card">
@@ -1396,11 +1449,12 @@ export function CateringPage() {
               </div>
               <h3>Full Event Service</h3>
               <p>
-                Delivery or full-service staff included. We show up ready so you
-                can enjoy every moment.
+                Full service includes 1–2 staff, 30 minutes of setup, 2.5 hours
+                of serving, and 30 minutes of breakdown.
               </p>
             </div>
           </div>
+          <AllergyNotice className="cat-features__note" />
         </section>
 
         {/* ---- How it works: white background, red numbers ---- */}
@@ -1511,11 +1565,13 @@ export function CateringPage() {
           </p>
           <nav className="cat-footer__links" aria-label="Footer navigation">
             <a href="/#paleta-life">The paleta life</a>
+            <a href="/#flavors">Flavors</a>
             <a href="/order" aria-label="Catering order">
               Catering
             </a>
             <a href="/#our-story">About</a>
           </nav>
+          <SocialLinks />
           <p className="cat-footer__copy">
             &copy; {new Date().getFullYear()} Popssibilities. All rights
             reserved.

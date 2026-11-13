@@ -1,5 +1,6 @@
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { EVENT_TIME_ZONE, formatEventTime } from "./eventTime.js";
+import { FlavorMixSummary } from "./FlavorPicker.jsx";
 
 // Formats a cents integer as a USD dollar string, e.g. 10000 -> "$100.00"
 function formatCents(cents) {
@@ -85,6 +86,16 @@ export function OrderConfirmation() {
           <dd>{address || "Not provided"}</dd>
           <dt>Quantity</dt>
           <dd>{order.catering_request?.quantity} paletas</dd>
+          {order.catering_request?.flavor_allocations?.length > 0 && (
+            <>
+              <dt>Requested flavor mix</dt>
+              <dd>
+                <FlavorMixSummary
+                  allocations={order.catering_request.flavor_allocations}
+                />
+              </dd>
+            </>
+          )}
           <dt>Service type</dt>
           <dd>
             {order.catering_request?.service_type === "full_service"
