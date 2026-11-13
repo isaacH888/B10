@@ -241,15 +241,7 @@ def retrieve_upcoming_events():
             result = _upcoming_in_memory(event_from, event_to, page, page_size)
     except (pymysql.MySQLError, OSError):
         return _service_unavailable()
-    return jsonify(
-        data=result["items"],
-        meta={
-            "page": result["page"],
-            "page_size": result["page_size"],
-            "total": result["total"],
-            "request_id": g.request_id,
-        },
-    )
+    return jsonify(data=result, meta={"request_id": g.request_id})
 
 
 @reports_bp.get("/orders/export")

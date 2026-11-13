@@ -598,11 +598,18 @@ def booking_order_state(booking):
     return status, "confirmed" if paid else "pending"
 
 
-def _with_state(order, status, deposit_status):
-    """Copy of the order carrying the effective status and deposit status."""
+def _with_state(order, status, deposit_status, booking=None):
+    """Read-only projection of live booking state onto the saved order summary."""
     updated = {**order, "status": status}
     if deposit_status is not None and "deposit" in order:
-        updated["deposit"] = {**order["deposit"], "status": deposit_status}
+        deposit = {**order["deposit"], "status": deposit_status}
+        if booking is not None:
+            due = booking.get("deposit_minor", deposit["amount_due_cents"])
+            paid = booking.get("paid_minor", deposit["amount_confirmed_cents"])
+            # Only verified funds applied to the deposit belong in this summary;
+            # final-balance payments and overpayments do not enlarge the deposit.
+            deposit.update(amount_due_cents=due, amount_confirmed_cents=min(paid, due))
+        updated["deposit"] = deposit
     return updated
 
 
@@ -633,6 +640,7 @@ def _list_in_database(status, event_from, event_to, page, page_size):
                 + STATUS_SQL
                 + ", "
                 + DEPOSIT_SQL
+                + ", b.data"
                 + LINKED_ORDERS_SQL
                 + where
                 + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
@@ -640,8 +648,15 @@ def _list_in_database(status, event_from, event_to, page, page_size):
             )
             rows = cursor.fetchall()
         return [
-            _admin_view(_with_state(json.loads(body), order_status, deposit_status))
-            for body, order_status, deposit_status in rows
+            _admin_view(
+                _with_state(
+                    json.loads(body),
+                    order_status,
+                    deposit_status,
+                    json.loads(booking_json) if booking_json else None,
+                )
+            )
+            for body, order_status, deposit_status, booking_json in rows
         ], total
     finally:
         connection.close()
@@ -656,7 +671,8 @@ def _list_in_memory(status, event_from, event_to, page, page_size):
     matches = []
     for order in newest_first:
         if order["id"] in bookings:
-            order = _with_state(order, *booking_order_state(bookings[order["id"]]))
+            booking = bookings[order["id"]]
+            order = _with_state(order, *booking_order_state(booking), booking=booking)
         starts_at = _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
         if (
             (status is None or order["status"] == status)

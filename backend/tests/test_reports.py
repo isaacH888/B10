@@ -28,6 +28,7 @@ from test_orders import (
     FakeCursor,
     app,
     assert_error,
+    assert_matches_openapi_order_response,
     assert_validation_error,
     client,
     create_order_at,
@@ -57,11 +58,14 @@ def three_orders(client):
 
 
 def upcoming(client, **query):
-    return client.get(UPCOMING, query_string=query)
+    response = client.get(UPCOMING, query_string=query)
+    if response.status_code == 200:
+        assert_matches_openapi_order_response(response.json, "UpcomingEventsResponse")
+    return response
 
 
 def upcoming_ids(client, **query):
-    return [item["order_id"] for item in upcoming(client, **query).json["data"]]
+    return [item["order_id"] for item in upcoming(client, **query).json["data"]["items"]]
 
 
 def export_table(client, **query):
@@ -244,25 +248,25 @@ def test_export_does_not_shadow_order_lookup(client, three_orders):
 def test_upcoming_with_no_orders_returns_an_empty_envelope(client):
     response = upcoming(client)
     assert response.status_code == 200
-    assert response.json["data"] == []
-    assert response.json["meta"] == {
+    assert response.json["data"] == {
+        "items": [],
         "page": 1,
         "page_size": 25,
         "total": 0,
-        "request_id": response.headers["X-Request-ID"],
     }
+    assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
 
 
 def test_upcoming_items_follow_the_event_summary_shape(client, three_orders):
     response = upcoming(client)
     assert response.status_code == 200
-    item = response.json["data"][0]
+    item = response.json["data"]["items"][0]
     assert set(item) == {"order_id", "order_status", "event", "quantity", "service_type"}
     assert item["order_id"] == three_orders[0]["id"]
     assert item["order_status"] == "pending_review"
     assert item["event"] == three_orders[0]["event"]
     assert (item["quantity"], item["service_type"]) == (50, "delivery")
-    assert response.json["meta"]["total"] == 3
+    assert response.json["data"]["total"] == 3
 
 
 def test_upcoming_orders_by_event_start_then_order_id(client):
@@ -280,11 +284,11 @@ def test_upcoming_excludes_cancelled_orders(client, three_orders):
     patch_status(client, three_orders[1]["id"], {"version": 1, "status": "cancelled"})
     patch_status(client, three_orders[2]["id"], {"version": 1, "status": "confirmed"})
     response = upcoming(client)
-    assert [item["order_id"] for item in response.json["data"]] == [
+    assert [item["order_id"] for item in response.json["data"]["items"]] == [
         three_orders[0]["id"],
         three_orders[2]["id"],
     ]
-    assert response.json["meta"]["total"] == 2
+    assert response.json["data"]["total"] == 2
 
 
 def test_upcoming_window_is_inclusive_from_and_exclusive_to(client, three_orders):
@@ -318,19 +322,19 @@ def test_upcoming_pagination_slices_and_reports_the_total(client):
         for day in range(1, 6)
     ]
     pages = [upcoming(client, page=number, page_size=2).json for number in (1, 2, 3, 4)]
-    assert [[item["order_id"] for item in page["data"]] for page in pages] == [
+    assert [[item["order_id"] for item in page["data"]["items"]] for page in pages] == [
         created[0:2],
         created[2:4],
         created[4:],
         [],
     ]
-    assert all(page["meta"]["total"] == 5 and page["meta"]["page_size"] == 2 for page in pages)
-    assert [page["meta"]["page"] for page in pages] == [1, 2, 3, 4]
+    assert all(page["data"]["total"] == 5 and page["data"]["page_size"] == 2 for page in pages)
+    assert [page["data"]["page"] for page in pages] == [1, 2, 3, 4]
 
 
 def test_upcoming_page_size_bounds_are_accepted(client):
     for page_size in (1, 100):
-        assert upcoming(client, page_size=page_size).json["meta"]["page_size"] == page_size
+        assert upcoming(client, page_size=page_size).json["data"]["page_size"] == page_size
 
 
 @pytest.mark.parametrize(
@@ -493,14 +497,14 @@ def test_upcoming_follows_the_booking_status_and_schedule(app, client, three_ord
         quantity=120,
         venue="The Pavilion",
     )
-    data = upcoming(client).json
-    assert [item["order_id"] for item in data["data"]] == [last, middle]
-    assert data["meta"]["total"] == 2
-    moved = data["data"][1]
+    data = upcoming(client).json["data"]
+    assert [item["order_id"] for item in data["items"]] == [last, middle]
+    assert data["total"] == 2
+    moved = data["items"][1]
     assert moved["order_status"] == "pending_review"
     assert moved["quantity"] == 120 and moved["venue"] == "The Pavilion"
     assert moved["event"]["starts_at"] == "2099-01-25T09:00:00-06:00"
-    assert "venue" not in data["data"][0]
+    assert "venue" not in data["items"][0]
     window = upcoming_ids(
         client, event_from="2099-01-22T00:00:00Z", event_to="2099-01-30T00:00:00Z"
     )
@@ -545,14 +549,11 @@ def test_database_upcoming_calls_reports_queries_with_a_parameterized_ordered_qu
     response = upcoming(client, page=3, page_size=2, event_from="2099-01-01T06:00:00-06:00")
     connection = database.connection
     assert response.status_code == 200
-    assert response.json["meta"] == {
-        "page": 3,
-        "page_size": 2,
-        "total": 7,
-        "request_id": response.headers["X-Request-ID"],
-    }
-    assert [item["order_id"] for item in response.json["data"]] == [row[0]]
-    assert response.json["data"][0]["order_status"] == "pending_review"
+    assert response.json["meta"] == {"request_id": response.headers["X-Request-ID"]}
+    data = response.json["data"]
+    assert (data["page"], data["page_size"], data["total"]) == (3, 2, 7)
+    assert [item["order_id"] for item in data["items"]] == [row[0]]
+    assert data["items"][0]["order_status"] == "pending_review"
     count, page = select_statements(connection)
     where = " WHERE (" + STATUS_SQL + ") <> 'cancelled' AND " + EVENT_SQL + " >= %s"
     start = datetime(2099, 1, 1, 12, 0)

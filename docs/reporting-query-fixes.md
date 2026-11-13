@@ -51,6 +51,31 @@ a disposable database, without modifying the normal development or walkthrough
 databases. Live provider behavior and deployment are outside this validation.
 
 Quote persistence/expiry/payload enforcement and trusted delivery distance remain
-separate release blockers. The proposed general reporting HTTP routes still need
-their own integration and authorization tests when supplied by Anh; adding these
-query helpers does not register those routes or change existing booking actions.
+separate release blockers. PR #6 supplied query helpers without registering HTTP
+routes or changing existing booking actions. The HTTP integration follow-up is
+recorded below.
+
+## HTTP route fixes in PR #8
+
+Reviewed November 12, 2026. Anh's reporting branch registers upcoming events,
+order CSV export and dashboard counts using the existing query helpers. The
+follow-up fixes address two reproduced review findings on that branch.
+
+`GET /events/upcoming` now returns the existing OpenAPI response shape:
+`data` contains `items`, `page`, `page_size` and `total`; `meta` contains only
+`request_id`. Successful route tests validate the full HTTP response against
+`UpcomingEventsResponse`, including empty pages.
+
+`GET /orders` includes verified booking payments in its live deposit summary.
+Partial payments remain visible while the deposit is pending. Confirmed deposit
+amounts are capped at the deposit due so final payments and overpayments stay
+separate. Cancellation retains verified money. Both storage adapters use the
+same read-only projection; source order details, historical pricing and original
+POST replay remain intact.
+
+The full backend suite passed **1,284 tests** against fresh disposable MySQL,
+including 16 new regression cases across memory and MySQL. The original two
+review reproductions also passed after the fixes. Python lint/format, foundation
+contract/example/link checks and whitespace checks passed. Local backend log:
+`/private/tmp/b10-pr8-fix-backend-full.log`. The disposable container and volume
+were removed after validation.

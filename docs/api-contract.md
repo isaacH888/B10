@@ -64,8 +64,10 @@ order fallback when unlinked. Their date filters and sorting use the same
 effective start as the owner workspace. Upcoming items can include the current
 free-text `venue`; `event.location` retains the original structured customer
 address. CSV neutralization checks formula prefixes after leading whitespace.
-These helpers do not register the proposed general reporting routes. See the
-[reporting integration review](reporting-query-fixes.md).
+The general reporting routes `/events/upcoming`, `/orders/export`, and
+`/admin/dashboard/counts` call these helpers with MySQL configured and use the
+same rules in memory. They require an administrator session and `bookings:read`.
+See the [reporting integration review](reporting-query-fixes.md).
 
 ## Confirmed requirements and decision boundaries
 
@@ -249,6 +251,14 @@ with an empty array. Success example: OpenAPI operation `listOrders`, `200`.
 Error example: `422` `validation_error` for an out-of-range page size.
 Offset pages can shift during concurrent changes; they do not promise a stable export.
 
+For imported orders, list summaries use the linked booking's mapped order/deposit
+status and verified deposit amounts. `amount_confirmed_cents` is the verified
+payment total applied toward the deposit, capped at `amount_due_cents`; partial
+payments remain visible while the deposit status is pending. Final-balance
+payments and overpayments do not increase the deposit summary. Unlinked orders
+retain their saved deposit fields. These read-only projections preserve source
+order snapshots, historical pricing and the original submission replay.
+
 ## Update order information
 
 `PATCH /orders/{order_id}` requires admin auth, CSRF, current `version`, and at
@@ -300,13 +310,17 @@ Missing evidence returns 422. Payment-link redirects and customer claims never q
 
 ## Retrieve upcoming events
 
-`GET /events/upcoming` requires admin auth and explicit `from`/`to` timestamps,
-with optional page/page size. Apply `[from, to)`, require `to > from`, exclude
-cancelled orders, and sort by event start then order ID.
+`GET /events/upcoming` requires admin auth. Accept optional `event_from` and
+`event_to` timestamps with explicit offsets, and optional `page`/`page_size`.
+The lower bound defaults to now. Apply `[event_from, event_to)`, require
+`event_to > event_from` when both are supplied, exclude cancelled orders, and
+sort by event start then order ID.
 
 Return paginated summaries with order ID/status, event details, quantity, and
 service selection. Read from persisted orders so a Calendar outage does not remove
-the event from the dashboard. Success example: OpenAPI operation
+the event from the dashboard. The response is
+`{data: {items, page, page_size, total}, meta: {request_id}}`, including empty
+pages. Success example: OpenAPI operation
 `retrieveUpcomingEvents`, `200`. Error example: `422` for an invalid event window.
 
 ## Export orders

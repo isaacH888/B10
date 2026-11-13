@@ -1220,9 +1220,10 @@ def stored_orders(client, database, count=2):
     return rows[::-1]
 
 
-def list_rows(stored, status="pending_review", deposit="pending"):
-    """Rows as the list query returns them: ``(response_json, effective status, deposit status)``."""
-    return [(body, status, deposit) for (body,) in stored]
+def list_rows(stored, status="pending_review", deposit="pending", booking=None):
+    """Tuple-cursor rows including the linked booking's verified payment amounts."""
+    booking_json = json.dumps(booking) if booking is not None else None
+    return [(body, status, deposit, booking_json) for (body,) in stored]
 
 
 def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(client, database):
@@ -1241,6 +1242,7 @@ def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(cl
             + STATUS_SQL
             + ", "
             + DEPOSIT_SQL
+            + ", b.data"
             + LINKED_ORDERS_SQL
             + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
             (2, 2),
@@ -1250,13 +1252,22 @@ def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(cl
 
 
 def test_database_list_reports_the_effective_status_and_deposit_status(client, database):
-    rows = list_rows(stored_orders(client, database, count=1), "confirmed", "confirmed")
+    rows = list_rows(
+        stored_orders(client, database, count=1),
+        "confirmed",
+        "confirmed",
+        {"deposit_minor": 10000, "paid_minor": 10000},
+    )
     database.connection = FakeConnection(rows=rows, total=1)
     item = list_orders(client).json["data"]["items"][0]
     stored = json.loads(rows[0][0])
     assert stored["status"] == "pending_review" and stored["deposit"]["status"] == "pending"
     assert item["status"] == "confirmed"
-    assert item["deposit"] == {**stored["deposit"], "status": "confirmed"}
+    assert item["deposit"] == {
+        **stored["deposit"],
+        "status": "confirmed",
+        "amount_confirmed_cents": 10000,
+    }
     assert {key: item[key] for key in item if key not in ("status", "deposit")} == {
         **{key: stored[key] for key in stored if key not in ("status", "deposit")},
         "admin_notes": "",
@@ -1284,6 +1295,7 @@ def test_database_list_filters_are_parameterized_naive_utc_values(client, databa
             + STATUS_SQL
             + ", "
             + DEPOSIT_SQL
+            + ", b.data"
             + LINKED_ORDERS_SQL
             + where
             + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
