@@ -13,16 +13,26 @@ from datetime import datetime, timezone
 import pymysql
 import pytest
 from app import reports
+from app.admin_orders import EVENT_SQL
 from app.automation.store import MemoryStore
+from app.reports_queries import (
+    EXPORT_COLUMNS,
+    LINKED_ORDERS_SQL,
+    STATUS_SQL,
+    neutralize_formula,
+    to_csv,
+)
 from test_auth import auth_app as auth_app
 from test_orders import (
     FakeConnection,
+    FakeCursor,
     app,
     assert_error,
     assert_validation_error,
     client,
     create_order_at,
     database,
+    link_booking,
     order_payload,
     patch_status,
     post_order,
@@ -112,48 +122,20 @@ def test_routes_reject_other_methods(client, path):
         ("Plain Name", "Plain Name"),
         ("a=b", "a=b"),
         ("", ""),
-        (50, 50),
+        (None, ""),
+        (50, "50"),
     ],
 )
 def test_neutralize_prefixes_only_formula_like_text(value, expected):
-    assert reports._neutralize(value) == expected
+    assert neutralize_formula(value) == expected
 
 
 def test_to_csv_writes_the_header_and_quotes_special_characters():
-    row = ("order_x", "confirmed", 'Smith, "Jo"\nJr', "2099-01-15T12:00:00Z", 50, "delivery")
-    table = list(csv.reader(io.StringIO(reports.to_csv([row + ("USD", 1, 2, "pending")]))))
-    assert table[0] == list(reports.COLUMNS)
+    row = dict.fromkeys(EXPORT_COLUMNS, "x")
+    row["customer_name"] = 'Smith, "Jo"\nJr'
+    table = list(csv.reader(io.StringIO(to_csv([row]))))
+    assert table[0] == list(EXPORT_COLUMNS)
     assert table[1][2] == 'Smith, "Jo"\nJr'
-
-
-def test_export_rows_raises_when_over_the_cap(monkeypatch):
-    monkeypatch.setattr(reports, "EXPORT_ROW_CAP", 1)
-    with pytest.raises(reports.ExportTooLarge):
-        reports.export_rows([{}, {}])
-
-
-def test_dashboard_counts_zero_fills_known_statuses_and_counts_upcoming():
-    now = datetime(2099, 1, 15, 12, 0)
-    bookings = [
-        ("confirmed", "paid", "2099-01-15T12:00:00+00:00"),
-        ("confirmed", "deposit_paid", "2099-01-15T06:00:00-06:00"),
-        ("confirmed", "unpaid", "2099-01-15T11:59:59Z"),
-        ("requested", "unpaid", "2099-02-01T00:00:00Z"),
-        ("confirmed", "unpaid", "not a date"),
-    ]
-    counts = reports.dashboard_counts(2, bookings, now)
-    assert counts == {
-        "orders_awaiting_import": 2,
-        "bookings_by_status": {
-            "requested": 1,
-            "awaiting_deposit": 0,
-            "owner_review": 0,
-            "confirmed": 4,
-            "cancelled": 0,
-        },
-        "payments_by_status": {"unpaid": 3, "partial": 0, "deposit_paid": 1, "paid": 1},
-        "upcoming_confirmed_bookings": 2,
-    }
 
 
 # --------------------------------------------------------------------------- #
@@ -164,7 +146,7 @@ def test_dashboard_counts_zero_fills_known_statuses_and_counts_upcoming():
 def test_export_with_no_orders_is_a_header_only_csv(client):
     response = client.get(EXPORT)
     assert response.status_code == 200
-    assert response.get_data(as_text=True) == ",".join(reports.COLUMNS) + "\n"
+    assert response.get_data(as_text=True) == ",".join(EXPORT_COLUMNS) + "\r\n"
 
 
 def test_export_returns_csv_with_download_headers(client, three_orders):
@@ -178,13 +160,14 @@ def test_export_returns_csv_with_download_headers(client, three_orders):
 
 def test_export_rows_match_the_stored_orders(client, three_orders):
     table = export_table(client)
-    assert tuple(table[0]) == reports.COLUMNS
+    assert tuple(table[0]) == EXPORT_COLUMNS
     assert len(table) == 4
-    assert table[1] == [
+    # Newest first, with the event start shown in the event's own time zone.
+    assert table[3] == [
         three_orders[0]["id"],
         "pending_review",
         "Example Customer",
-        "2099-01-10T12:00:00+00:00",
+        "2099-01-10T06:00:00-06:00",
         "50",
         "delivery",
         "USD",
@@ -192,7 +175,7 @@ def test_export_rows_match_the_stored_orders(client, three_orders):
         "10000",
         "pending",
     ]
-    assert [row[0] for row in table[1:]] == [order["id"] for order in three_orders]
+    assert [row[0] for row in table[1:]] == [order["id"] for order in reversed(three_orders)]
 
 
 def test_export_filters_by_status_and_event_window(client, three_orders):
@@ -417,18 +400,111 @@ def test_dashboard_aggregates_orders_links_and_bookings(app, client, three_order
         tx.save_booking(booking("b2", "confirmed", "deposit_paid", "2000-01-15T12:00:00+00:00"))
         tx.save_booking(booking("b3", "awaiting_deposit", "unpaid", "2099-02-01T12:00:00+00:00"))
         tx.save_booking(booking("b4", "cancelled", "partial", "2099-02-02T12:00:00+00:00"))
+        tx.save_booking({"id": "b5", "status": "requested", "start": "2099-02-03T12:00:00Z"})
         tx.save_order_link({"order_id": three_orders[0]["id"], "booking_id": "b1"})
     data = client.get(COUNTS).json["data"]
     assert data["orders_awaiting_import"] == 2
     assert data["bookings_by_status"] == {
-        "requested": 0,
+        "requested": 1,
         "awaiting_deposit": 1,
         "owner_review": 0,
         "confirmed": 2,
         "cancelled": 1,
     }
-    assert data["payments_by_status"] == {"unpaid": 1, "partial": 1, "deposit_paid": 1, "paid": 1}
+    # The cancelled booking is left out; a booking with no payment status counts as unknown.
+    assert data["payments_by_status"] == {
+        "unpaid": 1,
+        "partial": 0,
+        "deposit_paid": 1,
+        "paid": 1,
+        "unknown": 1,
+    }
     assert data["upcoming_confirmed_bookings"] == 1
+
+
+# --------------------------------------------------------------------------- #
+# Imported orders follow their booking: in-memory path
+# --------------------------------------------------------------------------- #
+
+
+def import_order(app, order_id, status, payment_status, **fields):
+    """Link an order to an in-memory booking carrying the given live values."""
+    link_booking(app, order_id, status, payment_status)
+    store = app.extensions["automation_store"]
+    with store.transaction() as tx:
+        saved = tx.get_booking("booking_" + order_id)
+        tx.save_booking({**saved, **fields})
+
+
+def test_export_status_and_deposit_follow_the_booking(app, client, three_orders):
+    first, middle, last = (order["id"] for order in three_orders)
+    import_order(app, first, "confirmed", "paid")
+    import_order(app, middle, "cancelled", "unpaid")
+    patch_status(client, last, {"version": 1, "status": "confirmed"})
+    rows = {row[0]: (row[1], row[9]) for row in export_table(client)[1:]}
+    assert rows == {
+        first: ("confirmed", "confirmed"),
+        middle: ("cancelled", "pending"),
+        last: ("confirmed", "pending"),
+    }
+    assert [row[0] for row in export_table(client, status="confirmed")[1:]] == [last, first]
+    assert [row[0] for row in export_table(client, status="pending_review")[1:]] == []
+
+
+def test_export_uses_the_booking_schedule_amounts_and_window(app, client, three_orders):
+    first = three_orders[0]["id"]
+    import_order(
+        app,
+        first,
+        "confirmed",
+        "paid",
+        start="2099-03-01T18:00:00Z",
+        quantity=80,
+        service_type="full_service",
+        currency="USD",
+        total_minor=31000,
+        deposit_minor=15500,
+    )
+    row = export_table(client, event_from="2099-03-01T00:00:00Z")[1]
+    assert row == [
+        first,
+        "confirmed",
+        "Example Customer",
+        "2099-03-01T12:00:00-06:00",
+        "80",
+        "full_service",
+        "USD",
+        "31000",
+        "15500",
+        "confirmed",
+    ]
+    assert export_table(client, event_to="2099-01-12T00:00:00Z")[1:] == []
+
+
+def test_upcoming_follows_the_booking_status_and_schedule(app, client, three_orders):
+    first, middle, last = (order["id"] for order in three_orders)
+    import_order(app, first, "cancelled", "unpaid")
+    import_order(
+        app,
+        middle,
+        "owner_review",
+        "unpaid",
+        start="2099-01-25T15:00:00Z",
+        quantity=120,
+        venue="The Pavilion",
+    )
+    data = upcoming(client).json
+    assert [item["order_id"] for item in data["data"]] == [last, middle]
+    assert data["meta"]["total"] == 2
+    moved = data["data"][1]
+    assert moved["order_status"] == "pending_review"
+    assert moved["quantity"] == 120 and moved["venue"] == "The Pavilion"
+    assert moved["event"]["starts_at"] == "2099-01-25T09:00:00-06:00"
+    assert "venue" not in data["data"][0]
+    window = upcoming_ids(
+        client, event_from="2099-01-22T00:00:00Z", event_to="2099-01-30T00:00:00Z"
+    )
+    assert window == [middle]
 
 
 def test_memory_mode_never_opens_a_database_connection(client, three_orders, monkeypatch):
@@ -449,8 +525,22 @@ def select_statements(connection):
     return [(sql, params) for sql, params in connection.statements if sql.startswith("SELECT")]
 
 
-def test_database_upcoming_runs_a_parameterized_ordered_query(client, database):
-    row = (stored_row(client, database)[0],)
+def upcoming_row(client, database):
+    """``(public_id, status, response_json, booking_json)`` as the upcoming query returns it."""
+    body = stored_row(client, database)[0]
+    return (json.loads(body)["id"], "pending_review", body, None)
+
+
+def export_row(client, database):
+    """``(public_id, status, name, response_json, booking_json, deposit_status)``."""
+    body = stored_row(client, database)[0]
+    return (json.loads(body)["id"], "confirmed", "Example Customer", body, None, "confirmed")
+
+
+def test_database_upcoming_calls_reports_queries_with_a_parameterized_ordered_query(
+    client, database
+):
+    row = upcoming_row(client, database)
     database.connection = FakeConnection(rows=[row], total=7)
     response = upcoming(client, page=3, page_size=2, event_from="2099-01-01T06:00:00-06:00")
     connection = database.connection
@@ -461,15 +551,15 @@ def test_database_upcoming_runs_a_parameterized_ordered_query(client, database):
         "total": 7,
         "request_id": response.headers["X-Request-ID"],
     }
-    assert [item["order_id"] for item in response.json["data"]] == [json.loads(row[0])["id"]]
+    assert [item["order_id"] for item in response.json["data"]] == [row[0]]
+    assert response.json["data"][0]["order_status"] == "pending_review"
     count, page = select_statements(connection)
-    assert count == (
-        "SELECT COUNT(*) FROM orders WHERE status <> %s AND event_starts_at >= %s",
-        ("cancelled", datetime(2099, 1, 1, 12, 0)),
-    )
-    assert page[0].endswith(" ORDER BY event_starts_at ASC, public_id ASC LIMIT %s OFFSET %s")
-    assert "status <> %s" in page[0]
-    assert page[1] == ("cancelled", datetime(2099, 1, 1, 12, 0), 2, 4)
+    where = " WHERE (" + STATUS_SQL + ") <> 'cancelled' AND " + EVENT_SQL + " >= %s"
+    start = datetime(2099, 1, 1, 12, 0)
+    assert count == ("SELECT COUNT(*)" + LINKED_ORDERS_SQL + where, [start])
+    assert page[0].endswith(" ASC, o.public_id ASC LIMIT %s OFFSET %s")
+    assert where in page[0] and "ORDER BY " + EVENT_SQL in page[0]
+    assert page[1] == [start, 2, 4]
     assert connection.closed
 
 
@@ -478,14 +568,13 @@ def test_database_upcoming_defaults_the_start_to_now(client, database):
     before = datetime.now(timezone.utc).replace(tzinfo=None)
     assert upcoming(client).status_code == 200
     after = datetime.now(timezone.utc).replace(tzinfo=None)
-    status, event_from = select_statements(database.connection)[0][1]
-    assert status == "cancelled"
+    (event_from,) = select_statements(database.connection)[0][1]
     assert before <= event_from <= after
 
 
 def test_database_export_returns_csv_and_limits_the_rows_read(client, database):
-    rows = [(stored_row(client, database)[0],)]
-    database.connection = FakeConnection(rows=rows)
+    row = export_row(client, database)
+    database.connection = FakeConnection(rows=[row])
     response = client.get(
         EXPORT, query_string={"status": "confirmed", "event_to": "2100-01-01T00:00:00Z"}
     )
@@ -493,19 +582,18 @@ def test_database_export_returns_csv_and_limits_the_rows_read(client, database):
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "text/csv; charset=utf-8"
     assert response.headers["Content-Disposition"] == 'attachment; filename="orders_export.csv"'
-    assert sql == (
-        "SELECT response_json FROM orders WHERE status = %s AND event_starts_at < %s"
-        " ORDER BY id ASC LIMIT %s"
-    )
-    assert params == ("confirmed", datetime(2100, 1, 1), reports.EXPORT_ROW_CAP + 1)
+    assert " WHERE (" + STATUS_SQL + ") = %s AND " + EVENT_SQL + " < %s" in sql
+    assert sql.endswith(" ORDER BY o.id DESC LIMIT %s")
+    assert params == ["confirmed", datetime(2100, 1, 1), reports.EXPORT_ROW_CAP + 1]
     table = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
-    assert tuple(table[0]) == reports.COLUMNS
-    assert table[1][0] == json.loads(rows[0][0])["id"]
+    assert tuple(table[0]) == EXPORT_COLUMNS
+    assert table[1][:3] == [row[0], "confirmed", "Example Customer"]
+    assert table[1][-1] == "confirmed"
     assert database.connection.closed
 
 
 def test_database_export_over_the_cap_is_422_export_too_large(client, database):
-    row = (stored_row(client, database)[0],)
+    row = export_row(client, database)
     database.connection = FakeConnection(rows=[row] * (reports.EXPORT_ROW_CAP + 1))
     response = client.get(EXPORT)
     assert_error(response, 422, "export_too_large")
@@ -513,26 +601,51 @@ def test_database_export_over_the_cap_is_422_export_too_large(client, database):
     assert database.connection.closed
 
 
-def test_database_dashboard_runs_aggregate_queries(client, database):
-    database.connection = FakeConnection(
-        total=4,
-        rows=[
-            ("confirmed", "paid", "2099-01-15T12:00:00+00:00"),
-            ("confirmed", "unpaid", "2000-01-15T12:00:00+00:00"),
-            ("requested", "unpaid", "2099-01-16T12:00:00+00:00"),
-        ],
-    )
+class DashboardCursor(FakeCursor):
+    """Answers each dashboard query by the shape of its SQL."""
+
+    def fetchone(self):
+        return (4,) if "l.order_id IS NULL" in self.last_sql else (1,)
+
+    def fetchall(self):
+        if "GROUP BY status" in self.last_sql:
+            return [("confirmed", 2), ("requested", 1)]
+        return [("unpaid", 2), ("paid", 1), (None, 1)]
+
+
+class DashboardConnection(FakeConnection):
+    def cursor(self):
+        return DashboardCursor(self)
+
+
+def test_database_dashboard_calls_reports_queries(client, database):
+    database.connection = DashboardConnection()
+    before = datetime.now(timezone.utc)
     response = client.get(COUNTS)
     assert response.status_code == 200
-    data = response.json["data"]
-    assert data["orders_awaiting_import"] == 4
-    assert data["bookings_by_status"]["confirmed"] == 2
-    assert data["bookings_by_status"]["requested"] == 1
-    assert data["payments_by_status"]["unpaid"] == 2
-    assert data["upcoming_confirmed_bookings"] == 1
-    count, bookings = select_statements(database.connection)
-    assert "LEFT JOIN automation_order_links" in count[0] and "l.order_id IS NULL" in count[0]
-    assert "FROM automation_bookings" in bookings[0]
+    assert response.json["data"] == {
+        "orders_awaiting_import": 4,
+        "bookings_by_status": {
+            "requested": 1,
+            "owner_review": 0,
+            "awaiting_deposit": 0,
+            "confirmed": 2,
+            "cancelled": 0,
+        },
+        "payments_by_status": {
+            "unpaid": 2,
+            "partial": 0,
+            "deposit_paid": 0,
+            "paid": 1,
+            "unknown": 1,
+        },
+        "upcoming_confirmed_bookings": 1,
+    }
+    awaiting, by_status, by_payment, upcoming_confirmed = select_statements(database.connection)
+    assert "LEFT JOIN automation_order_links" in awaiting[0] and "l.order_id IS NULL" in awaiting[0]
+    assert "WHERE status <> 'cancelled'" in by_payment[0]
+    (now_text,) = upcoming_confirmed[1]
+    assert before <= datetime.fromisoformat(now_text) <= datetime.now(timezone.utc)
     assert database.connection.closed
 
 
