@@ -225,6 +225,13 @@ def test_concurrent_mysql_customer_submissions_do_not_duplicate_customers_or_ord
     mysql_app, conflicting
 ):
     body = order_payload()
+    with mysql_app.test_client() as client:
+        quote = client.post(
+            "/api/v1/quotes",
+            json={key: body[key] for key in ("catering_request", "event")},
+        )
+        assert quote.status_code == 200
+        body["quote_id"] = quote.json["data"]["id"]
     barrier = threading.Barrier(2)
 
     def attempt(index):

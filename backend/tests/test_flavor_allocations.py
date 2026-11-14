@@ -10,9 +10,8 @@ from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
 from test_orders import app as app
-from test_orders import bind_quote
+from test_orders import bind_quote, order_payload
 from test_orders import client as client
-from test_orders import order_payload
 
 FLAVORS = [
     "Mango Lime",

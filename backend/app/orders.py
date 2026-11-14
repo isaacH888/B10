@@ -519,6 +519,19 @@ def _save_in_database(key, digest, clean):
             stored = _load_quote(clean["quote_id"], cursor)
             if stored is None:
                 raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
+            # Current read after the quote lock: concurrent identical keys replay
+            # instead of failing quote_already_used under REPEATABLE READ.
+            cursor.execute(
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s"
+                " FOR UPDATE",
+                (key,),
+            )
+            row = cursor.fetchone()
+            if row:
+                if row[0] != digest:
+                    raise IdempotencyConflict
+                connection.rollback()
+                return json.loads(row[1])
             order = _build_order_from_quote(clean, stored)
             customer = order["customer"]
             cursor.execute(
