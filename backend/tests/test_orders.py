@@ -742,9 +742,7 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
         (3, "popsicles", "50 regular paletas at $4.50 each", 22500),
         (3, "delivery_fee", "Delivery within our standard service area", 2500),
     ]
-    assert any(
-        sql.startswith("UPDATE quotes SET is_used") for sql, _ in connection.statements
-    )
+    assert any(sql.startswith("UPDATE quotes SET is_used") for sql, _ in connection.statements)
     assert connection.quotes[response.json["data"]["quote_id"]]["is_used"] is True
 
 

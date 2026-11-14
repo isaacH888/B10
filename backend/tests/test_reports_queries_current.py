@@ -169,8 +169,13 @@ def test_reporting_leaves_original_submission_and_replay_intact(moved_order):
             "SELECT response_json,submission_json FROM orders WHERE public_id=%s", (order["id"],)
         )
         assert all(json.loads(snapshot) == order for snapshot in cursor.fetchone())
-    body = order_payload()
-    body["customer"]["name"] = "Synthetic Customer"
+    # Replay must match the original submission (quote_id + event schedule) exactly.
+    body = {
+        "customer": order["customer"],
+        "catering_request": order["catering_request"],
+        "event": order["event"],
+        "quote_id": order["quote_id"],
+    }
     replay = client.post(
         "/api/v1/orders", json=body, headers={"Idempotency-Key": "confirmed-order-0123456789"}
     )

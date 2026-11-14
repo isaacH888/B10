@@ -393,7 +393,9 @@ def _assert_quote_matches_order(stored, clean):
         raise QuoteSubmissionError(409, "quote_already_used", "This quote was already used.")
     if _as_utc(stored["expires_at"]) <= datetime.now(timezone.utc):
         raise QuoteSubmissionError(409, "quote_expired", "This quote has expired.")
-    if _norm_catering(clean["catering_request"]) != _norm_catering(quote.get("catering_request") or {}):
+    if _norm_catering(clean["catering_request"]) != _norm_catering(
+        quote.get("catering_request") or {}
+    ):
         raise QuoteSubmissionError(
             409, "quote_mismatch", "The order does not match the priced quote."
         )
@@ -560,7 +562,9 @@ def _save_in_database(key, digest, clean):
                 (order["quote_id"],),
             )
             if cursor.rowcount != 1:
-                raise QuoteSubmissionError(409, "quote_already_used", "This quote was already used.")
+                raise QuoteSubmissionError(
+                    409, "quote_already_used", "This quote was already used."
+                )
         connection.commit()
         return order
     except pymysql.IntegrityError as error:
