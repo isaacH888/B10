@@ -10,6 +10,7 @@ from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
 from test_orders import app as app
+from test_orders import bind_quote
 from test_orders import client as client
 from test_orders import order_payload
 
@@ -28,6 +29,8 @@ def request_mix(client, endpoint, mix):
     body["catering_request"]["flavor_allocations"] = mix
     if endpoint == "/quotes":
         body = {key: body[key] for key in ("catering_request", "event")}
+    elif mix in (MIX, []):
+        bind_quote(client, body)
     return client.post(
         "/api/v1" + endpoint,
         json=body,
@@ -101,6 +104,7 @@ def test_flavor_mix_persists_through_owner_reads_intake_and_replay(admin_app):
     body["catering_request"].update(
         flavor_allocations=deepcopy(MIX), flavor_requests="Please confirm allergy ingredients."
     )
+    bind_quote(client, body)
     key = {"Idempotency-Key": "persisted-flavor-mix-0123456789"}
     response = client.post("/api/v1/orders", json=body, headers=key)
     assert response.status_code == 201

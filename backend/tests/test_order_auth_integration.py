@@ -4,7 +4,7 @@ import pytest
 from app import create_app
 from test_auth import ORIGIN, invite, sign_in
 from test_auth import auth_app as auth_app
-from test_orders import HEADERS, order_payload
+from test_orders import HEADERS, bind_quote, order_payload
 
 
 @pytest.fixture
@@ -23,7 +23,10 @@ def administrator(app, role="owner"):
 
 
 def submit(app):
-    response = app.test_client().post("/api/v1/orders", json=order_payload(), headers=HEADERS)
+    client = app.test_client()
+    payload = order_payload()
+    bind_quote(client, payload)
+    response = client.post("/api/v1/orders", json=payload, headers=HEADERS)
     assert response.status_code == 201
     return response.json["data"]
 

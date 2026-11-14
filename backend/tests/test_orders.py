@@ -9,14 +9,15 @@ a fake PyMySQL connection, so no MySQL server is needed.
 import json
 import math
 import re
+from copy import deepcopy
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pymysql
 import pytest
 from app.automation.store import MemoryStore
-from app.reports_queries import DEPOSIT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
+from app.reports_queries import DEPOSIT_SQL, EVENT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
 from test_auth import ORIGIN, invite, sign_in
 from test_auth import auth_app as auth_app
 
@@ -83,6 +84,17 @@ def order_payload(**catering):
     }
 
 
+def bind_quote(client, payload):
+    """Persist a matching priced quote and set ``payload['quote_id']``."""
+    response = client.post(
+        "/api/v1/quotes",
+        json={"catering_request": payload["catering_request"], "event": payload["event"]},
+    )
+    assert response.status_code == 200, response.get_json()
+    payload["quote_id"] = response.json["data"]["id"]
+    return response.json["data"]
+
+
 def mutated(path, value):
     """Return a valid payload with the dotted ``path`` replaced (or removed with REMOVE)."""
     payload = order_payload()
@@ -98,9 +110,20 @@ def mutated(path, value):
 
 
 def post_order(client, payload=None, headers=HEADERS):
-    return client.post(
-        "/api/v1/orders", json=order_payload() if payload is None else payload, headers=headers
-    )
+    body = order_payload() if payload is None else payload
+    if body.get("quote_id") == "quote_example_001":
+        if payload is None:
+            body = deepcopy(body)
+        priced = client.post(
+            "/api/v1/quotes",
+            json={
+                "catering_request": body.get("catering_request"),
+                "event": body.get("event"),
+            },
+        )
+        if priced.status_code == 200:
+            body["quote_id"] = priced.json["data"]["id"]
+    return client.post("/api/v1/orders", json=body, headers=headers)
 
 
 def assert_validation_error(response, field):
@@ -156,7 +179,7 @@ def test_valid_order_returns_201_with_data_and_meta_envelope(client):
     assert response.headers["Location"] == f"/api/v1/orders/{data['id']}"
     assert re.fullmatch(r"order_[0-9a-f]{32}", data["id"])
     assert data["version"] == 1 and data["status"] == "pending_review"
-    assert data["quote_id"] == "quote_example_001"
+    assert data["quote_id"].startswith("quote_")
     assert data["pricing_revision"] == "pricing_config_2.1.0"
     assert data["payment_links"] == []
     assert data["workflow"] == {
@@ -256,11 +279,8 @@ def test_order_price_equals_the_quote_endpoint_price(client, shape):
     payload = order_payload(
         quantity=120, popsicle_shape=shape, dry_ice_blocks=2, service_type="full_service"
     )
-    quote = client.post(
-        "/api/v1/quotes",
-        json={"catering_request": payload["catering_request"], "event": payload["event"]},
-    )
-    assert post_order(client, payload).json["data"]["pricing"] == quote.json["data"]["pricing"]
+    quote = bind_quote(client, payload)
+    assert post_order(client, payload).json["data"]["pricing"] == quote["pricing"]
 
 
 def test_price_revision_preserves_saved_order_and_idempotent_replay(client, app):
@@ -279,8 +299,9 @@ def test_price_revision_preserves_saved_order_and_idempotent_replay(client, app)
     for order in (stored, replay):
         assert order["pricing"] == previous["pricing"]
         assert order["pricing_revision"] == "pricing_config_1.1.0"
+    refreshed = order_payload()
     updated = post_order(
-        client, payload, headers={"Idempotency-Key": "new-price-revision-key"}
+        client, refreshed, headers={"Idempotency-Key": "new-price-revision-key"}
     ).json["data"]
     assert updated["pricing"]["total_cents"] == 25000
     assert updated["pricing_revision"] == "pricing_config_2.1.0"
@@ -460,15 +481,16 @@ def test_missing_or_malformed_idempotency_key_is_422(client, headers):
 
 
 def test_same_key_and_payload_replays_the_original_order(client):
-    first = post_order(client)
-    second = post_order(client)
+    payload = order_payload()
+    first = post_order(client, payload)
+    second = post_order(client, payload)
     assert second.status_code == 201
     assert second.json["data"] == first.json["data"]
     assert second.headers["Location"] == first.headers["Location"]
 
 
 def test_same_key_with_different_payload_is_409_conflict(client):
-    post_order(client)
+    post_order(client, order_payload())
     response = post_order(client, order_payload(quantity=60))
     assert response.status_code == 409
     assert response.json["error"]["code"] == "idempotency_conflict"
@@ -476,10 +498,10 @@ def test_same_key_with_different_payload_is_409_conflict(client):
 
 
 def test_different_keys_create_different_orders(client):
-    first = post_order(client).json["data"]["id"]
-    second = post_order(client, headers={"Idempotency-Key": "another-key-0123456789"}).json["data"][
-        "id"
-    ]
+    first = post_order(client, order_payload()).json["data"]["id"]
+    second = post_order(
+        client, order_payload(), headers={"Idempotency-Key": "another-key-0123456789"}
+    ).json["data"]["id"]
     assert first != second
 
 
@@ -494,6 +516,8 @@ class FakeCursor:
     def __init__(self, connection):
         self.connection = connection
         self.last_sql = ""
+        self._result = None
+        self.rowcount = 0
 
     def __enter__(self):
         return self
@@ -506,16 +530,55 @@ class FakeCursor:
             raise pymysql.err.OperationalError(2003, "secret-host.internal refused the connection")
         self.connection.statements.append((sql, params))
         self.last_sql = sql
-        if sql.startswith("INSERT"):
+        self.rowcount = 0
+        self._result = None
+        if sql.startswith("INSERT INTO quotes"):
+            self.connection.quotes[params[0]] = {
+                "id": params[0],
+                "expires_at": params[1],
+                "delivery_distance_miles": params[2],
+                "total_minor": params[3],
+                "payload_json": params[4],
+                "is_used": False,
+            }
             self.connection.row_id += 1
             self.lastrowid = self.connection.row_id
+            self.rowcount = 1
+        elif sql.startswith("INSERT"):
+            self.connection.row_id += 1
+            self.lastrowid = self.connection.row_id
+            self.rowcount = 1
+        elif "FROM quotes" in sql and sql.lstrip().upper().startswith("SELECT"):
+            row = self.connection.quotes.get(params[0])
+            self._result = (
+                None
+                if row is None
+                else (
+                    row["id"],
+                    row["expires_at"],
+                    row["delivery_distance_miles"],
+                    row["total_minor"],
+                    row["payload_json"],
+                    row["is_used"],
+                )
+            )
+        elif sql.startswith("UPDATE quotes SET is_used"):
+            row = self.connection.quotes.get(params[0])
+            if row is None or row["is_used"]:
+                self.rowcount = 0
+            else:
+                row["is_used"] = True
+                self.rowcount = 1
 
     def executemany(self, sql, rows):
         self.connection.statements.append((sql, list(rows)))
+        self.rowcount = len(rows)
 
     def fetchone(self):
         if self.last_sql.startswith("SELECT COUNT"):
             return (self.connection.total,)
+        if "FROM quotes" in self.last_sql:
+            return self._result
         return self.connection.existing
 
     def fetchall(self):
@@ -529,17 +592,25 @@ class FakeConnection:
         self.rows = rows
         self.total = total
         self.statements = []
+        self.quotes = {}
         self.row_id = 0
         self.committed = self.rolled_back = self.closed = False
+
+    def prepare(self):
+        """Reset per-connect transaction flags while keeping quote rows and history."""
+        self.closed = self.committed = self.rolled_back = False
+        return self
 
     def cursor(self):
         return FakeCursor(self)
 
     def commit(self):
         self.committed = True
+        self.rolled_back = False
 
     def rollback(self):
         self.rolled_back = True
+        self.committed = False
 
     def close(self):
         self.closed = True
@@ -550,7 +621,7 @@ def database(app, monkeypatch):
     """Turn on database mode; ``database.connection`` is the connection the next request will use."""
     app.config.update(DB_USER="orders_user", DB_PASSWORD="orders_password")
     state = type("State", (), {"connection": FakeConnection()})()
-    monkeypatch.setattr(pymysql, "connect", lambda **options: state.connection)
+    monkeypatch.setattr(pymysql, "connect", lambda **options: state.connection.prepare())
     return state
 
 
@@ -576,28 +647,105 @@ def test_quote_endpoint_persists_the_quote_to_the_database(client, database):
     assert json.loads(params[4])["id"] == data["id"]
 
 
+def test_successful_order_marks_the_quote_as_used(client, app):
+    payload = order_payload()
+    quote = bind_quote(client, payload)
+    response = post_order(client, payload)
+    assert response.status_code == 201
+    assert response.json["data"]["quote_id"] == quote["id"]
+    assert response.json["data"]["pricing"]["total_cents"] == 25000
+    stored = app.extensions["quotes_memory"]["quotes"][quote["id"]]
+    assert stored["is_used"] is True
+    assert stored["total_minor"] == 25000
+
+
+def test_expired_quote_is_rejected(client, app):
+    payload = order_payload()
+    quote = bind_quote(client, payload)
+    stored = app.extensions["quotes_memory"]["quotes"][quote["id"]]
+    stored["expires_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+    response = post_order(client, payload)
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_expired"
+
+
+def test_tampered_order_payload_is_rejected(client):
+    payload = order_payload()
+    bind_quote(client, payload)
+    payload["catering_request"]["quantity"] = 60
+    response = post_order(client, payload)
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_mismatch"
+
+
+def test_tampered_event_starts_at_is_rejected(client):
+    payload = order_payload()
+    bind_quote(client, payload)
+    payload["event"]["starts_at"] = "2099-02-01T15:00:00-06:00"
+    payload["event"]["ends_at"] = "2099-02-01T17:00:00-06:00"
+    response = post_order(client, payload)
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_mismatch"
+
+
+def test_tampered_delivery_distance_is_rejected(client, app):
+    payload = order_payload()
+    quote = bind_quote(client, payload)
+    app.extensions["quotes_memory"]["quotes"][quote["id"]]["delivery_distance_miles"] = 99.0
+    response = post_order(client, payload)
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_mismatch"
+
+
+def test_reused_quote_is_rejected(client):
+    payload = order_payload()
+    bind_quote(client, payload)
+    assert post_order(client, payload).status_code == 201
+    response = post_order(
+        client, payload, headers={"Idempotency-Key": "reuse-quote-key-0123456789"}
+    )
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_already_used"
+
+
+def test_missing_quote_is_not_found(client):
+    payload = order_payload()
+    payload["quote_id"] = "quote_missing_does_not_exist"
+    response = post_order(client, payload)
+    assert response.status_code == 404
+    assert response.json["error"]["code"] == "not_found"
+
+
 def test_database_mode_inserts_customer_order_and_items_then_commits(client, database):
     response = post_order(client)
     connection = database.connection
     assert response.status_code == 201
     assert connection.committed and connection.closed and not connection.rolled_back
     tables = [re.match(r"INSERT INTO (\w+)", sql).group(1) for sql, _ in inserts(connection)]
-    assert tables == ["customers", "orders", "order_items"]
-    orders_sql, orders_params = inserts(connection)[1]
+    assert tables == ["quotes", "customers", "orders", "order_items"]
+    orders_sql, orders_params = next(
+        (sql, params) for sql, params in inserts(connection) if "INTO orders" in sql
+    )
     assert " response_json, request_hash, submission_json)" in orders_sql
     assert orders_params[0] == response.json["data"]["id"]  # public_id, not the BIGINT key
-    assert orders_params[1] == 1  # customer_id is the customers row id
+    assert orders_params[1] == 2  # customer_id follows the quotes insert row id
     assert orders_params[6:8] == (25000, 12500)
     assert orders_params[8] == datetime(2099, 1, 15, 21, 0)  # naive UTC for DATETIME(6)
     assert orders_params[9] == "America/Chicago"
     assert re.fullmatch(r"[0-9a-f]{64}", orders_params[-2])  # request_hash
     assert json.loads(orders_params[-3]) == json.loads(orders_params[-1]) == response.json["data"]
-    _, item_rows = inserts(connection)[2]
-    # order_id is the orders BIGINT key (the second insert), never the public id.
+    _, item_rows = next(
+        (sql, params) for sql, params in inserts(connection) if "INTO order_items" in sql
+    )
+    # order_id is the orders BIGINT key, never the public id.
     assert item_rows == [
-        (2, "popsicles", "50 regular paletas at $4.50 each", 22500),
-        (2, "delivery_fee", "Delivery within our standard service area", 2500),
+        (3, "popsicles", "50 regular paletas at $4.50 each", 22500),
+        (3, "delivery_fee", "Delivery within our standard service area", 2500),
     ]
+    assert any(
+        sql.startswith("UPDATE quotes SET is_used") for sql, _ in connection.statements
+    )
+    assert connection.quotes[response.json["data"]["quote_id"]]["is_used"] is True
 
 
 def test_database_statements_are_parameterized(client, database):
@@ -628,10 +776,13 @@ def test_connection_failure_returns_503(client, database, monkeypatch):
 
 
 def test_database_replay_returns_the_stored_order_without_new_inserts(client, database):
-    first = post_order(client)
-    _, params = inserts(database.connection)[1]
+    payload = order_payload()
+    first = post_order(client, payload)
+    _, params = next(
+        (sql, values) for sql, values in inserts(database.connection) if "INTO orders" in sql
+    )
     database.connection = FakeConnection(existing=(params[-2], params[-1]))
-    second = post_order(client)
+    second = post_order(client, payload)
     assert second.status_code == 201
     assert second.json["data"] == first.json["data"]
     assert inserts(database.connection) == []
@@ -650,7 +801,7 @@ def test_database_key_reuse_with_a_different_payload_is_409(client, database):
     assert response.status_code == 409
     assert response.json["error"]["code"] == "idempotency_conflict"
     assert database.connection.rolled_back and not database.connection.committed
-    assert inserts(database.connection) == []
+    assert not any("INTO orders" in sql for sql, _ in inserts(database.connection))
 
 
 def test_mock_mode_never_opens_a_database_connection(client, monkeypatch):
@@ -774,9 +925,10 @@ def test_same_status_is_a_noop_after_a_valid_version_check(client):
 
 
 def test_status_update_does_not_alter_the_idempotent_post_replay(client):
-    created = create_order(client)
+    payload = order_payload()
+    created = post_order(client, payload).json["data"]
     patch_status(client, created["id"], {"version": 1, "status": "confirmed"})
-    assert post_order(client).json["data"] == created
+    assert post_order(client, payload).json["data"] == created
 
 
 @pytest.mark.parametrize("terminal", ["fulfilled", "cancelled"])
@@ -909,7 +1061,7 @@ def test_status_route_rejects_other_methods(client):
 def stored_row(client, database):
     """Create an order in database mode and return the ``(response_json,)`` row it stored."""
     post_order(client)
-    params = inserts(database.connection)[1][1]
+    params = next(params for sql, params in inserts(database.connection) if "INTO orders" in sql)
     return (params[-3],)
 
 
@@ -1098,13 +1250,42 @@ def test_status_and_window_filters_combine(client, three_orders):
     assert data["total"] == 1
 
 
-def link_booking(app, order_id, status, payment_status):
+def link_booking(app, order_id, status, payment_status, **booking_fields):
     """Import an order: save an in-memory booking and the link the owner workflow creates."""
     store = app.extensions.setdefault("automation_store", MemoryStore())
     with store.transaction() as tx:
         booking_id = "booking_" + order_id
-        tx.save_booking({"id": booking_id, "status": status, "payment_status": payment_status})
+        tx.save_booking(
+            {
+                "id": booking_id,
+                "status": status,
+                "payment_status": payment_status,
+                **booking_fields,
+            }
+        )
         tx.save_order_link({"order_id": order_id, "booking_id": booking_id})
+
+
+def test_list_event_window_uses_booking_reschedule_start(app, client):
+    order = create_order_at(client, "2099-01-10T12:00:00+00:00", "reschedule-list-key-01")
+    link_booking(
+        app,
+        order["id"],
+        "confirmed",
+        "deposit_paid",
+        start="2099-07-15T20:00:00+00:00",
+        deposit_minor=12500,
+        paid_minor=12500,
+    )
+    january = list_orders(
+        client, event_from="2099-01-01T00:00:00Z", event_to="2099-02-01T00:00:00Z"
+    ).json["data"]
+    assert january["items"] == [] and january["total"] == 0
+    july = list_orders(
+        client, event_from="2099-07-01T00:00:00Z", event_to="2099-08-01T00:00:00Z"
+    ).json["data"]
+    assert [item["id"] for item in july["items"]] == [order["id"]]
+    assert july["total"] == 1
 
 
 @pytest.mark.parametrize(
@@ -1261,7 +1442,10 @@ def stored_orders(client, database, count=2):
     rows = []
     for number in range(count):
         post_order(client, headers={"Idempotency-Key": f"db-list-key-0123456789-{number}"})
-        rows.append((inserts(database.connection)[1][1][-3],))
+        params = next(
+            values for sql, values in inserts(database.connection) if "INTO orders" in sql
+        )
+        rows.append((params[-3],))
         database.connection = FakeConnection()
     return rows[::-1]
 
@@ -1331,7 +1515,7 @@ def test_database_list_filters_are_parameterized_naive_utc_values(client, databa
     assert response.status_code == 200
     assert response.json["data"] == {"items": [], "page": 1, "page_size": 25, "total": 0}
     where = (
-        " WHERE (" + STATUS_SQL + ") = %s AND o.event_starts_at >= %s AND o.event_starts_at < %s"
+        " WHERE (" + STATUS_SQL + ") = %s AND " + EVENT_SQL + " >= %s AND " + EVENT_SQL + " < %s"
     )
     params = ("confirmed", datetime(2099, 1, 15, 12, 0), datetime(2099, 1, 20, 12, 0))
     assert database.connection.statements == [
@@ -1350,7 +1534,7 @@ def test_database_list_filters_are_parameterized_naive_utc_values(client, databa
     ]
     for sql, values in database.connection.statements:
         # The status mapping itself names statuses; the caller's value must still be a parameter.
-        own_sql = sql.replace(STATUS_SQL, "").replace(DEPOSIT_SQL, "")
+        own_sql = sql.replace(STATUS_SQL, "").replace(DEPOSIT_SQL, "").replace(EVENT_SQL, "")
         assert sql.count("%s") == len(values) and "confirmed" not in own_sql
 
 

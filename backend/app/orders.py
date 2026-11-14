@@ -4,8 +4,8 @@ Contract (docs/api/openapi.json, docs/api-contract.md "Submit order"):
   - Body is ``SubmitOrderRequest``; the response is ``OrderResponse`` with HTTP 201.
   - ``Idempotency-Key`` is mandatory. The same key and payload replays the original
     order; the same key with a different payload is 409 ``idempotency_conflict``.
-  - Client totals are never accepted (unknown keys are rejected). Pricing is always
-    recomputed here with the quote engine, in exact integer cents (Fraction).
+  - Client totals are never accepted (unknown keys are rejected). Pricing comes from
+    the persisted priced quote (``total_minor`` / stored pricing snapshot).
 
 Contract for the administrative operations ("Retrieve an order", "Update order status"):
   - ``GET /orders`` returns a page of ``AdminOrder`` items, newest first (highest id).
@@ -23,9 +23,8 @@ Contract for the administrative operations ("Retrieve an order", "Update order s
   - Prices are never touched by a status change, so integer cents are preserved.
 
 Known gaps, tracked in docs/decisions-and-blockers.md (T08):
-  - Quotes are not persisted yet, so ``quote_id`` is validated and stored as the
-    reference, but expiry/revision/equality lookups (409 ``quote_expired`` and
-    ``quote_mismatch``) cannot be enforced until a quote store exists.
+  - Quote expiry, payload binding and one-time use are enforced on submit against
+    the persisted quote (migration 0011). Trusted totals come from the quote row.
   - The persistence code follows migration 0008_customer_order_intake.sql
     (``orders.id`` is the key, ``public_id`` the public identifier). Without database
     credentials the order lives in a per-process memory store.
@@ -40,6 +39,7 @@ import json
 import re
 import threading
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 
 import pymysql
@@ -55,11 +55,9 @@ from .quotes import (
     AddressReviewRequired,
     OutsideDeliveryRadius,
     QuoteError,
-    calculate_order_quote,
-    contract_priced_quote,
     prepare_quote_payload,
 )
-from .reports_queries import DEPOSIT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
+from .reports_queries import DEPOSIT_SQL, EVENT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -73,6 +71,16 @@ _COUNTRY = re.compile(r"^[A-Z]{2}$")
 
 class IdempotencyConflict(Exception):
     """The Idempotency-Key was already used with a different payload."""
+
+
+class QuoteSubmissionError(Exception):
+    """A stored quote cannot be used for this order submission."""
+
+    def __init__(self, status, code, message):
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.message = message
 
 
 @orders_bp.record_once
@@ -298,15 +306,8 @@ def validate_order_request(body):
 
 
 # --------------------------------------------------------------------------- #
-# Pricing and order snapshot
+# Quote binding and order snapshot
 # --------------------------------------------------------------------------- #
-
-
-def _price(rules, clean):
-    """Recompute the server price with the quote engine (integer cents, Fraction)."""
-    raw = {"catering_request": clean["catering_request"], "event": clean["event"]}
-    validated = prepare_quote_payload(rules, raw)
-    return contract_priced_quote(rules, raw, validated, calculate_order_quote(rules, validated))
 
 
 def _utc_text(moment):
@@ -316,6 +317,114 @@ def _utc_text(moment):
 def _naive_utc(moment):
     """Aware datetime to the naive UTC value stored in ``DATETIME(6)`` columns."""
     return moment.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _as_utc(moment):
+    if isinstance(moment, datetime):
+        return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    text = str(moment).replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(text)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _parse_payload_json(value):
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode()
+    return json.loads(value) if isinstance(value, str) else value
+
+
+def _quote_row_from_tuple(row):
+    return {
+        "id": row[0],
+        "expires_at": row[1],
+        "delivery_distance_miles": float(row[2]),
+        "total_minor": int(row[3]),
+        "payload_json": _parse_payload_json(row[4]),
+        "is_used": bool(row[5]),
+    }
+
+
+def _load_quote(quote_id, cursor=None):
+    if cursor is not None:
+        cursor.execute(
+            "SELECT id, expires_at, delivery_distance_miles, total_minor, payload_json, is_used"
+            " FROM quotes WHERE id = %s FOR UPDATE",
+            (quote_id,),
+        )
+        row = cursor.fetchone()
+        return _quote_row_from_tuple(row) if row else None
+    store = current_app.extensions["quotes_memory"]
+    with store["lock"]:
+        row = store["quotes"].get(quote_id)
+        return deepcopy(row) if row else None
+
+
+def _norm_catering(catering):
+    return {
+        "quantity": catering.get("quantity"),
+        "popsicle_shape": catering.get("popsicle_shape"),
+        "service_type": catering.get("service_type"),
+        "dry_ice_blocks": catering.get("dry_ice_blocks"),
+        "flavor_requests": catering.get("flavor_requests") or "",
+        "add_ons": catering.get("add_ons") or [],
+        "flavor_allocations": catering.get("flavor_allocations"),
+    }
+
+
+def _norm_event_schedule(event):
+    """Schedule fields bound into the priced quote; notes are informational and ignored."""
+    event = event or {}
+    return {
+        "type": event.get("type"),
+        "location": event.get("location"),
+        "starts_at": event.get("starts_at"),
+        "ends_at": event.get("ends_at"),
+        "timezone": event.get("timezone"),
+    }
+
+
+def _assert_quote_matches_order(stored, clean):
+    quote = stored["payload_json"] or {}
+    if quote.get("status") != "priced" or not isinstance(quote.get("pricing"), dict):
+        raise QuoteSubmissionError(
+            409, "quote_not_finalized", "A final server-priced quote is required."
+        )
+    if stored["is_used"]:
+        raise QuoteSubmissionError(409, "quote_already_used", "This quote was already used.")
+    if _as_utc(stored["expires_at"]) <= datetime.now(timezone.utc):
+        raise QuoteSubmissionError(409, "quote_expired", "This quote has expired.")
+    if _norm_catering(clean["catering_request"]) != _norm_catering(quote.get("catering_request") or {}):
+        raise QuoteSubmissionError(
+            409, "quote_mismatch", "The order does not match the priced quote."
+        )
+    if _norm_event_schedule(clean["event"]) != _norm_event_schedule(quote.get("event")):
+        raise QuoteSubmissionError(
+            409, "quote_mismatch", "The order does not match the priced quote."
+        )
+    rules = current_app.extensions["pricing_rules"]
+    validated = prepare_quote_payload(
+        rules, {"catering_request": clean["catering_request"], "event": clean["event"]}
+    )
+    distance = float(validated.get("delivery_distance_miles") or 0)
+    if abs(distance - float(stored["delivery_distance_miles"])) > 0.009:
+        raise QuoteSubmissionError(
+            409, "quote_mismatch", "The order does not match the priced quote."
+        )
+    pricing = quote["pricing"]
+    if int(pricing.get("total_cents") or 0) != int(stored["total_minor"]):
+        raise QuoteSubmissionError(
+            409, "quote_mismatch", "The order does not match the priced quote."
+        )
+
+
+def _trusted_pricing(stored):
+    """Use the quote row's total and the stored priced snapshot for the order."""
+    pricing = deepcopy(stored["payload_json"]["pricing"])
+    pricing["total_cents"] = int(stored["total_minor"])
+    return {
+        "pricing": pricing,
+        "pricing_revision": stored["payload_json"].get("pricing_revision"),
+    }
 
 
 def _build_order(clean, quote):
@@ -348,30 +457,49 @@ def _build_order(clean, quote):
     }
 
 
+def _build_order_from_quote(clean, stored):
+    _assert_quote_matches_order(stored, clean)
+    return _build_order(clean, _trusted_pricing(stored))
+
+
+def _mark_quote_used_memory(quote_id):
+    store = current_app.extensions["quotes_memory"]
+    row = store["quotes"].get(quote_id)
+    if row is None:
+        raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
+    if row["is_used"]:
+        raise QuoteSubmissionError(409, "quote_already_used", "This quote was already used.")
+    row["is_used"] = True
+
+
 # --------------------------------------------------------------------------- #
 # Persistence: both savers return the stored order (the original one on replay)
 # --------------------------------------------------------------------------- #
 
 
-def _save_in_memory(key, digest, order):
-    store = current_app.extensions["orders_memory"]
-    with store["lock"]:
-        previous = store["orders"].get(key)
-    if previous:
-        if previous[0] != digest:
-            raise IdempotencyConflict
-        return previous[1]
-    order = order()
-    with store["lock"]:
-        saved = store["orders"].setdefault(key, (digest, order))
+def _save_in_memory(key, digest, clean):
+    orders = current_app.extensions["orders_memory"]
+    quotes = current_app.extensions["quotes_memory"]
+    with quotes["lock"], orders["lock"]:
+        previous = orders["orders"].get(key)
+        if previous:
+            if previous[0] != digest:
+                raise IdempotencyConflict
+            return previous[1]
+        stored = _load_quote(clean["quote_id"])
+        if stored is None:
+            raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
+        order = _build_order_from_quote(clean, stored)
+        _mark_quote_used_memory(clean["quote_id"])
+        saved = orders["orders"].setdefault(key, (digest, order))
         if saved[1] is order:
-            store["by_id"][order["id"]] = _admin_view(order)
-    if saved[0] != digest:
-        raise IdempotencyConflict
-    return saved[1]
+            orders["by_id"][order["id"]] = _admin_view(order)
+        if saved[0] != digest:
+            raise IdempotencyConflict
+        return saved[1]
 
 
-def _save_in_database(key, digest, order):
+def _save_in_database(key, digest, clean):
     """Insert customer, order and items in one transaction: commit on success, roll back on any error."""
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
@@ -386,9 +514,10 @@ def _save_in_database(key, digest, order):
                     raise IdempotencyConflict
                 connection.rollback()
                 return json.loads(row[1])
-            # Existing submissions replay before any provider call; verify new
-            # addresses before the first write in this transaction.
-            order = order()
+            stored = _load_quote(clean["quote_id"], cursor)
+            if stored is None:
+                raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
+            order = _build_order_from_quote(clean, stored)
             customer = order["customer"]
             cursor.execute(
                 "INSERT INTO customers (name, email, phone) VALUES (%s, %s, %s)",
@@ -426,6 +555,12 @@ def _save_in_database(key, digest, order):
                     for item in order["pricing"]["line_items"]
                 ],
             )
+            cursor.execute(
+                "UPDATE quotes SET is_used = TRUE WHERE id = %s AND is_used = FALSE",
+                (order["quote_id"],),
+            )
+            if cursor.rowcount != 1:
+                raise QuoteSubmissionError(409, "quote_already_used", "This quote was already used.")
         connection.commit()
         return order
     except pymysql.IntegrityError as error:
@@ -634,18 +769,36 @@ def _with_state(order, status, deposit_status, booking=None):
 
 
 def _list_where(status, event_from, event_to):
-    """Return the parameterized WHERE clause and its values; ``event_to`` is exclusive."""
+    """Return the parameterized WHERE clause and its values; ``event_to`` is exclusive.
+
+    Event windows use the booking's effective start when linked (same ``EVENT_SQL`` as
+    reporting), otherwise the order's frozen ``event_starts_at``.
+    """
     clauses, params = [], []
     if status is not None:
         clauses.append("(" + STATUS_SQL + ") = %s")
         params.append(status)
     if event_from is not None:
-        clauses.append("o.event_starts_at >= %s")
+        clauses.append(EVENT_SQL + " >= %s")
         params.append(event_from)
     if event_to is not None:
-        clauses.append("o.event_starts_at < %s")
+        clauses.append(EVENT_SQL + " < %s")
         params.append(event_to)
     return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
+
+
+def _effective_event_start(order, booking):
+    """Naive UTC start: booking reschedule when present, else the order snapshot."""
+    if booking is not None:
+        text = booking.get("start")
+        if text:
+            try:
+                parsed = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+                if parsed.tzinfo is not None:
+                    return _naive_utc(parsed)
+            except (TypeError, ValueError):
+                pass
+    return _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
 
 
 def _list_in_database(status, event_from, event_to, page, page_size):
@@ -690,10 +843,10 @@ def _list_in_memory(status, event_from, event_to, page, page_size):
     bookings = linked_bookings([order["id"] for order in newest_first])
     matches = []
     for order in newest_first:
-        if order["id"] in bookings:
-            booking = bookings[order["id"]]
+        booking = bookings.get(order["id"])
+        if booking is not None:
             order = _with_state(order, *booking_order_state(booking), booking=booking)
-        starts_at = _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
+        starts_at = _effective_event_start(order, booking)
         if (
             (status is None or order["status"] == status)
             and (event_from is None or starts_at >= event_from)
@@ -753,12 +906,10 @@ def submit_order():
     ).hexdigest()
     save = _save_in_database if database_configured(current_app.config) else _save_in_memory
 
-    def new_order():
-        quote = _price(current_app.extensions["pricing_rules"], clean)
-        return _build_order(clean, quote)
-
     try:
-        saved = save(key, digest, new_order)
+        saved = save(key, digest, clean)
+    except QuoteSubmissionError as error:
+        return _error(error.status, error.code, error.message)
     except (AddressReviewRequired, OutsideDeliveryRadius) as error:
         code = (
             "outside_service_area"

@@ -24,7 +24,7 @@ from test_auth import auth_app as auth_app
 from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
-from test_orders import order_payload
+from test_orders import bind_quote, order_payload
 
 JANUARY = {"event_from": datetime(2099, 1, 1), "event_to": datetime(2099, 1, 16)}
 JULY = {"event_from": datetime(2099, 7, 1), "event_to": datetime(2099, 8, 1)}
@@ -38,7 +38,7 @@ def report_app(owner_app, sql_settings):
     owner_app.extensions["booking_service"].store = store
     yield owner_app
     with database.connect(sql_settings) as connection, connection.cursor() as cursor:
-        for table in ("automation_order_links", "order_items", "orders", "customers"):
+        for table in ("automation_order_links", "order_items", "orders", "customers", "quotes"):
             cursor.execute("DELETE FROM " + table)
         connection.commit()
 
@@ -49,6 +49,7 @@ def moved_order(report_app):
     order, booking = confirmed_order(report_app, client, headers)
     body = order_payload()
     body["event"].update(starts_at="2099-01-20T15:00:00-06:00", ends_at="2099-01-20T17:00:00-06:00")
+    bind_quote(client, body)
     sibling = client.post(
         "/api/v1/orders", json=body, headers={"Idempotency-Key": "report-sibling-0123456789"}
     )

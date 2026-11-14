@@ -82,6 +82,7 @@ def test_list_projects_verified_deposit_amounts_without_changing_the_source_orde
     assert client.get(f"/api/v1/orders/{order['id']}").json["data"] == {**order, "admin_notes": ""}
     body = order_payload()
     body["customer"]["name"] = "Synthetic Customer"
+    body["quote_id"] = order["quote_id"]
     replay = client.post("/api/v1/orders", json=body, headers={"Idempotency-Key": key})
     assert replay.status_code == 201 and replay.json["data"] == order
 

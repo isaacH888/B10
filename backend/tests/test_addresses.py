@@ -43,6 +43,10 @@ def post(client, path, body):
 
 
 def order(client, body, key="synthetic-address-order-key"):
+    if body.get("quote_id") == "quote_example_001":
+        priced = quote(client, body)
+        if priced.status_code == 200:
+            body["quote_id"] = priced.json["data"]["id"]
     return client.post("/api/v1/orders", json=body, headers={"Idempotency-Key": key})
 
 
@@ -131,10 +135,11 @@ def test_exact_thirty_mile_boundary_applies_to_both_services(address_app, servic
         assert {line["code"] for line in estimate["line_items"]} == {"popsicles"}
         assert priced.json["data"]["pricing"] is None
     del body["event"]["delivery_distance_miles"]
+    body["quote_id"] = priced.json["data"]["id"]
     result = order(client, body)
-    assert result.status_code == (422 if outside else 201)
+    assert result.status_code == (409 if outside else 201)
     if outside:
-        assert result.json["error"]["code"] == "outside_service_area"
+        assert result.json["error"]["code"] == "quote_not_finalized"
         assert not app.extensions["orders_memory"]["by_id"]
 
 
@@ -154,9 +159,10 @@ def test_unverified_distance_has_no_price_and_cannot_create_an_order(address_app
     assert result["pricing"] is None
     assert result["estimate"]["subtotal_cents"] == 22500
     assert result["next_action"]["reason_code"] == "address_verification_unavailable"
+    body["quote_id"] = result["id"]
     blocked = order(client, body)
-    assert blocked.status_code == 422
-    assert blocked.json["error"]["code"] == "address_verification_required"
+    assert blocked.status_code == 409
+    assert blocked.json["error"]["code"] == "quote_not_finalized"
     assert not app.extensions["orders_memory"]["by_id"]
     assert "private provider response" not in blocked.text
 
@@ -181,7 +187,10 @@ def test_owner_review_estimate_has_product_prices_without_logistics_or_deposit(
     )
     assert "deposit_due_cents" not in estimate
     assert "owner" in data["next_action"]["message"]
-    assert order(client, body).status_code == 422  # An estimate cannot authorize a booking.
+    body["quote_id"] = data["id"]
+    blocked = order(client, body)
+    assert blocked.status_code == 409
+    assert blocked.json["error"]["code"] == "quote_not_finalized"
 
 
 def test_idempotent_order_replay_does_not_depend_on_provider_availability(address_app):
@@ -197,7 +206,10 @@ def test_idempotent_order_replay_does_not_depend_on_provider_availability(addres
     body["event"]["location"]["line1"] = "200 Example Street"
     assert order(client, body).status_code == 409
     assert len(provider.calls) == calls
-    assert order(client, body, "different-synthetic-address-key").status_code == 422
+    assert order(client, body, "different-synthetic-address-key").status_code == 409
+    assert order(client, body, "different-synthetic-address-key").json["error"]["code"] == (
+        "quote_already_used"
+    )
     assert len(app.extensions["orders_memory"]["by_id"]) == 1
 
 

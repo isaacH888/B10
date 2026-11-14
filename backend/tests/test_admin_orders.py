@@ -13,7 +13,7 @@ from test_auth import invite, sign_in
 from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
-from test_orders import order_payload
+from test_orders import bind_quote, order_payload
 
 BASE = "/api/v1/admin/orders"
 AUTOMATION = "/api/v1/admin/automation"
@@ -38,15 +38,17 @@ def admin_app(request, owner_app):
     yield owner_app
     if request.param == "mysql":
         with database.connect(owner_app.config) as connection, connection.cursor() as cursor:
-            for table in ("automation_order_links", "order_items", "orders", "customers"):
+            for table in ("automation_order_links", "order_items", "orders", "customers", "quotes"):
                 cursor.execute("DELETE FROM " + table)
             connection.commit()
 
 
 def submit(app, name="Synthetic Customer", service="delivery", key="admin-order-0123456789"):
+    client = app.test_client()
     body = order_payload(service_type=service)
     body["customer"]["name"] = name
-    result = app.test_client().post("/api/v1/orders", json=body, headers={"Idempotency-Key": key})
+    bind_quote(client, body)
+    result = client.post("/api/v1/orders", json=body, headers={"Idempotency-Key": key})
     assert result.status_code == 201
     return result.json["data"]
 

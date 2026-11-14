@@ -259,7 +259,7 @@ def load_business_rules(path=None):
 def _load_rules_on_registration(state):
     app = state.app
     app.extensions["pricing_rules"] = load_business_rules(app.config.get("PRICING_CONFIG_PATH"))
-    app.extensions["quotes_memory"] = {"lock": threading.Lock(), "quotes": {}}
+    app.extensions["quotes_memory"] = {"lock": threading.RLock(), "quotes": {}}
 
 
 # --------------------------------------------------------------------------- #
@@ -695,7 +695,8 @@ def _line_items(rules, payload, calculation):
 def _contract_quote(raw_payload, status, pricing, rules, unresolved_decisions, next_action):
     expires_at = datetime.now(timezone.utc) + QUOTE_VALIDITY
     event = raw_payload.get("event")
-    # delivery_distance_miles is accepted as input but is not part of the schema's Event, so do not echo it.
+    # Keep type/location/starts_at/ends_at/timezone for order payload binding.
+    # delivery_distance_miles is accepted as input but is not part of the schema's Event.
     event = (
         {key: value for key, value in event.items() if key != "delivery_distance_miles"}
         if isinstance(event, dict)
