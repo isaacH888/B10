@@ -59,6 +59,7 @@ from .quotes import (
     contract_priced_quote,
     prepare_quote_payload,
 )
+from .reports_queries import DEPOSIT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -588,18 +589,61 @@ def _update_status_in_database(order_id, version, status):
 
 _QUERY_INTEGER = re.compile(r"^-?[0-9]{1,10}$")
 
+# An order imported into the booking workflow shows its booking's live state, mapped onto the
+# contract's order and deposit statuses. The SQL twin of these rules is STATUS_SQL and
+# DEPOSIT_SQL in reports_queries.py; keep the two in step.
+_BOOKING_ORDER_STATUS = {"confirmed": "confirmed", "cancelled": "cancelled"}
+_PAID_PAYMENT_STATUSES = ("deposit_paid", "paid")
+
+
+def linked_bookings(order_ids):
+    """``{order_id: booking}`` for orders linked to an in-memory automation booking."""
+    store = current_app.extensions.get("automation_store")
+    if store is None:
+        return {}
+    found = {}
+    with store.transaction() as tx:
+        for order_id in order_ids:
+            link = tx.get_order_link(order_id)
+            booking = tx.get_booking(link["booking_id"]) if link else None
+            if booking is not None:
+                found[order_id] = booking
+    return found
+
+
+def booking_order_state(booking):
+    """``(order_status, deposit_status)`` a booking maps to."""
+    status = _BOOKING_ORDER_STATUS.get(booking["status"], "pending_review")
+    paid = booking.get("payment_status") in _PAID_PAYMENT_STATUSES
+    return status, "confirmed" if paid else "pending"
+
+
+def _with_state(order, status, deposit_status, booking=None):
+    """Read-only projection of live booking state onto the saved order summary."""
+    updated = {**order, "status": status}
+    if deposit_status is not None and "deposit" in order:
+        deposit = {**order["deposit"], "status": deposit_status}
+        if booking is not None:
+            due = booking.get("deposit_minor", deposit["amount_due_cents"])
+            paid = booking.get("paid_minor", deposit["amount_confirmed_cents"])
+            # Only verified funds applied to the deposit belong in this summary;
+            # final-balance payments and overpayments do not enlarge the deposit.
+            deposit.update(amount_due_cents=due, amount_confirmed_cents=min(paid, due))
+        updated["deposit"] = deposit
+    return updated
+
 
 def _list_where(status, event_from, event_to):
     """Return the parameterized WHERE clause and its values; ``event_to`` is exclusive."""
     clauses, params = [], []
     if status is not None:
-        clauses.append("status = %s")
+        clauses.append("(" + STATUS_SQL + ") = %s")
         params.append(status)
     if event_from is not None:
-        clauses.append("event_starts_at >= %s")
+        clauses.append("o.event_starts_at >= %s")
         params.append(event_from)
     if event_to is not None:
-        clauses.append("event_starts_at < %s")
+        clauses.append("o.event_starts_at < %s")
         params.append(event_to)
     return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
 
@@ -609,14 +653,31 @@ def _list_in_database(status, event_from, event_to, page, page_size):
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM orders" + where, params)
+            cursor.execute("SELECT COUNT(*)" + LINKED_ORDERS_SQL + where, params)
             total = cursor.fetchone()[0]
             cursor.execute(
-                "SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+                "SELECT o.response_json, "
+                + STATUS_SQL
+                + ", "
+                + DEPOSIT_SQL
+                + ", b.data"
+                + LINKED_ORDERS_SQL
+                + where
+                + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
                 params + (page_size, (page - 1) * page_size),
             )
             rows = cursor.fetchall()
-        return [_admin_view(json.loads(row[0])) for row in rows], total
+        return [
+            _admin_view(
+                _with_state(
+                    json.loads(body),
+                    order_status,
+                    deposit_status,
+                    json.loads(booking_json) if booking_json else None,
+                )
+            )
+            for body, order_status, deposit_status, booking_json in rows
+        ], total
     finally:
         connection.close()
 
@@ -626,8 +687,12 @@ def _list_in_memory(status, event_from, event_to, page, page_size):
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
         newest_first = list(reversed(store["by_id"].values()))
+    bookings = linked_bookings([order["id"] for order in newest_first])
     matches = []
     for order in newest_first:
+        if order["id"] in bookings:
+            booking = bookings[order["id"]]
+            order = _with_state(order, *booking_order_state(booking), booking=booking)
         starts_at = _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
         if (
             (status is None or order["status"] == status)

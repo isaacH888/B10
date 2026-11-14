@@ -155,6 +155,9 @@ def test_export_uses_current_booking_window_and_values(moved_order):
 @pytest.mark.database
 def test_reporting_leaves_original_submission_and_replay_intact(moved_order):
     app, client, _, order, _, _ = moved_order
+    listed = client.get("/api/v1/orders").json["data"]["items"]
+    current = next(item for item in listed if item["id"] == order["id"])
+    assert current["deposit"]["amount_confirmed_cents"] == 10000
     with (
         pymysql.connect(**connection_options(app.config)) as connection,
         connection.cursor() as cursor,

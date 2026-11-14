@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pymysql
 import pytest
+from app.automation.store import MemoryStore
+from app.reports_queries import DEPOSIT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
 from test_auth import ORIGIN, invite, sign_in
 from test_auth import auth_app as auth_app
 
@@ -1078,6 +1080,87 @@ def test_status_and_window_filters_combine(client, three_orders):
     assert data["total"] == 1
 
 
+def link_booking(app, order_id, status, payment_status):
+    """Import an order: save an in-memory booking and the link the owner workflow creates."""
+    store = app.extensions.setdefault("automation_store", MemoryStore())
+    with store.transaction() as tx:
+        booking_id = "booking_" + order_id
+        tx.save_booking({"id": booking_id, "status": status, "payment_status": payment_status})
+        tx.save_order_link({"order_id": order_id, "booking_id": booking_id})
+
+
+@pytest.mark.parametrize(
+    "booking_status,payment_status,order_status,deposit_status",
+    [
+        ("requested", "unpaid", "pending_review", "pending"),
+        ("owner_review", "partial", "pending_review", "pending"),
+        ("awaiting_deposit", "unpaid", "pending_review", "pending"),
+        ("confirmed", "deposit_paid", "confirmed", "confirmed"),
+        ("confirmed", "paid", "confirmed", "confirmed"),
+        ("cancelled", "unpaid", "cancelled", "pending"),
+    ],
+)
+def test_list_maps_booking_status_and_payment_for_imported_orders(
+    app, client, three_orders, booking_status, payment_status, order_status, deposit_status
+):
+    order = three_orders[0]
+    link_booking(app, order["id"], booking_status, payment_status)
+    item = list_orders(client).json["data"]["items"][2]
+    assert item["id"] == order["id"]
+    assert (item["status"], item["deposit"]["status"]) == (order_status, deposit_status)
+    assert item["pricing"] == order["pricing"]
+
+
+@pytest.fixture
+def mixed_orders(app, client):
+    """Oldest first: three imported orders, one unimported fulfilled order, one more imported."""
+    created = [
+        create_order_at(client, "2099-02-01T12:00:00+00:00", f"mixed-key-0123456789-{n}")
+        for n in range(5)
+    ]
+    a, b, c, d, e = (order["id"] for order in created)
+    link_booking(app, a, "confirmed", "paid")
+    link_booking(app, b, "owner_review", "partial")
+    link_booking(app, c, "cancelled", "unpaid")
+    patch_status(client, d, {"version": 1, "status": "confirmed"})
+    patch_status(client, d, {"version": 2, "status": "fulfilled"})
+    link_booking(app, e, "requested", "unpaid")
+    return a, b, c, d, e
+
+
+def test_unimported_orders_keep_their_own_status_and_deposit(client, mixed_orders):
+    items = {item["id"]: item for item in list_orders(client).json["data"]["items"]}
+    unimported = items[mixed_orders[3]]
+    assert (unimported["status"], unimported["deposit"]["status"]) == ("fulfilled", "pending")
+
+
+def test_status_filter_and_total_use_the_booking_status(client, mixed_orders):
+    a, b, c, d, e = mixed_orders
+    for status, expected in (
+        ("confirmed", [a]),
+        ("pending_review", [e, b]),
+        ("cancelled", [c]),
+        ("fulfilled", [d]),
+    ):
+        data = list_orders(client, status=status).json["data"]
+        assert [item["id"] for item in data["items"]] == expected
+        assert data["total"] == len(expected)
+        assert {item["status"] for item in data["items"]} == {status}
+
+
+def test_pagination_counts_the_booking_status(client, mixed_orders):
+    a, b, c, d, e = mixed_orders
+    pages = [
+        list_orders(client, status="pending_review", page=number, page_size=1).json["data"]
+        for number in (1, 2, 3)
+    ]
+    assert [[item["id"] for item in page["items"]] for page in pages] == [[e], [b], []]
+    assert all(page["total"] == 2 for page in pages)
+    everything = list_orders(client, page_size=2, page=2).json["data"]
+    assert [item["id"] for item in everything["items"]] == [c, b]
+    assert everything["total"] == 5
+
+
 def test_pagination_slices_the_list_and_reports_the_total(client):
     created = [
         create_order_at(client, "2099-02-01T12:00:00+00:00", f"page-key-0123456789-{n}")["id"]
@@ -1165,8 +1248,14 @@ def stored_orders(client, database, count=2):
     return rows[::-1]
 
 
+def list_rows(stored, status="pending_review", deposit="pending", booking=None):
+    """Tuple-cursor rows including the linked booking's verified payment amounts."""
+    booking_json = json.dumps(booking) if booking is not None else None
+    return [(body, status, deposit, booking_json) for (body,) in stored]
+
+
 def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(client, database):
-    rows = stored_orders(client, database)
+    rows = list_rows(stored_orders(client, database))
     database.connection = FakeConnection(rows=rows, total=7)
     response = list_orders(client, page=2, page_size=2)
     connection = database.connection
@@ -1175,10 +1264,42 @@ def test_database_list_counts_then_selects_newest_first_with_limit_and_offset(cl
     assert (data["page"], data["page_size"], data["total"]) == (2, 2, 7)
     assert data["items"] == [{**json.loads(row[0]), "admin_notes": ""} for row in rows]
     assert connection.statements == [
-        ("SELECT COUNT(*) FROM orders", ()),
-        ("SELECT response_json FROM orders ORDER BY id DESC LIMIT %s OFFSET %s", (2, 2)),
+        ("SELECT COUNT(*)" + LINKED_ORDERS_SQL, ()),
+        (
+            "SELECT o.response_json, "
+            + STATUS_SQL
+            + ", "
+            + DEPOSIT_SQL
+            + ", b.data"
+            + LINKED_ORDERS_SQL
+            + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
+            (2, 2),
+        ),
     ]
     assert connection.closed and not connection.committed
+
+
+def test_database_list_reports_the_effective_status_and_deposit_status(client, database):
+    rows = list_rows(
+        stored_orders(client, database, count=1),
+        "confirmed",
+        "confirmed",
+        {"deposit_minor": 10000, "paid_minor": 10000},
+    )
+    database.connection = FakeConnection(rows=rows, total=1)
+    item = list_orders(client).json["data"]["items"][0]
+    stored = json.loads(rows[0][0])
+    assert stored["status"] == "pending_review" and stored["deposit"]["status"] == "pending"
+    assert item["status"] == "confirmed"
+    assert item["deposit"] == {
+        **stored["deposit"],
+        "status": "confirmed",
+        "amount_confirmed_cents": 10000,
+    }
+    assert {key: item[key] for key in item if key not in ("status", "deposit")} == {
+        **{key: stored[key] for key in stored if key not in ("status", "deposit")},
+        "admin_notes": "",
+    }
 
 
 def test_database_list_filters_are_parameterized_naive_utc_values(client, database):
@@ -1191,17 +1312,28 @@ def test_database_list_filters_are_parameterized_naive_utc_values(client, databa
     )
     assert response.status_code == 200
     assert response.json["data"] == {"items": [], "page": 1, "page_size": 25, "total": 0}
-    where = " WHERE status = %s AND event_starts_at >= %s AND event_starts_at < %s"
+    where = (
+        " WHERE (" + STATUS_SQL + ") = %s AND o.event_starts_at >= %s AND o.event_starts_at < %s"
+    )
     params = ("confirmed", datetime(2099, 1, 15, 12, 0), datetime(2099, 1, 20, 12, 0))
     assert database.connection.statements == [
-        ("SELECT COUNT(*) FROM orders" + where, params),
+        ("SELECT COUNT(*)" + LINKED_ORDERS_SQL + where, params),
         (
-            "SELECT response_json FROM orders" + where + " ORDER BY id DESC LIMIT %s OFFSET %s",
+            "SELECT o.response_json, "
+            + STATUS_SQL
+            + ", "
+            + DEPOSIT_SQL
+            + ", b.data"
+            + LINKED_ORDERS_SQL
+            + where
+            + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
             params + (25, 0),
         ),
     ]
     for sql, values in database.connection.statements:
-        assert sql.count("%s") == len(values) and "confirmed" not in sql
+        # The status mapping itself names statuses; the caller's value must still be a parameter.
+        own_sql = sql.replace(STATUS_SQL, "").replace(DEPOSIT_SQL, "")
+        assert sql.count("%s") == len(values) and "confirmed" not in own_sql
 
 
 def test_database_list_does_not_query_when_the_request_is_invalid(client, database):

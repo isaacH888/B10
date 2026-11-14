@@ -13,7 +13,10 @@ require those fields. Do not invent an owner identity, end time or contract URL.
 
 After intake, the linked automation booking controls operational status, capacity,
 verified payments, Calendar state and reminder jobs. The original customer order
-remains the intake record; its legacy status is not a live booking-status view.
+remains the intake record. `GET /orders` overlays the current booking's mapped
+status and verified deposit summary without rewriting that record. Its historical
+pricing, legacy detail response and original submission replay retain the saved
+intake values; use the owner workspace for the complete live booking.
 Legacy status PATCH requests return `409 booking_managed` after linking, preventing
 competing administrative workflows. Use the linked booking in the owner workspace.
 The booking retains the complete source-order snapshot, including contact details,
