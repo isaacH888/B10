@@ -1284,7 +1284,7 @@ def test_database_list_reports_the_effective_status_and_deposit_status(client, d
         stored_orders(client, database, count=1),
         "confirmed",
         "confirmed",
-        {"deposit_minor": 10000, "paid_minor": 10000},
+        {"deposit_minor": 12500, "paid_minor": 12500},
     )
     database.connection = FakeConnection(rows=rows, total=1)
     item = list_orders(client).json["data"]["items"][0]
@@ -1294,7 +1294,7 @@ def test_database_list_reports_the_effective_status_and_deposit_status(client, d
     assert item["deposit"] == {
         **stored["deposit"],
         "status": "confirmed",
-        "amount_confirmed_cents": 10000,
+        "amount_confirmed_cents": 12500,
     }
     assert {key: item[key] for key in item if key not in ("status", "deposit")} == {
         **{key: stored[key] for key in stored if key not in ("status", "deposit")},

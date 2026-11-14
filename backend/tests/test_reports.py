@@ -175,8 +175,8 @@ def test_export_rows_match_the_stored_orders(client, three_orders):
         "50",
         "delivery",
         "USD",
-        "20000",
-        "10000",
+        "25000",
+        "12500",
         "pending",
     ]
     assert [row[0] for row in table[1:]] == [order["id"] for order in reversed(three_orders)]

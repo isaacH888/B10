@@ -31,9 +31,9 @@ def test_upcoming_http_response_matches_openapi_with_populated_and_empty_pages(a
     [
         (0, "pending", 0),
         (2500, "pending", 2500),
-        (10000, "confirmed", 10000),
-        (20000, "confirmed", 10000),
-        (25000, "confirmed", 10000),
+        (12500, "confirmed", 12500),
+        (20000, "confirmed", 12500),
+        (25000, "confirmed", 12500),
     ],
 )
 def test_list_projects_verified_deposit_amounts_without_changing_the_source_order(
@@ -66,7 +66,7 @@ def test_list_projects_verified_deposit_amounts_without_changing_the_source_orde
         assert paid.status_code == 200
         booking = paid.json["data"]
     assert booking["paid_minor"] == paid_cents
-    assert booking["deposit_minor"] == 10000
+    assert booking["deposit_minor"] == 12500
 
     response = client.get("/api/v1/orders")
     assert response.status_code == 200
@@ -75,7 +75,7 @@ def test_list_projects_verified_deposit_amounts_without_changing_the_source_orde
     assert item["id"] == order["id"]
     assert item["deposit"] == {
         "status": deposit_status,
-        "amount_due_cents": 10000,
+        "amount_due_cents": 12500,
         "amount_confirmed_cents": confirmed_cents,
     }
     assert item["pricing"] == order["pricing"]
@@ -102,6 +102,6 @@ def test_cancelled_order_keeps_its_verified_deposit_amount(admin_app):
     assert item["id"] == order["id"] and item["status"] == "cancelled"
     assert item["deposit"] == {
         "status": "confirmed",
-        "amount_due_cents": 10000,
-        "amount_confirmed_cents": 10000,
+        "amount_due_cents": 12500,
+        "amount_confirmed_cents": 12500,
     }
