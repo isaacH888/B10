@@ -5,7 +5,7 @@ name: Shared foundation checks
   pull_request:
   workflow_dispatch:
 
-# This workflow validates changes; it has no deployment permissions or steps.
+# Checks need no AWS access; only deploy-dev receives an OIDC token after they pass.
 permissions:
   contents: read
 
@@ -115,3 +115,136 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install cfn-lint==1.57.2
       - run: cfn-lint infra/cognito-authentication.json infra/customer-test-email.json infra/automation.yaml
+
+  lambda-package:
+    name: Build website Lambda package
+    needs: [python-style, foundation, frontend, cognito-template]
+    # PRs get a package validation too; only the deployment job can access AWS.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: /api/v1
+      - name: Install locked Linux x86_64 dependencies
+        run: >-
+          python -m pip install --requirement backend/requirements.txt
+          --target "$RUNNER_TEMP/b10-dependencies"
+          --platform manylinux2014_x86_64 --platform manylinux_2_28_x86_64
+          --implementation cp --python-version 3.12 --only-binary=:all:
+      - name: Build the actual deployment ZIP from this commit
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: >-
+          python scripts/build_site_lambda.py
+          --dependencies "$RUNNER_TEMP/b10-dependencies"
+          --commit "$BUILD_SHA" --output "$RUNNER_TEMP/b10-site.zip"
+      - name: Smoke-test the package in the Lambda Python 3.12 runtime
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          python -m zipfile -e "$RUNNER_TEMP/b10-site.zip" "$RUNNER_TEMP/b10-package"
+          docker run --rm --network none --platform linux/amd64 \
+            --entrypoint /var/lang/bin/python \
+            --volume "$RUNNER_TEMP/b10-package:/var/task:ro" \
+            --volume "$GITHUB_WORKSPACE/scripts:/checks:ro" \
+            --env APP_ENV=development --env AUTH_ENABLED=false \
+            --env CUSTOMER_AUTH_ENABLED=false --env PYTHONPATH=/var/task \
+            --env AWS_EC2_METADATA_DISABLED=true \
+            public.ecr.aws/lambda/python:3.12@sha256:696fcc2a052fc8f335f9b34c6ec4e50ad54dbe5dd35134ec997c4f97bd150b22 \
+            /checks/smoke_site_lambda.py --commit "$BUILD_SHA"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: b10-lambda-${{ github.sha }}
+          path: ${{ runner.temp }}/b10-site.zip
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+  deploy-dev:
+    name: Deploy and verify existing DEV website
+    needs:
+      [python-style, foundation, frontend, cognito-template, lambda-package]
+    if: >-
+      github.repository == 'isaacH888/B10' && github.ref == 'refs/heads/dev' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    concurrency:
+      group: b10-lab-api-dev-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Confirm this is the latest DEV commit whose checks passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_SHA: ${{ github.sha }}
+        run: python scripts/check_deploy_candidate.py --commit "$BUILD_SHA"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: b10-lambda-${{ github.sha }}
+          path: ${{ runner.temp }}/b10-artifact
+      - name: Require the administrator's OIDC role
+        env:
+          DEPLOY_ROLE_ARN: ${{ vars.B10_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$DEPLOY_ROLE_ARN" ]; then
+            echo "::error::Set repository Actions variable B10_DEPLOY_ROLE_ARN after the AWS administrator configures GitHub OIDC. CI checks passed; deployment has not run."
+            exit 1
+          fi
+      - name: Authenticate to AWS using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.B10_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: b10-${{ github.run_id }}
+          role-duration-seconds: 3600
+          unset-current-credentials: true
+          retry-max-attempts: 2
+          action-timeout-s: 60
+      - name: Install deployment tooling
+        run: python -m pip install boto3==1.43.109
+      - name: Deploy exact package, verify frontend and API, roll back on failure
+        env:
+          BUILD_SHA: ${{ github.sha }}
+          B10_MIGRATIONS_REVIEWED_SHA: ${{ vars.B10_MIGRATIONS_REVIEWED_SHA }}
+        run: >-
+          python scripts/deploy_site_lambda.py
+          --package "$RUNNER_TEMP/b10-artifact/b10-site.zip" --commit "$BUILD_SHA"
+      - name: Explain a failed deployment separately from CI
+        if: failure()
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          echo "::error::DEV deployment failed for $BUILD_SHA. Read the failed step and job summary. Foundation checks do not require AWS. If the lab/OIDC is unavailable, start the lab or contact the administrator, then rerun failed jobs on the latest passing DEV run."
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          Deployment failed. The foundation checks and package job are independent of AWS.
+          Check the failed step for OIDC, lab availability, migration, package or verification errors.
+          When resolved, rerun failed jobs on the latest DEV run with passing checks.
+          A failed public verification triggers code rollback; a hard runner cancellation can interrupt recovery.
+          See readme.md for setup, recovery, and the lab-off availability test.
+          EOF

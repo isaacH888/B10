@@ -2,6 +2,95 @@
 
 Digital Modernization & Catering Management System. Lead Developer: Isaac Hernandez.
 
+## Automatic DEV website deployment
+
+The [Shared foundation checks](.github/workflows/foundation-checks.yml) now build a
+real Lambda ZIP from the checked commit. Once all existing checks and the package
+smoke test pass, a push or merge to `dev` deploys that exact SHA to
+<https://n2fffdn5h9.execute-api.us-east-1.amazonaws.com/>. Pull requests build/test
+the package without AWS access. CI continues when Learner Lab is off; a deployment
+failure appears as a separate failed job.
+
+Deployment preserves `b10-lab-api` in `us-east-1`, Python 3.12, `x86_64`,
+`site_handler.handler`, API Gateway payload `1.0`, environment settings, IAM role,
+networking and the existing public database CA certificates. It checks the actual
+live handler/layout first, compares every frontend file with the live response,
+verifies `/release.json` identifies the commit, and requires healthy
+`/api/v1/live` and `/api/v1/health` responses. A failed update/verification restores
+and verifies the saved previous ZIP where AWS remains reachable. It never runs
+database migrations. See the [full setup and recovery guide](docs/lambda-auto-deploy.md).
+
+Before the first deployment:
+
+1. Ask your instructor/AWS administrator to configure the GitHub OIDC provider,
+   dedicated deploy role, exact `dev` trust and scoped permissions from the guide.
+   Learner Lab may prohibit students from creating them. The existing Lambda
+   execution role is a separate role and must be preserved.
+2. In GitHub **B10 → Settings → Secrets and variables → Actions → Variables → New
+   repository variable**, enter **Name:** `B10_DEPLOY_ROLE_ARN`; **Value:** the
+   administrator's `arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME`.
+3. Have the database owner compare the deployed schema/history with this commit.
+   The local prior package has `0009_automation_scheduled_reminders.sql`, while
+   this checkout has `0009_orders_event_start_index.sql`, `0010_admin_inventory.sql`
+   and `0011_quotes_persistence.sql`. Resolve any applied-version conflict and
+   confirm rollback compatibility. If the workflow reports changed migration
+   files, set Actions variable `B10_MIGRATIONS_REVIEWED_SHA` to the exact reviewed
+   40-character commit SHA only after that work. This acknowledges review; it does
+   not apply SQL or prove the live schema. Dependencies are rebuilt from pinned
+   requirements, and changes from the live package are listed in the job summary.
+4. Review the uncommitted changes on `chore/dev-lambda-auto-deploy`. No commit,
+   push, PR, AWS mutation or live deployment was performed during setup. The named
+   `b10-lambda-auto-deploy.zip` attachment was not available in this workspace;
+   these files were implemented from the checkout and local prior package, rather
+   than extracted from an inspected attachment.
+
+To commit and open the review PR yourself, after reviewing `git diff`:
+
+```sh
+git switch chore/dev-lambda-auto-deploy
+git add readme.md docs/lambda-auto-deploy.md docs/lambda-auto-deploy-pr.md \
+  .github/workflows/foundation-checks.yml \
+  backend/site_handler.py backend/tests/test_site_lambda.py \
+  backend/tests/test_site_deployment.py scripts/build_site_lambda.py \
+  scripts/check_deploy_candidate.py scripts/deploy_site_lambda.py \
+  scripts/smoke_site_lambda.py scripts/verify_site_lambda.py
+git diff --cached --check
+git diff --cached
+git commit -m "ci: deploy checked dev builds to the existing Lambda website"
+git push -u origin chore/dev-lambda-auto-deploy
+gh pr create --repo isaacH888/B10 --base dev --head chore/dev-lambda-auto-deploy \
+  --title "Deploy checked dev builds to the existing Lambda website" \
+  --body-file docs/lambda-auto-deploy-pr.md
+```
+
+The PR body is provided in [this file](docs/lambda-auto-deploy-pr.md). A remote `403` can
+still require your own repository access and workflow write permission. Remote
+branch creation was not retried because the requested changes must stay uncommitted.
+
+When the lab is back, open **Actions → Shared foundation checks**, select the
+latest `dev` run whose four original check jobs and package job passed, then choose
+**Re-run jobs → Re-run failed jobs**. This preserves its original SHA and artifact:
+
+```sh
+gh run list --repo isaacH888/B10 --workflow foundation-checks.yml --branch dev
+gh run view RUN_ID --repo isaacH888/B10
+gh run rerun RUN_ID --failed --repo isaacH888/B10
+```
+
+Successful checks can coexist with a failed overall run because deployment failed.
+An old rerun is rejected if a newer `dev` commit already passed all release checks.
+Artifacts/reruns last 30 days; if unavailable, run the workflow on `dev` to rerun
+all checks and rebuild its current commit. For an expired older commit, restore it
+through a reviewed `dev` change instead of dispatching an unchecked SHA.
+
+The public homepage, its current JavaScript, liveness and database/auth readiness
+returned HTTP 200 during the November 14, 2026 setup check. `/release.json` was
+404 because this workflow has not deployed yet. **Lab-off uptime is unverified:**
+the session state was not observable and no AWS credentials were available. End
+your session yourself and repeat the guide's exact package verification from
+outside AWS. Lambda/API Gateway resource persistence does not establish MySQL
+availability; your instructor must confirm the account's actual stop/expiry rules.
+
 ## Booking and Google Calendar automation
 
 The catering automation extends the existing React/Vite, Flask, MySQL and Cognito
@@ -123,7 +212,9 @@ frontend build/browser tests and offline Cognito template lint. The latest local
 checks and browser counts are in the [admin completion report](docs/admin-api-completion.md).
 Review remote results in GitHub Actions; earlier local evidence is in
 [authentication validation](docs/authentication-validation.md) and
-[foundation validation](docs/foundation-validation.md). No external deployment has occurred.
+[foundation validation](docs/foundation-validation.md). These local checks do not
+verify a new live deployment; see the automatic deployment section for observations
+of the existing website and outstanding AWS verification.
 
 ## Shared deliverables
 
