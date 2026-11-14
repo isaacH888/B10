@@ -1,70 +1,12 @@
+import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./order-detail.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
 import { downloadOrders } from "./adminApi.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { fetchOrder } from "./orderApi.js";
-
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
-
-function AdminNav() {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => (
-            <li key={item.label}>
-              <Link to={item.href} className="adm-nav__link">
-                <img
-                  src={item.icon}
-                  alt=""
-                  aria-hidden="true"
-                  className="adm-nav__icon"
-                  width={24}
-                  height={24}
-                />
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="adm-nav__note">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
-  );
-}
+import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
 
 // ---------------------------------------------------------------------------
 // Record Payment modal
@@ -90,6 +32,14 @@ const SYNC_COLOR = {
 // ---------------------------------------------------------------------------
 export function OrderDetailPage() {
   const { orderId } = useParams();
+  const location = useLocation();
+  const ordersQuery =
+    typeof location.state?.ordersQuery === "string"
+      ? location.state.ordersQuery
+      : "";
+  const ordersHref =
+    "/admin/orders" +
+    (ordersQuery ? `?${new URLSearchParams(ordersQuery)}` : "");
   const { sessions } = useAuth();
   const canExport =
     sessions.admin.data.administrator.permissions.includes("customers:export");
@@ -99,27 +49,42 @@ export function OrderDetailPage() {
   const [exportError, setExportError] = useState(null);
   const [exportBusy, setExportBusy] = useState(false);
   const latestRequest = useRef(0);
+  const loadedId = useRef(null);
 
-  const load = useCallback(async () => {
-    const version = ++latestRequest.current;
-    setLoadState("loading");
-    try {
-      const { order: data } = await fetchOrder(orderId);
-      if (version !== latestRequest.current) return;
-      setOrder(data);
-      setLoadState("ready");
-    } catch (err) {
-      if (version !== latestRequest.current) return;
-      setLoadState(err.status === 404 ? "notfound" : "error");
-    }
-  }, [orderId]);
+  const load = useCallback(
+    async ({ background = false } = {}) => {
+      const version = ++latestRequest.current;
+      if (loadedId.current !== orderId) setLoadState("loading");
+      try {
+        const { order: data } = await fetchOrder(orderId);
+        if (version !== latestRequest.current) return false;
+        setOrder(data);
+        loadedId.current = orderId;
+        setLoadState("ready");
+      } catch (err) {
+        if (version !== latestRequest.current) return false;
+        if (
+          !background ||
+          loadedId.current !== orderId ||
+          [401, 403, 404].includes(err.status)
+        ) {
+          setOrder(null);
+          loadedId.current = null;
+          setLoadState(err.status === 404 ? "notfound" : "error");
+        }
+        return false;
+      }
+    },
+    [orderId],
+  );
 
-  useEffect(() => {
-    load();
-    return () => {
+  const refreshState = useAdminRefresh(load);
+  useEffect(
+    () => () => {
       latestRequest.current += 1;
-    };
-  }, [load]);
+    },
+    [load],
+  );
 
   async function handleExport() {
     setExportBusy(true);
@@ -137,7 +102,7 @@ export function OrderDetailPage() {
   if (loadState === "loading") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p
@@ -155,13 +120,13 @@ export function OrderDetailPage() {
   if (loadState === "notfound") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p style={{ fontFamily: "'DM Sans', sans-serif" }}>
               Order not found.
             </p>
-            <Link to="/admin/orders" className="adm-card__link">
+            <Link to={ordersHref} className="adm-card__link">
               ← All orders
             </Link>
           </div>
@@ -173,11 +138,12 @@ export function OrderDetailPage() {
   if (loadState === "error") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p role="alert" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              Could not load order. <button onClick={load}>Try again</button>
+              Could not load order.{" "}
+              <button onClick={refreshState.refresh}>Try again</button>
             </p>
           </div>
         </div>
@@ -190,26 +156,18 @@ export function OrderDetailPage() {
 
   return (
     <div className="adm-shell">
-      <AdminNav />
+      <AdminNav activeRoute="/admin/orders" />
 
       <div className="adm-main">
         {/* Page header */}
-        <header className="adm-page-header">
-          <p className="adm-page-header__title">Orders / {order.id}</p>
-          <div className="adm-page-header__actions">
-            <a href="/" className="adm-page-header__view-site">
-              View website ↗
-            </a>
-            <Link to="/admin" className="adm-btn adm-btn--outline">
-              Owner account
-            </Link>
-          </div>
-        </header>
+        <AdminPageHeader title={`Orders / ${order.id}`}>
+          <AdminRefreshStatus {...refreshState} />
+        </AdminPageHeader>
 
         <div className="adm-content">
           {/* Back + heading */}
           <div>
-            <Link to="/admin/orders" className="od-back-link">
+            <Link to={ordersHref} className="od-back-link">
               ← All orders
             </Link>
             <div className="od-heading-row">
@@ -482,7 +440,7 @@ export function OrderDetailPage() {
           {isCancelled && (
             <div className="od-cancelled-notice" role="status">
               This order has been cancelled.{" "}
-              <Link to="/admin/orders" className="adm-card__link">
+              <Link to={ordersHref} className="adm-card__link">
                 Back to orders
               </Link>
             </div>

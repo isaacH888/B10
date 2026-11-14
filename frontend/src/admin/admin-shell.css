@@ -1,0 +1,179 @@
+.adm-nav--shared {
+  box-sizing: border-box;
+  align-self: flex-start;
+  height: 100vh;
+  min-height: 100vh;
+  width: 220px;
+}
+
+.adm-nav--shared .adm-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 16px 12px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.adm-nav--shared .adm-nav__logo {
+  width: 48px;
+  height: 44px;
+}
+.adm-nav--shared .adm-nav__site-name {
+  margin: 0;
+  font-size: 19px;
+  line-height: 25px;
+}
+.adm-nav--shared .adm-nav__area {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 16px;
+}
+.adm-nav--shared .adm-nav__list {
+  margin: 12px 0 20px;
+}
+.adm-nav--shared .adm-nav__link {
+  margin: 0 12px;
+  padding: 11px 14px;
+  gap: 12px;
+}
+.adm-nav--shared .adm-nav__note {
+  margin-top: auto;
+}
+.adm-nav__toggle {
+  display: none;
+}
+
+.adm-booking-workspace {
+  min-width: 0;
+}
+.adm-booking-workspace .automation-dashboard > h2 {
+  margin-bottom: 4px;
+}
+.adm-booking-workspace .automation-dashboard > p {
+  margin: 8px 0 14px;
+}
+.adm-booking-workspace .automation-dashboard fieldset,
+.adm-booking-workspace .automation-dashboard article,
+.adm-booking-workspace .automation-dashboard > section,
+.adm-booking-workspace .automation-dashboard > .table-scroll {
+  background: #fff7dc;
+  border: 1px solid #3b003d;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 16px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.adm-booking-workspace .automation-dashboard legend,
+.adm-booking-workspace .automation-dashboard h3 {
+  font-weight: 700;
+}
+.adm-booking-workspace .automation-dashboard input,
+.adm-booking-workspace .automation-dashboard select {
+  border: 1px solid #3b003d;
+  border-radius: 10px;
+  background: #fffdf5;
+  color: #3b003d;
+  padding: 9px 12px;
+  max-width: 100%;
+}
+.adm-booking-workspace .automation-dashboard button,
+.adm-booking-workspace .automation-dashboard summary {
+  border: 1px solid #4b004b;
+  border-radius: 999px;
+  padding: 9px 16px;
+  background: #4b004b;
+  color: #fff7dc;
+  font-weight: 700;
+}
+.adm-booking-workspace .automation-dashboard summary {
+  display: inline-block;
+}
+.adm-booking-workspace .automation-dashboard button:disabled {
+  opacity: 0.55;
+}
+.adm-booking-workspace .automation-dashboard a {
+  color: #4b004b;
+  font-weight: 600;
+}
+.adm-booking-workspace .automation-dashboard th,
+.adm-booking-workspace .automation-dashboard td {
+  padding: 10px 12px;
+}
+.adm-booking-workspace .table-scroll table {
+  min-width: 640px;
+}
+.adm-booking-workspace .table-scroll th,
+.adm-booking-workspace .table-scroll td {
+  white-space: nowrap;
+}
+.adm-booking-workspace .automation-dashboard [role="alert"] {
+  background: #ffed00;
+  border-left: 4px solid #4b004b;
+  padding: 12px 16px;
+}
+
+@media (max-width: 720px) {
+  .adm-nav--shared {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    position: relative;
+    overflow: visible;
+    border-bottom: 1px solid #3b003d;
+  }
+  .adm-nav__mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .adm-nav--shared .adm-nav__brand {
+    padding: 12px 16px;
+  }
+  .adm-nav--shared .adm-nav__logo {
+    width: 36px;
+    height: 34px;
+  }
+  .adm-nav--shared .adm-nav__site-name {
+    font-size: 18px;
+    line-height: 22px;
+  }
+  .adm-nav--shared .adm-nav__area {
+    font-size: 10px;
+    line-height: 13px;
+  }
+  .adm-nav__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-right: 16px;
+    padding: 8px 12px;
+    min-height: 44px;
+    background: #4b004b;
+    color: #fff7dc;
+    border: 0;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .adm-nav__toggle span {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .adm-nav__pages[data-open="false"] {
+    display: none;
+  }
+  .adm-nav--shared .adm-nav__list {
+    margin: 0 0 10px;
+  }
+  .adm-nav--shared .adm-nav__link {
+    padding: 9px 14px;
+  }
+  .adm-booking-workspace .automation-dashboard fieldset,
+  .adm-booking-workspace .automation-dashboard article,
+  .adm-booking-workspace .automation-dashboard > section {
+    padding: 12px;
+  }
+}

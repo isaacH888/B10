@@ -1,6 +1,6 @@
 # Admin order API integration and UI handoff
 
-Updated November 11, 2026. The original walkthrough identified sample Dashboard
+Updated November 14, 2026. The original walkthrough identified sample Dashboard
 links, fixed Calendar details, temporary inventory, disabled date/export controls
 and unstyled booking/account screens. The sample/API gaps are now addressed in
 the same local branch. Use the [completion report](admin-api-completion.md) for
@@ -13,7 +13,7 @@ for Dillion's remaining design tasks.
 | --- | --- |
 | UI-01: Dashboard sample metrics and broken order IDs | Resolved: saved metrics, balances, recent orders and upcoming bookings; actual record links and loading/empty/error states. |
 | UI-02: Calendar sample drawer, fake connection and one event per day | Resolved: database event feed, actual selected record, multiple events per day and independent Google connection status. |
-| UI-03: Booking actions use the authentication test layout | Design still needed: booking detail/intake, payment, scheduling and action dialogs. Amount display now formats currency; payment entry still expects minor units. |
+| UI-03: Booking actions use the authentication test layout | Resolved for workspace layout: booking lists/details now use the shared branded shell and navigation. Existing owner-only action APIs and CSRF/fresh-auth checks remain. Further form polish is still useful; payment entry still expects minor units. |
 | UI-04: Owner account contains sample bookings; login lands there | Sample dashboard removed; owner login lands on `/admin/dashboard`. Account, invitation and MFA presentation still need branded layouts. Returning to the originating booking after re-verification still needs frontend coordination. |
 | UI-05: Disabled date range and export | Resolved: server date filtering, filtered order CSV and per-order summary export with permission/fresh-authentication checks. Date controls need design polish. |
 | UI-06: Inventory changes only modify browser arrays | Resolved: persistent inventory, versioned stock changes/history, archive and explicit booking flavor allocations. |
@@ -21,6 +21,64 @@ for Dillion's remaining design tasks.
 The initial Safari audit used the isolated local API workspace with real
 Flask/MySQL, synthetic records and simulated sign-in. It did not verify live
 Cognito, email or Google behavior. No external issue tracker tickets were created.
+
+## November 14 admin usability changes
+
+- One shared navigation/header covers Dashboard, Orders, Calendar, Inventory and
+  the booking workspace. Headers, cards and filters are more compact, and phone
+  navigation collapses behind an accessible Menu button. Booking management no
+  longer includes authentication-test navigation or session debugging content.
+- Calendar Upcoming is an explicitly selected-month view of future/ongoing work,
+  sorted by actual start time. Upcoming excludes past, fulfilled and cancelled
+  records; the month view continues to render its selected-month feed. Today and date
+  highlighting follow America/Chicago, including UTC date/month boundaries.
+- Inventory and Calendar dialogs contain keyboard focus, isolate background
+  controls, close with Escape and return focus to the triggering control.
+  Inventory restock shortcuts include out-of-stock items.
+- Read views have Refresh data controls and Central-time update timestamps.
+  Successful reads refresh while the tab is visible and when returning to it.
+  Transient background failures preserve existing views and unsaved drafts;
+  explicit access denials remove cached records and close affected drawers.
+- Order search, status/payment/service filters, date range and pagination are
+  stored in the URL. Details preserve the filtered-list return link. Filter
+  changes reset pagination, outdated page numbers are clamped after count
+  changes, and old rows/export are unavailable while a new query loads.
+
+For this owner-run small business, keep the current Owner-only workspace policy.
+Staff access should be added for an explicit delegated responsibility rather than
+granting blanket administrative access. This iteration changes no Cognito users,
+roles, credentials, MFA requirements, or backend authorization policies. The local
+sample preview remains separate from real data and rejects mutations.
+
+Focused browser coverage is in `admin-calendar-ux.spec.js`,
+`admin-drawer-accessibility.spec.js`, `admin-shell-ux.spec.js`,
+`admin-data-refresh.spec.js` and `admin-order-state.spec.js`, alongside the existing
+admin/authentication/automation regressions. These use synthetic API fixtures;
+they do not establish live Calendar, mail, payment-provider or Cognito behavior.
+
+Validation on November 14: production build and formatting checks passed; 64
+admin/booking browser scenarios, 49 authentication scenarios (on the expected
+5190 test origin), and 5 isolated sample-preview scenarios passed. Desktop and
+phone layouts were inspected. A preliminary authentication run on a different
+test port failed fixed-origin assertions; rerunning on 5190 passed all 49 without
+changing application authentication code.
+
+## Checkout-inspired owner theme
+
+The owner workspace now follows the catering checkout's white surfaces, pale blush
+navigation, plum actions, soft borders, typography and field treatments. The same
+theme covers Dashboard, Orders, Calendar, Inventory, booking management and their
+dialogs. Mobile metrics use two columns, and drawers fit within the phone viewport.
+Existing data loading, filters, refresh, exports, permissions and mutation handlers
+remain in their current components. The presentation layer is scoped to `.adm-shell`
+in `frontend/src/admin/admin-theme.css`, loaded after the existing page styles.
+
+Validation before DEV publication: all 204 frontend browser scenarios passed,
+including the 64 admin/booking scenarios, authentication, checkout and public pages.
+Production build, formatting and shared foundation/OpenAPI checks passed. Desktop
+and phone layouts were visually inspected using the isolated sample preview,
+including the inventory form drawer. The mobile Menu uses an SVG icon to satisfy
+the shared source validation rules.
 
 ## Owner order read contract
 

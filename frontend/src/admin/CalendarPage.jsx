@@ -2,19 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./calendar.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
 import { fetchCalendar } from "./adminApi.js";
+import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
+import { useDialogAccessibility } from "./useDialogAccessibility.js";
+import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
 const DOW_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTH_NAMES = [
   "January",
@@ -31,62 +23,17 @@ const MONTH_NAMES = [
   "December",
 ];
 
-function AdminNav() {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.href === "/admin/calendar";
-            return (
-              <li key={item.label}>
-                <Link
-                  to={item.href}
-                  className={
-                    isActive
-                      ? "adm-nav__link adm-nav__link--active"
-                      : "adm-nav__link"
-                  }
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <img
-                    src={item.icon}
-                    alt=""
-                    aria-hidden="true"
-                    className="adm-nav__icon"
-                    width={24}
-                    height={24}
-                  />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <div className="adm-nav__note">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
+function centralDateParts(timestamp) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(new Date(timestamp));
+  return Object.fromEntries(
+    parts
+      .filter(({ type }) => type !== "literal")
+      .map(({ type, value }) => [type, Number(value)]),
   );
 }
 
@@ -107,25 +54,22 @@ function buildGrid(year, month) {
 function EventDetailDrawer({ event, onClose }) {
   const navigate = useNavigate();
   const detail = event.detail;
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef(null);
+  useDialogAccessibility(dialogRef, onClose);
 
   return (
     <>
       <div
         className="cal-drawer-backdrop"
+        data-dialog-backdrop
         aria-hidden="true"
         onClick={onClose}
       />
       <aside
+        ref={dialogRef}
         className="cal-drawer"
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="cal-drawer-title"
       >
@@ -327,9 +271,10 @@ function CalendarCell({ day, events, isToday, onSelect }) {
 // Main page
 // ---------------------------------------------------------------------------
 export function CalendarPage() {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1); // 1-indexed
+  const [now, setNow] = useState(Date.now);
+  const today = centralDateParts(now);
+  const [year, setYear] = useState(today.year);
+  const [month, setMonth] = useState(today.month); // 1-indexed
   const [view, setView] = useState("month"); // "month" | "upcoming"
   const [events, setEvents] = useState({});
   const [stats, setStats] = useState({
@@ -343,33 +288,51 @@ export function CalendarPage() {
   const [error, setError] = useState(false);
   const latestRequest = useRef(0);
 
-  const load = useCallback(async () => {
-    const version = ++latestRequest.current;
-    setLoading(true);
-    setError(false);
-    setSelectedEvent(null);
-    try {
-      const data = await fetchCalendar(year, month);
-      if (version !== latestRequest.current) return;
-      setEvents(data.events);
-      setStats(data.stats);
-      setConnection(data.connection);
-    } catch {
-      if (version !== latestRequest.current) return;
-      setError(true);
-      setEvents({});
-      setConnection({ status: "unavailable" });
-    } finally {
-      if (version === latestRequest.current) setLoading(false);
-    }
-  }, [year, month]);
+  const load = useCallback(
+    async ({ background = false } = {}) => {
+      const version = ++latestRequest.current;
+      if (!background) {
+        setLoading(true);
+        setError(false);
+        setSelectedEvent(null);
+      }
+      try {
+        const data = await fetchCalendar(year, month);
+        if (version !== latestRequest.current) return false;
+        setEvents(data.events);
+        setStats(data.stats);
+        setConnection(data.connection);
+        setError(false);
+        return true;
+      } catch (failure) {
+        if (version !== latestRequest.current) return false;
+        if (!background || [401, 403].includes(failure?.status)) {
+          setError(true);
+          setEvents({});
+          setStats({ confirmed: 0, pending: 0, confirmed_quantity: 0 });
+          setConnection({ status: "unavailable" });
+          setSelectedEvent(null);
+        }
+        return false;
+      } finally {
+        if (version === latestRequest.current) setLoading(false);
+      }
+    },
+    [year, month],
+  );
+  const refreshState = useAdminRefresh(load);
+  const { refresh } = refreshState;
 
   useEffect(() => {
-    load();
     return () => {
       latestRequest.current += 1;
     };
   }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   function prevMonth() {
     if (month === 1) {
@@ -384,29 +347,56 @@ export function CalendarPage() {
     } else setMonth((m) => m + 1);
   }
 
-  const upcomingEvents = Object.values(events).flat();
+  function goToToday() {
+    const current = centralDateParts(Date.now());
+    setNow(Date.now());
+    setYear(current.year);
+    setMonth(current.month);
+    setSelectedEvent(null);
+  }
+
+  const activeStatuses = new Set([
+    "pending",
+    "awaiting_deposit",
+    "owner_review",
+    "confirmed",
+  ]);
+  const upcomingEvents = Object.values(events)
+    .flat()
+    .filter((event) => {
+      if (!activeStatuses.has(event.bookingStatus)) return false;
+      const start = Date.parse(event.start);
+      const end = Date.parse(event.end);
+      return (
+        Number.isFinite(start) &&
+        (Number.isFinite(end) && end > start ? end > now : start >= now)
+      );
+    })
+    .sort((left, right) => Date.parse(left.start) - Date.parse(right.start));
+  const upcomingConfirmed = upcomingEvents.filter(
+    (event) => event.bookingStatus === "confirmed",
+  );
+  const upcomingPending = upcomingEvents.filter((event) =>
+    ["pending", "awaiting_deposit", "owner_review"].includes(
+      event.bookingStatus,
+    ),
+  );
+  const upcomingQuantity = upcomingConfirmed.reduce(
+    (total, event) => total + event.qty,
+    0,
+  );
   const weeks = buildGrid(year, month);
   const todayDay =
-    today.getFullYear() === year && today.getMonth() + 1 === month
-      ? today.getDate()
-      : null;
+    today.year === year && today.month === month ? today.day : null;
 
   return (
     <div className="adm-shell">
-      <AdminNav />
+      <AdminNav activeRoute="/admin/calendar" />
 
       <div className="adm-main">
-        <header className="adm-page-header">
-          <p className="adm-page-header__title">Calendar</p>
-          <div className="adm-page-header__actions">
-            <a href="/" className="adm-page-header__view-site">
-              View website ↗
-            </a>
-            <Link to="/admin" className="adm-btn adm-btn--outline">
-              Owner account
-            </Link>
-          </div>
-        </header>
+        <AdminPageHeader title="Calendar">
+          <AdminRefreshStatus {...refreshState} />
+        </AdminPageHeader>
 
         <div className="adm-content">
           {/* Hero */}
@@ -448,6 +438,13 @@ export function CalendarPage() {
               {MONTH_NAMES[month - 1].toUpperCase()} {year}
             </h2>
             <div className="cal-nav-controls">
+              <button
+                type="button"
+                className="adm-btn adm-btn--outline"
+                onClick={goToToday}
+              >
+                Today
+              </button>
               <button
                 type="button"
                 className="adm-btn adm-btn--outline"
@@ -502,7 +499,7 @@ export function CalendarPage() {
           {error && (
             <p role="alert">
               Could not load calendar events.{" "}
-              <button onClick={load}>Try again</button>
+              <button onClick={() => refresh()}>Try again</button>
             </p>
           )}
           {/* Month view */}
@@ -550,10 +547,10 @@ export function CalendarPage() {
               <div className="cal-upcoming-banner" role="status">
                 <p className="cal-upcoming-banner__text">
                   CONFIRMED BOOKINGS ARE ELIGIBLE FOR CALENDAR SYNC
-                  &nbsp;·&nbsp; {stats.confirmed_quantity} paletas in confirmed
-                  bookings across {stats.confirmed} bookings. The{" "}
-                  {stats.pending} pending requests are visible for planning
-                  only.
+                  &nbsp;·&nbsp; {upcomingQuantity} paletas in upcoming confirmed
+                  bookings across {upcomingConfirmed.length} bookings. The{" "}
+                  {upcomingPending.length} upcoming requests are visible for
+                  planning only.
                 </p>
               </div>
 
@@ -578,7 +575,9 @@ export function CalendarPage() {
                   <tbody>
                     {upcomingEvents.length === 0 && (
                       <tr>
-                        <td colSpan={7}>No events in this month.</td>
+                        <td colSpan={7}>
+                          No upcoming events remaining in this month.
+                        </td>
                       </tr>
                     )}
                     {upcomingEvents.map((ev) => (

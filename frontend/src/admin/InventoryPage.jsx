@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./inventory.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
+import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
+import { useDialogAccessibility } from "./useDialogAccessibility.js";
+import { useAdminRefresh, AdminRefreshStatus } from "./useAdminRefresh.jsx";
 import {
   adjustStock,
   createInventoryItem,
@@ -41,75 +38,6 @@ const REASON_OPTIONS = [
   "Other",
 ];
 
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
-
-// ---------------------------------------------------------------------------
-// AdminNav (shared pattern)
-// ---------------------------------------------------------------------------
-function AdminNav({ activeRoute }) {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.href === activeRoute;
-            return (
-              <li key={item.label}>
-                <Link
-                  to={item.href}
-                  className={
-                    isActive
-                      ? "adm-nav__link adm-nav__link--active"
-                      : "adm-nav__link"
-                  }
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <img
-                    src={item.icon}
-                    alt=""
-                    aria-hidden="true"
-                    className="adm-nav__icon"
-                    width={24}
-                    height={24}
-                  />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <div className="adm-nav__note" aria-label="Workspace info">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Stock Adjustment Drawer (Figma: "Update stock panel")
 // ---------------------------------------------------------------------------
@@ -120,23 +48,8 @@ function AdjustDrawer({ item, onClose, onSaved }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const firstFocusRef = useRef(null);
-
-  // Trap focus inside drawer and restore on close
-  useEffect(() => {
-    firstFocusRef.current?.focus();
-    const prev = document.activeElement;
-    return () => prev?.focus();
-  }, []);
-
-  // Keyboard close
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef(null);
+  useDialogAccessibility(dialogRef, onClose);
 
   const parsedQty = Number(qty);
   const isValidQty =
@@ -189,6 +102,7 @@ function AdjustDrawer({ item, onClose, onSaved }) {
       {/* Backdrop */}
       <div
         className="inv-drawer-backdrop"
+        data-dialog-backdrop
         aria-hidden="true"
         onClick={onClose}
       />
@@ -196,6 +110,8 @@ function AdjustDrawer({ item, onClose, onSaved }) {
       {/* Panel */}
       <aside
         className="inv-drawer"
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="adj-drawer-title"
@@ -217,7 +133,6 @@ function AdjustDrawer({ item, onClose, onSaved }) {
             className="inv-drawer__close"
             onClick={onClose}
             aria-label="Close drawer"
-            ref={firstFocusRef}
           >
             Close ×
           </button>
@@ -395,18 +310,8 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState("");
-  const firstRef = useRef(null);
-
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef(null);
+  useDialogAccessibility(dialogRef, onClose);
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -464,11 +369,14 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
     <>
       <div
         className="inv-drawer-backdrop"
+        data-dialog-backdrop
         aria-hidden="true"
         onClick={onClose}
       />
       <aside
         className="inv-drawer"
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="item-form-title"
@@ -485,7 +393,6 @@ function ItemFormDrawer({ item, onClose, onSaved }) {
             className="inv-drawer__close"
             onClick={onClose}
             aria-label="Close"
-            ref={firstRef}
           >
             Close ×
           </button>
@@ -662,18 +569,8 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
   const [deleteError, setDeleteError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const firstRef = useRef(null);
-
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef(null);
+  useDialogAccessibility(dialogRef, onClose);
 
   useEffect(() => {
     setLoadingHistory(true);
@@ -707,11 +604,14 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
     <>
       <div
         className="inv-drawer-backdrop"
+        data-dialog-backdrop
         aria-hidden="true"
         onClick={() => onClose()}
       />
       <aside
         className="inv-drawer"
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-drawer-title"
@@ -733,7 +633,6 @@ function ItemDetailDrawer({ item, onClose, onEdit, onAdjust }) {
             className="inv-drawer__close"
             onClick={() => onClose()}
             aria-label="Close"
-            ref={firstRef}
           >
             Close ×
           </button>
@@ -926,20 +825,26 @@ export function InventoryPage() {
   const [detailItem, setDetailItem] = useState(null); // item detail view
 
   // Load inventory
-  const loadInventory = useCallback(async () => {
-    setLoadState("loading");
+  const loadInventory = useCallback(async ({ background = false } = {}) => {
+    if (!background) setLoadState("loading");
     try {
       const { items: data } = await fetchInventory();
       setItems(data);
       setLoadState("ready");
-    } catch {
-      setLoadState("error");
+    } catch (error) {
+      const accessDenied = [401, 403].includes(error.status);
+      if (accessDenied) {
+        setItems([]);
+        setDetailItem(null);
+        setAdjItem(null);
+        setEditItem(null);
+      }
+      if (!background || accessDenied) setLoadState("error");
+      return false;
     }
   }, []);
-
-  useEffect(() => {
-    loadInventory();
-  }, [loadInventory]);
+  const refreshState = useAdminRefresh(loadInventory);
+  const { refresh } = refreshState;
 
   // Toast helper
   function showToast(message, type = "success") {
@@ -951,7 +856,7 @@ export function InventoryPage() {
   const totalOnHand = items.reduce((s, i) => s + i.onHand, 0);
   const totalReserved = items.reduce((s, i) => s + i.reserved, 0);
   const totalAvail = items.reduce((s, i) => s + i.available, 0);
-  const lowItems = items.filter((i) => statusOf(i) === "low");
+  const lowItems = items.filter((i) => i.available < i.minimum);
   const outItems = items.filter((i) => statusOf(i) === "out");
 
   // Filtered list
@@ -963,7 +868,7 @@ export function InventoryPage() {
       item.id.toLowerCase().includes(q);
     const matchFilter =
       activeFilter === "all" ||
-      (activeFilter === "low" && statusOf(item) === "low") ||
+      (activeFilter === "low" && item.available < item.minimum) ||
       (activeFilter === "out" && statusOf(item) === "out");
     return matchSearch && matchFilter;
   });
@@ -1000,26 +905,17 @@ export function InventoryPage() {
     setDetailItem(null);
   }
 
-  const hasAlerts = lowItems.length > 0 || outItems.length > 0;
-  const alertFlavors = [...outItems, ...lowItems].map((i) => i.name);
+  const hasAlerts = lowItems.length > 0;
+  const alertFlavors = lowItems.map((i) => i.name);
 
   return (
     <div className="adm-shell">
       <AdminNav activeRoute="/admin/inventory" />
 
       <div className="adm-main">
-        {/* Page header */}
-        <header className="adm-page-header">
-          <p className="adm-page-header__title">Inventory</p>
-          <div className="adm-page-header__actions">
-            <a href="/" className="adm-page-header__view-site">
-              View website ↗
-            </a>
-            <Link to="/admin" className="adm-btn adm-btn--outline">
-              Owner account
-            </Link>
-          </div>
-        </header>
+        <AdminPageHeader title="Inventory">
+          <AdminRefreshStatus {...refreshState} />
+        </AdminPageHeader>
 
         <div className="adm-content">
           {/* Hero heading */}
@@ -1049,7 +945,7 @@ export function InventoryPage() {
             <div className="inv-page__error" role="alert">
               <p>
                 Could not load inventory.{" "}
-                <button type="button" onClick={loadInventory}>
+                <button type="button" onClick={refresh}>
                   Try again
                 </button>
               </p>
@@ -1084,7 +980,7 @@ export function InventoryPage() {
                 <div className="adm-stat-card adm-stat-card--yellow">
                   <p className="adm-stat-card__label">Low / out of stock</p>
                   <p className="adm-stat-card__value adm-stat-card__value--dark">
-                    {lowItems.length + outItems.length}
+                    {lowItems.length}
                   </p>
                 </div>
               </div>
@@ -1094,9 +990,8 @@ export function InventoryPage() {
                 <div className="inv-alert" role="alert">
                   <div className="inv-alert__text">
                     <p className="inv-alert__heading">
-                      {lowItems.length + outItems.length} FLAVOR
-                      {lowItems.length + outItems.length !== 1 ? "S" : ""} NEED
-                      A TOP-UP
+                      {lowItems.length} FLAVOR
+                      {lowItems.length !== 1 ? "S" : ""} NEED A TOP-UP
                     </p>
                     <p className="inv-alert__body">
                       {alertFlavors.join(", ")}{" "}

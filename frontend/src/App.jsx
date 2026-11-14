@@ -16,7 +16,7 @@ import { InventoryPage } from "./admin/InventoryPage.jsx";
 import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
 import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
-import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
+import { BookingWorkspacePage } from "./admin/BookingWorkspacePage.jsx";
 import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerAccount } from "./CustomerAccount.jsx";
@@ -33,7 +33,11 @@ const adminPreview =
 
 function Layout({ children }) {
   const { pathname } = useLocation();
-  if (/^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)) {
+  if (
+    /^\/admin\/(dashboard|orders|calendar|inventory|automation|bookings)(\/|$)/.test(
+      pathname,
+    )
+  ) {
     return children;
   }
   if (pathname === "/login") {
@@ -286,6 +290,13 @@ function ProtectedPage({
   const identity = session.data[admin ? "administrator" : "customer"];
   const deadline = new Date(sessionDeadline(session.data));
   const remaining = Math.max(0, Math.ceil((deadline.getTime() - now) / 60000));
+  if (
+    admin &&
+    (location.pathname.startsWith("/admin/automation") ||
+      location.pathname.startsWith("/admin/bookings/"))
+  ) {
+    return <BookingWorkspacePage />;
+  }
   if (workspace || liveOrders) {
     if (
       identity.role !== "owner" ||
@@ -370,33 +381,24 @@ function ProtectedPage({
           ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.`
           : "Customer session is authenticated."}
       </p>
-      {admin &&
-      (location.pathname.startsWith("/admin/automation") ||
-        location.pathname.startsWith("/admin/bookings/")) ? (
-        <AutomationDashboard
-          identity={identity}
-          csrfToken={session.data.csrf_token}
-        />
-      ) : (
-        admin && (
-          <>
-            {identity.role === "owner" &&
-              identity.permissions.includes("bookings:read") && (
-                <p>
-                  <Link to="/admin/automation">
-                    Manage catering bookings and Calendar
-                  </Link>
-                  {" · "}
-                  <Link to="/admin/dashboard">Open admin dashboard</Link>
-                  {" · "}
-                  <Link to="/admin/orders">View customer orders</Link>
-                </p>
-              )}
-            {!identity.permissions.includes("bookings:read") && (
-              <p>Booking access is not assigned to this account.</p>
+      {admin && (
+        <>
+          {identity.role === "owner" &&
+            identity.permissions.includes("bookings:read") && (
+              <p>
+                <Link to="/admin/automation">
+                  Manage catering bookings and Calendar
+                </Link>
+                {" · "}
+                <Link to="/admin/dashboard">Open admin dashboard</Link>
+                {" · "}
+                <Link to="/admin/orders">View customer orders</Link>
+              </p>
             )}
-          </>
-        )
+          {!identity.permissions.includes("bookings:read") && (
+            <p>Booking access is not assigned to this account.</p>
+          )}
+        </>
       )}
       {remaining <= 5 && (
         <Notice>

@@ -1,84 +1,9 @@
-import { useEffect, useState } from "react";
+import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
 import { fetchDashboard } from "./adminApi.js";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
-
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function AdminNav({ activeRoute }) {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.href === activeRoute;
-            return (
-              <li key={item.label}>
-                <Link
-                  to={item.href}
-                  className={
-                    isActive
-                      ? "adm-nav__link adm-nav__link--active"
-                      : "adm-nav__link"
-                  }
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <img
-                    src={item.icon}
-                    alt=""
-                    aria-hidden="true"
-                    className="adm-nav__icon"
-                    width={24}
-                    height={24}
-                  />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      <div className="adm-nav__note" aria-label="Workspace info">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
-  );
-}
 
 function StatCard({ label, value, sub, color }) {
   return (
@@ -258,22 +183,6 @@ function RecentOrdersTable({ orders }) {
 // Page header
 // ---------------------------------------------------------------------------
 
-function PageHeader({ title }) {
-  return (
-    <header className="adm-page-header">
-      <p className="adm-page-header__title">{title}</p>
-      <div className="adm-page-header__actions">
-        <a href="/" className="adm-page-header__view-site">
-          View website ↗
-        </a>
-        <Link to="/admin" className="adm-btn adm-btn--outline">
-          Owner account
-        </Link>
-      </div>
-    </header>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
@@ -283,25 +192,36 @@ export function AdminDashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError(false);
-    fetchDashboard()
-      .then((value) => {
-        if (active) setData(value);
-      })
-      .catch(() => {
-        if (active) setError(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
+  const hasData = useRef(false);
+  const latestRequest = useRef(0);
+  const load = useCallback(async () => {
+    const version = ++latestRequest.current;
+    if (!hasData.current) setLoading(true);
+    try {
+      const value = await fetchDashboard();
+      if (version !== latestRequest.current) return false;
+      setData(value);
+      hasData.current = true;
+      setError(false);
+    } catch (failure) {
+      if (version !== latestRequest.current) return false;
+      if (!hasData.current || [401, 403].includes(failure.status)) {
+        setData(null);
+        hasData.current = false;
+        setError(true);
+      }
+      return false;
+    } finally {
+      if (version === latestRequest.current) setLoading(false);
+    }
+  }, []);
+  const refreshState = useAdminRefresh(load);
+  useEffect(
+    () => () => {
+      latestRequest.current += 1;
+    },
+    [],
+  );
   const cards = data
     ? [
         {
@@ -388,7 +308,9 @@ export function AdminDashboardPage() {
       <AdminNav activeRoute="/admin/dashboard" />
 
       <div className="adm-main">
-        <PageHeader title="Dashboard" />
+        <AdminPageHeader title="Dashboard">
+          <AdminRefreshStatus {...refreshState} />
+        </AdminPageHeader>
 
         <div className="adm-content">
           {/* Hero heading row */}
@@ -412,7 +334,7 @@ export function AdminDashboardPage() {
           {error && (
             <p role="alert">
               Could not load dashboard.{" "}
-              <button onClick={() => setAttempt(attempt + 1)}>Try again</button>
+              <button onClick={refreshState.refresh}>Try again</button>
             </p>
           )}
           {!loading && !error && data && (
