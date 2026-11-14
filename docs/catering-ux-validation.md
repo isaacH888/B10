@@ -103,3 +103,52 @@ schedule, flavor and review screens were inspected in the local preview using
 synthetic details, which were cleared afterward. Live quote/order submission was
 not used for the visual review. This refresh targets `dev`; staging and production
 deployment remain separate work.
+
+## Post-submission confirmation refresh — November 13, 2026
+
+The `/order/confirm` receipt now uses the same white surfaces, plum/pink accents,
+brand typography, bordered cards and pill links as the revised request/account
+pages. Event details, requested paletas, server-supplied quote totals and booking
+next steps are grouped separately. Desktop places the quote summary beside the
+request; narrow screens stack the cards without horizontal overflow. Long request
+IDs, addresses and flavor names wrap within their cards.
+
+The receipt retains its request ID, status, schedule/timezone, address, quantities,
+flavor mix and pricing. It also displays supplied shape, dry ice and flavor/allergy
+notes from the saved order snapshot. Availability review, deposit instructions and
+owner verification remain the steps that secure a booking. The screen does not
+collect payment or automatically submit another request. Missing navigation state
+still redirects to the catering page. No API or environment changes are needed.
+
+Validation uses synthetic quote/order responses; no live request or payment is
+submitted by the browser checks.
+
+All 68 catering/address/public-page browser checks passed, including receipt
+layouts at 320, 375, 768 and 1440 pixels. The four receipt cases also passed with
+full-page captures; desktop and phone layouts were inspected through the footer.
+Build, frontend formatting, foundation and whitespace checks passed. This refresh
+targets `dev`; staging and production deployment remain separate work.
+
+## Submission validation follow-up — November 13, 2026
+
+A saved draft with letters in the phone field could pass the frontend's non-empty
+check and obtain a quote, then fail the backend's existing phone validation when
+submitted. The frontend showed a generic retry message instead of the field error.
+This was reproduced with the backend customer validator using synthetic data.
+
+The Contact step now matches the backend's phone-format rule: at least seven ASCII
+digits, optional leading plus, accepted spacing/punctuation, and at most 30
+characters. The field includes a format hint and focuses on validation failure.
+The API client preserves structured validation fields; catering maps known fields
+back to the appropriate step for both quote and order failures. Unknown fields
+are not displayed. Details remain in the draft; a corrected request needs a fresh
+quote. The existing retry key is still retained for uncertain/network failures.
+
+The live draft was reopened and client-side validation returned it to Contact
+without creating another order. Actual contact values are not recorded here.
+
+Final validation: all 181 frontend browser checks passed, including invalid-phone
+prevention, server field-error recovery, corrected resubmission and existing
+idempotent retry cases. The production build, formatting, foundation and whitespace
+checks passed. The submission fix and receipt refresh are included in the `dev`
+release; backend behavior and environment settings are unchanged.

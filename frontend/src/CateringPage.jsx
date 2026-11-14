@@ -119,6 +119,22 @@ const stepSubtitles = [
   "Check your details, then get your quote.",
 ];
 
+const SERVER_FIELDS = new Map([
+  ["customer.name", ["name", 1]],
+  ["customer.email", ["email", 1]],
+  ["customer.phone", ["phone", 1]],
+  ["event.location.line1", ["location_line1", 2]],
+  ["event.location.city", ["location_city", 2]],
+  ["event.location.region", ["location_region", 2]],
+  ["event.location.postal_code", ["location_postal_code", 2]],
+  ["event.type", ["event_type", 3]],
+  ["event.starts_at", ["event_starts_at", 3]],
+  ["event.ends_at", ["event_ends_at", 3]],
+  ["catering_request.quantity", ["quantity", 4]],
+  ["catering_request.flavor_allocations", ["flavor_allocations", 4]],
+  ["catering_request.dry_ice_blocks", ["dry_ice_blocks", 4]],
+]);
+
 const DRAFT_KEY = "popssibilities.catering-draft.v1";
 const DRAFT_LIFETIME = 2 * 60 * 60 * 1000;
 
@@ -243,14 +259,18 @@ function StepContact({ form, onChange, errors }) {
         </label>
         <input
           id="cf-phone"
-          {...fieldAccessibility(errors, "phone", "cf-phone")}
+          {...fieldAccessibility(errors, "phone", "cf-phone", "cf-phone-hint")}
           type="tel"
           value={form.phone}
           onChange={(e) => onChange("phone", e.target.value)}
           autoComplete="tel"
+          maxLength={30}
           placeholder="(555) 123-4567"
           required
         />
+        <p id="cf-phone-hint" className="field-hint">
+          Use at least 7 digits, for example (281) 248-7514.
+        </p>
         {errors.phone && (
           <p id="cf-phone-error" className="field-error" role="alert">
             {errors.phone}
@@ -1060,6 +1080,12 @@ function validateStep(step, form) {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       errors.email = "Enter a valid email address.";
     if (!form.phone.trim()) errors.phone = "Phone number is required.";
+    else if (
+      form.phone.trim().length > 30 ||
+      !/^\+?[0-9 ().-]+$/.test(form.phone.trim()) ||
+      (form.phone.match(/[0-9]/g) || []).length < 7
+    )
+      errors.phone = "Enter a valid phone number with at least 7 digits.";
   }
   if (step === 2) {
     if (!form.location_line1.trim())
@@ -1459,16 +1485,49 @@ function CateringModal({ onClose, draft, onDraftChange }) {
     setCurrentStep(step);
   }
 
-  async function handleGetQuote() {
+  function showFieldErrors(step, fieldErrors) {
+    setErrors(fieldErrors);
+    setCurrentStep(step);
+    setValidationFocus((value) => value + 1);
+    setQuote(null);
+    setQuoteStatus("idle");
+    setSubmitError("");
+    idempotencyKey.current = null;
+  }
+
+  function validateForm() {
     for (let step = 1; step < TOTAL_STEPS; step++) {
       const stepErrors = validateStep(step, form);
       if (Object.keys(stepErrors).length) {
-        setErrors(stepErrors);
-        setCurrentStep(step);
-        setValidationFocus((value) => value + 1);
-        return;
+        showFieldErrors(step, stepErrors);
+        return false;
       }
     }
+    return true;
+  }
+
+  function showServerFieldErrors(error) {
+    if (error?.status !== 422 || error?.code !== "validation_error")
+      return false;
+    const fieldErrors = {};
+    let firstStep = TOTAL_STEPS;
+    for (const { field, message } of error.fields || []) {
+      const path = field.startsWith("catering_request.flavor_allocations[")
+        ? "catering_request.flavor_allocations"
+        : field;
+      const binding = SERVER_FIELDS.get(path);
+      if (!binding) continue;
+      const [key, step] = binding;
+      fieldErrors[key] ||= message.trim() || "Check this field and try again.";
+      firstStep = Math.min(firstStep, step);
+    }
+    if (firstStep === TOTAL_STEPS) return false;
+    showFieldErrors(firstStep, fieldErrors);
+    return true;
+  }
+
+  async function handleGetQuote() {
+    if (!validateForm()) return;
     setQuoteStatus("loading");
     setQuote(null);
     setSubmitError("");
@@ -1488,7 +1547,8 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       } else {
         setQuoteStatus("requires_review");
       }
-    } catch {
+    } catch (error) {
+      if (showServerFieldErrors(error)) return;
       setQuoteStatus("error");
     }
   }
@@ -1518,6 +1578,7 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       onDraftChange({ form: { ...initialForm }, step: 1 });
       navigate("/order/confirm", { state: { order } });
     } catch (error) {
+      if (showServerFieldErrors(error)) return;
       if (
         ["outside_service_area", "address_verification_required"].includes(
           error?.code,

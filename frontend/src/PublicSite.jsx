@@ -28,7 +28,9 @@ export function PublicLayout({ children }) {
         ? "public-order"
         : pathname === "/account"
           ? "public-account"
-          : "public-content";
+          : pathname === "/order/confirm"
+            ? "public-confirmation"
+            : "public-content";
   return (
     <div className="public-site">
       <PublicHeader />

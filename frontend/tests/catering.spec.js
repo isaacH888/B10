@@ -32,6 +32,9 @@ async function api(
     orderFailures = 0,
     expired = false,
     review = false,
+    orderId = "order_from_server_123",
+    quoteValidation = null,
+    orderValidation = null,
   } = {},
 ) {
   const quotes = [],
@@ -42,6 +45,17 @@ async function api(
     if (path === "/api/v1/quotes") {
       const body = request.postDataJSON();
       quotes.push(body);
+      if (quoteValidation && quotes.length === 1)
+        return route.fulfill({
+          status: 422,
+          json: {
+            error: {
+              code: "validation_error",
+              message: "One or more fields are invalid.",
+              fields: quoteValidation,
+            },
+          },
+        });
       if (quoteFailure)
         return route.fulfill({
           status: 503,
@@ -75,6 +89,17 @@ async function api(
     if (path === "/api/v1/orders") {
       const body = request.postDataJSON();
       orders.push({ body, key: request.headers()["idempotency-key"] });
+      if (orderValidation && orders.length === 1)
+        return route.fulfill({
+          status: 422,
+          json: {
+            error: {
+              code: "validation_error",
+              message: "One or more fields are invalid.",
+              fields: orderValidation,
+            },
+          },
+        });
       if (orders.length <= orderFailures)
         return route.fulfill({
           status: 503,
@@ -85,7 +110,7 @@ async function api(
         json: {
           data: {
             ...body,
-            id: "order_from_server_123",
+            id: orderId,
             status: "pending_review",
             pricing: {
               currency: "USD",
@@ -111,6 +136,92 @@ async function quote(page) {
     page.getByRole("button", { name: "Submit catering request", exact: true }),
   ).toBeVisible();
 }
+
+for (const phone of ["adf", "12345"]) {
+  test(`invalid phone ${phone} is explained before the quote can be requested`, async ({
+    page,
+  }) => {
+    const calls = await api(page);
+    await page.goto("/order");
+    await page
+      .getByRole("button", { name: "Request a quote", exact: true })
+      .first()
+      .click();
+    await page.locator("#cf-name").fill("Synthetic Reviewer");
+    await page.locator("#cf-email").fill("reviewer@example.invalid");
+    await page.locator("#cf-phone").fill(phone);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("#cf-phone")).toBeFocused();
+    await expect(page.getByRole("alert")).toContainText(
+      "Enter a valid phone number with at least 7 digits.",
+    );
+    expect(calls.quotes).toHaveLength(0);
+    expect(calls.orders).toHaveLength(0);
+    await page.locator("#cf-phone").fill("(202) 555-0100");
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.locator("#cf-line1")).toBeVisible();
+  });
+}
+
+test("server order field errors return to the contact field and allow a corrected request", async ({
+  page,
+}) => {
+  const calls = await api(page, {
+    orderValidation: [
+      null,
+      { field: "customer.phone", message: "must be a valid phone number" },
+      { field: "internal.connection", message: "private-provider-detail" },
+    ],
+  });
+  await orderDetails(page);
+  await quote(page);
+  await page
+    .getByRole("button", { name: "Submit catering request", exact: true })
+    .click();
+  await expect(page.locator("#cf-phone")).toBeFocused();
+  await expect(page.getByRole("alert")).toHaveText(
+    "must be a valid phone number",
+  );
+  await expect(page.getByText("private-provider-detail")).toHaveCount(0);
+  await expect(page.locator("#cf-name")).toHaveValue("Synthetic Reviewer");
+  await page.locator("#cf-phone").fill("(202) 555-0123");
+  for (let step = 1; step < 4; step++)
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.locator("#cf-quantity")).toHaveValue("50");
+  await quote(page);
+  await page
+    .getByRole("button", { name: "Submit catering request", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/order\/confirm$/);
+  expect(calls.orders).toHaveLength(2);
+  expect(calls.orders[1].body.customer.phone).toBe("(202) 555-0123");
+  expect(calls.orders[1].key).not.toBe(calls.orders[0].key);
+});
+
+test("server quote field errors focus the schedule instead of showing a generic failure", async ({
+  page,
+}) => {
+  const calls = await api(page, {
+    quoteValidation: [
+      {
+        field: "event.starts_at",
+        message: "Choose a different event start time.",
+      },
+    ],
+  });
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.getByRole("button", { name: "Get quote", exact: true }).click();
+  await expect(page.locator("#cf-starts-at")).toBeFocused();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Choose a different event start time.",
+  );
+  await page.locator("#cf-starts-at").fill("2099-01-15T16:00");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await quote(page);
+  expect(calls.quotes).toHaveLength(2);
+  expect(calls.orders).toHaveLength(0);
+});
 
 test("common event types are shown in review and sent as the event name", async ({
   page,
@@ -261,6 +372,77 @@ test("an even five-flavor mix is included in the quote, order, review and confir
     page.getByRole("list", { name: "Flavor quantities" }),
   ).toContainText("Watermelon Strawberry and Kiwi");
 });
+
+for (const width of [320, 375, 768, 1440]) {
+  test(`confirmation details and quote summary fit a ${width}px screen`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const orderId = `order_${"a".repeat(64)}`;
+    const calls = await api(page, { orderId });
+    await orderDetails(page, { end: "2099-01-15T17:00" });
+    await page.locator("#cf-shape").selectOption("heart");
+    await page.locator("#cf-dry-ice").fill("2");
+    await page
+      .getByRole("button", { name: "Split evenly across all 5" })
+      .click();
+    await page
+      .locator("#cf-flavors")
+      .fill("Please confirm ingredients for a coconut allergy.");
+    await quote(page);
+    await page
+      .getByRole("button", { name: "Submit catering request", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/order\/confirm$/);
+    await expect(
+      page.getByRole("heading", {
+        name: "Catering Request Received",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const details = page.getByRole("region", {
+      name: "Request Details",
+      exact: true,
+    });
+    await expect(details).toContainText(orderId);
+    await expect(details).toContainText("Under review");
+    await expect(details).toContainText("3:00 PM CST");
+    await expect(details).toContainText("5:00 PM CST");
+    await expect(details).toContainText(
+      "100 Example Street, Houston, TX, 77000",
+    );
+    const pricing = page.getByRole("complementary", { name: "Quote Summary" });
+    await expect(pricing).toContainText("$347.65");
+    await expect(pricing).toContainText("$173.83");
+    await expect(pricing).toContainText(
+      "Your booking is secured after the required deposit is verified.",
+    );
+    const paletas = page.getByRole("region", {
+      name: "Paletas & Extras",
+      exact: true,
+    });
+    await expect(paletas).toContainText("Heart-shaped");
+    await expect(paletas).toContainText("Watermelon Strawberry and Kiwi");
+    await expect(paletas).toContainText("2 blocks");
+    await expect(paletas).toContainText(
+      "Please confirm ingredients for a coconut allergy.",
+    );
+    for (const link of [
+      page.getByRole("link", { name: "Start another catering request" }),
+      page.getByRole("link", { name: "Back to home", exact: true }),
+    ]) {
+      const box = await link.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    expect(calls.orders).toHaveLength(1);
+  });
+}
 
 test("custom dropdown quantities support fewer flavors and prevent duplicate choices", async ({
   page,

@@ -62,6 +62,19 @@ export async function apiRequest(path, options = {}) {
         body?.error?.code || "request_failed",
       );
       failure.serverMessage = body?.error?.message;
+      failure.fields = Array.isArray(body?.error?.fields)
+        ? body.error.fields
+            .filter(
+              (item) =>
+                item &&
+                typeof item.field === "string" &&
+                typeof item.message === "string" &&
+                item.field.length <= 150 &&
+                item.message.length <= 300,
+            )
+            .slice(0, 30)
+            .map(({ field, message }) => ({ field, message }))
+        : [];
       throw failure;
     }
     if (!body || !Object.hasOwn(body, "data"))
