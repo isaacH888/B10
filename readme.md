@@ -61,12 +61,14 @@ and the owner booking workspace is at `/admin/automation` after authentication a
 automation setup.
 
 Order persistence uses `customers`, `orders` and `order_items` after applying all
-ten migrations. Migration 0009 adds the `orders.event_starts_at` index; 0010 adds
-inventory, stock history and explicit booking allocations. Apply 0010 before
-running this version's SQL-backed booking actions. Without DB credentials,
-orders use temporary development process memory; inventory requires MySQL.
-Quote persistence, server-side expiry/payload matching and trusted delivery-distance
-pricing remain release blockers. Browser quote checks do not replace server enforcement.
+eleven migrations. Migration 0009 adds the `orders.event_starts_at` index; 0010 adds
+inventory, stock history and explicit booking allocations; 0011 adds stored quotes.
+Apply all pending migrations before running this version's SQL-backed routes.
+Orders enforce the stored quote's 15-minute expiry, matching catering/event details
+and one-time use, and retain its trusted price and delivery fee. Quote comparisons
+trim text consistently, and concurrent submissions preserve idempotency without
+locking missing keys. Without DB credentials, quotes and orders use temporary
+development process memory; inventory requires MySQL.
 
 Signed-in customers can request a sample order confirmation from `/account`.
 The backend sends through SES to their current verified Cognito email, with CSRF,

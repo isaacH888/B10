@@ -1,6 +1,6 @@
 # Customer order to owner booking handoff
 
-Updated November 3, 2026. This describes the customer-order integration approved
+Updated November 14, 2026. This describes the customer-order integration approved
 for DEV publication. Hosted deployment and production approval are separate steps.
 
 ## Record ownership
@@ -80,13 +80,28 @@ Migration `0009_orders_event_start_index.sql` adds the `orders_event_start` inde
 on `orders.event_starts_at` through the same runner. Apply all pending migrations;
 see the [index integration review](bryson-index-integration.md) for upgrade and
 interrupted-run checks.
+Migration `0011_quotes_persistence.sql` adds the quote store. Apply it before
+running the new SQL-backed quote/order routes using `python -m app.migrations`
+from `backend` with the intended environment's migration settings.
 Do not run schema changes automatically during web startup.
+
+`POST /quotes` saves the quote's expiry, request/event payload, distance and price.
+Order submission requires a priced, unused quote within its 15-minute lifetime;
+the saved total and pricing snapshot supply the order's price. Surrounding text
+whitespace is trimmed on both sides of request comparison, including nested
+flavor names and address fields. Changes to catering selections or the event
+schedule/location still return `409 quote_mismatch`. Review estimates cannot
+authorize an order. Unknown, expired and used quotes are rejected explicitly.
 
 Customer, order and line items save in one transaction. A unique idempotency key
 and payload hash protect submission. Matching concurrent requests replay the
 winning record; conflicting payloads return 409 and roll back the losing customer
 insert. `submission_json` preserves the original POST response independently of
 the administrative `response_json`, including after a status change.
+The initial replay lookup's read snapshot is discarded before locking the quote;
+the second replay lookup sees any submission that released that lock. Both replay
+lookups are nonlocking so unrelated new keys do not acquire conflicting index gap
+locks. The quote becomes used in the same transaction as the order and line items.
 
 Intake locks the source and uses the existing automation transaction/mutex. The
 booking, audit and unique source-order link commit together. Any failure rolls
@@ -122,9 +137,8 @@ a reboot; use the repository's Compose setup for a repeatable team DEV service.
 
 ## Release limits
 
-Server-side quote persistence/expiry/payload binding and trusted delivery distance
-are still open release blockers. The browser expiration/edit checks do not replace
-server enforcement. Existing pricing configuration is unchanged and still needs
+Server-side quote persistence, expiry, payload binding and trusted pricing are
+implemented and covered by local MySQL tests. Existing pricing configuration still needs
 business acceptance. Live Cognito, Google consent/Calendar, SES and AWS queue/
 Scheduler delivery, hosted TLS/cookies and real payment-provider checks were not
 validated by these local tests. Obtain affected owners' review before promotion.

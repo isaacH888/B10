@@ -359,28 +359,43 @@ def _load_quote(quote_id, cursor=None):
         return deepcopy(row) if row else None
 
 
+def _trim_binding_text(value):
+    """Apply order validation's text trimming to both sides of quote binding."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return [_trim_binding_text(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _trim_binding_text(item) for key, item in value.items()}
+    return value
+
+
 def _norm_catering(catering):
-    return {
-        "quantity": catering.get("quantity"),
-        "popsicle_shape": catering.get("popsicle_shape"),
-        "service_type": catering.get("service_type"),
-        "dry_ice_blocks": catering.get("dry_ice_blocks"),
-        "flavor_requests": catering.get("flavor_requests") or "",
-        "add_ons": catering.get("add_ons") or [],
-        "flavor_allocations": catering.get("flavor_allocations"),
-    }
+    return _trim_binding_text(
+        {
+            "quantity": catering.get("quantity"),
+            "popsicle_shape": catering.get("popsicle_shape"),
+            "service_type": catering.get("service_type"),
+            "dry_ice_blocks": catering.get("dry_ice_blocks"),
+            "flavor_requests": catering.get("flavor_requests") or "",
+            "add_ons": catering.get("add_ons") or [],
+            "flavor_allocations": catering.get("flavor_allocations"),
+        }
+    )
 
 
 def _norm_event_schedule(event):
     """Schedule fields bound into the priced quote; notes are informational and ignored."""
     event = event or {}
-    return {
-        "type": event.get("type"),
-        "location": event.get("location"),
-        "starts_at": event.get("starts_at"),
-        "ends_at": event.get("ends_at"),
-        "timezone": event.get("timezone"),
-    }
+    return _trim_binding_text(
+        {
+            "type": event.get("type"),
+            "location": event.get("location"),
+            "starts_at": event.get("starts_at"),
+            "ends_at": event.get("ends_at"),
+            "timezone": event.get("timezone"),
+        }
+    )
 
 
 def _assert_quote_matches_order(stored, clean):
@@ -516,14 +531,18 @@ def _save_in_database(key, digest, clean):
                     raise IdempotencyConflict
                 connection.rollback()
                 return json.loads(row[1])
+            # Discard the first lookup's REPEATABLE READ snapshot before waiting
+            # on the quote lock, so the next lookup sees the submission that
+            # released that lock. No writes or locks have been taken yet.
+            connection.rollback()
             stored = _load_quote(clean["quote_id"], cursor)
             if stored is None:
                 raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
-            # Current read after the quote lock: concurrent identical keys replay
-            # instead of failing quote_already_used under REPEATABLE READ.
+            # A nonlocking read avoids gap locks on missing idempotency keys.
+            # The quote lock serializes reuse; the unique key handles submissions
+            # of different quotes that race with the same idempotency key.
             cursor.execute(
-                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s"
-                " FOR UPDATE",
+                "SELECT request_hash, submission_json FROM orders WHERE idempotency_key = %s",
                 (key,),
             )
             row = cursor.fetchone()

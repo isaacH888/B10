@@ -7,6 +7,7 @@ from copy import deepcopy
 
 import pytest
 from app import database
+from app import orders as order_routes
 from app.automation.intake import import_order
 from app.automation.store import MemoryTransaction, SQLTransaction, Store, StoreUnavailable
 from test_auth import auth_app as auth_app
@@ -55,6 +56,42 @@ def submit(client, **changes):
 
 def stored_order(app, order):
     return order if app.config["DB_USER"] else {**order, "admin_notes": ""}
+
+
+def test_quoted_text_whitespace_does_not_block_submission(intake_app):
+    body = order_payload(
+        flavor_requests=" Mango and strawberry ",
+        add_ons=[" Cups "],
+        flavor_allocations=[{"flavor": " Mango ", "quantity": 50}],
+    )
+    body["event"].update(type=" Birthday ", timezone=" America/Chicago ")
+    for field in ("starts_at", "ends_at"):
+        body["event"][field] = " " + body["event"][field] + " "
+    body["event"]["location"]["line2"] = " Suite 10 "
+    body["event"]["location"] = {
+        field: " " + value + " " for field, value in body["event"]["location"].items()
+    }
+    with intake_app.test_client() as client:
+        quote = client.post(
+            "/api/v1/quotes",
+            json={key: body[key] for key in ("catering_request", "event")},
+        )
+        assert quote.status_code == 200 and quote.json["data"]["status"] == "priced"
+        body["quote_id"] = quote.json["data"]["id"]
+        result = client.post(
+            "/api/v1/orders", json=body, headers={"Idempotency-Key": "whitespace-key-0123456789"}
+        )
+    assert result.status_code == 201, result.json
+    order = result.json["data"]
+    assert order["pricing"] == quote.json["data"]["pricing"]
+    assert order["catering_request"]["flavor_requests"] == "Mango and strawberry"
+    assert order["catering_request"]["add_ons"] == ["Cups"]
+    assert order["catering_request"]["flavor_allocations"] == [{"flavor": "Mango", "quantity": 50}]
+    assert order["event"]["type"] == "Birthday"
+    assert order["event"]["timezone"] == "America/Chicago"
+    assert order["event"]["location"] == {
+        field: value.strip() for field, value in body["event"]["location"].items()
+    }
 
 
 def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app):
@@ -220,9 +257,9 @@ def test_mysql_submission_replay_is_immutable_after_status_update(mysql_app):
 
 
 @pytest.mark.database
-@pytest.mark.parametrize("conflicting", [False, True])
+@pytest.mark.parametrize("scenario", ["replay", "conflicting_payload", "reused_quote"])
 def test_concurrent_mysql_customer_submissions_do_not_duplicate_customers_or_orders(
-    mysql_app, conflicting
+    mysql_app, scenario, monkeypatch
 ):
     body = order_payload()
     with mysql_app.test_client() as client:
@@ -233,27 +270,93 @@ def test_concurrent_mysql_customer_submissions_do_not_duplicate_customers_or_ord
         assert quote.status_code == 200
         body["quote_id"] = quote.json["data"]["id"]
     barrier = threading.Barrier(2)
+    load_quote = order_routes._load_quote
+
+    def concurrent_load(*args):
+        # Both requests must miss the initial replay lookup before either can commit.
+        barrier.wait(timeout=5)
+        return load_quote(*args)
+
+    monkeypatch.setattr(order_routes, "_load_quote", concurrent_load)
 
     def attempt(index):
         payload = deepcopy(body)
-        if conflicting and index:
+        if scenario == "conflicting_payload" and index:
             payload["customer"]["name"] = "Other customer"
+        key = "concurrent-key-0123456789"
+        if scenario == "reused_quote":
+            key += "-" + str(index)
         with mysql_app.test_client() as client:
-            barrier.wait()
             return client.post(
                 "/api/v1/orders",
                 json=payload,
-                headers={"Idempotency-Key": "concurrent-key-0123456789"},
+                headers={"Idempotency-Key": key},
             )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(attempt, range(2)))
     assert sorted(result.status_code for result in results) == (
-        [201, 409] if conflicting else [201, 201]
+        [201, 201] if scenario == "replay" else [201, 409]
     )
-    if not conflicting:
+    if scenario == "replay":
         assert results[0].json["data"] == results[1].json["data"]
+    else:
+        conflict = next(result for result in results if result.status_code == 409)
+        assert conflict.json["error"]["code"] == (
+            "quote_already_used" if scenario == "reused_quote" else "idempotency_conflict"
+        )
     with database.connect(mysql_app.config) as connection, connection.cursor() as cursor:
         for table in ("customers", "orders"):
             cursor.execute("SELECT COUNT(*) AS count FROM " + table)
             assert cursor.fetchone()["count"] == 1
+
+
+@pytest.mark.database
+@pytest.mark.parametrize("shared_key", [False, True])
+def test_concurrent_mysql_submissions_of_distinct_quotes_do_not_deadlock(
+    mysql_app, shared_key, monkeypatch
+):
+    bodies = [order_payload(), order_payload()]
+    with mysql_app.test_client() as client:
+        for body in bodies:
+            quote = client.post(
+                "/api/v1/quotes",
+                json={key: body[key] for key in ("catering_request", "event")},
+            )
+            assert quote.status_code == 200
+            body["quote_id"] = quote.json["data"]["id"]
+    barrier = threading.Barrier(2)
+    build_order = order_routes._build_order_from_quote
+
+    def concurrent_build(*args):
+        # Align the insertions after both idempotency lookups have missed. A locking
+        # read of an absent key would hold gap locks and deadlock these insertions.
+        barrier.wait(timeout=5)
+        return build_order(*args)
+
+    monkeypatch.setattr(order_routes, "_build_order_from_quote", concurrent_build)
+
+    def attempt(index):
+        key = "distinct-quote-key-0123456789-" + str(0 if shared_key else index)
+        with mysql_app.test_client() as client:
+            return client.post(
+                "/api/v1/orders", json=bodies[index], headers={"Idempotency-Key": key}
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, range(2)))
+    assert sorted(result.status_code for result in results) == (
+        [201, 409] if shared_key else [201, 201]
+    ), [result.json for result in results]
+    if shared_key:
+        conflict = next(result for result in results if result.status_code == 409)
+        assert conflict.json["error"]["code"] == "idempotency_conflict"
+    else:
+        assert results[0].json["data"]["id"] != results[1].json["data"]["id"]
+    expected = 1 if shared_key else 2
+    with database.connect(mysql_app.config) as connection, connection.cursor() as cursor:
+        for table in ("customers", "orders"):
+            cursor.execute("SELECT COUNT(*) AS count FROM " + table)
+            assert cursor.fetchone()["count"] == expected
+        cursor.execute("SELECT COUNT(*) AS count FROM quotes WHERE is_used = TRUE")
+        assert cursor.fetchone()["count"] == expected

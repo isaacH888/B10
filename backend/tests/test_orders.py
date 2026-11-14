@@ -678,6 +678,36 @@ def test_tampered_order_payload_is_rejected(client):
     assert response.json["error"]["code"] == "quote_mismatch"
 
 
+@pytest.mark.parametrize(
+    "path,value",
+    [
+        (("catering_request", "flavor_requests"), "Strawberry"),
+        (("catering_request", "flavor_allocations"), [{"flavor": "Strawberry", "quantity": 50}]),
+        (("catering_request", "add_ons"), ["Napkins"]),
+        (("catering_request", "service_type"), "full_service"),
+        (("catering_request", "popsicle_shape"), "heart"),
+        (("event", "location", "line1"), "200 Example Street"),
+        (("event", "type"), "Other celebration"),
+        (("event", "ends_at"), "2099-01-15T18:00:00-06:00"),
+        (("event", "timezone"), "America/Denver"),
+    ],
+)
+def test_text_normalization_preserves_quote_tamper_checks(client, path, value):
+    payload = order_payload(
+        flavor_requests=" Mango ",
+        flavor_allocations=[{"flavor": " Mango ", "quantity": 50}],
+        add_ons=[" Cups "],
+    )
+    bind_quote(client, payload)
+    target = payload
+    for field in path[:-1]:
+        target = target[field]
+    target[path[-1]] = value
+    response = post_order(client, payload)
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "quote_mismatch"
+
+
 def test_tampered_event_starts_at_is_rejected(client):
     payload = order_payload()
     bind_quote(client, payload)

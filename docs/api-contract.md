@@ -4,12 +4,14 @@ Contract version: `0.3.0-draft`. Coordinator: Isaac Hernandez.
 Order/pricing API owner: Anh Hyunh. Auth/automation owner: Shourya Sai Macha. Frontend consumers:
 Aneena Paul and Dillion Nguyen. Persistence owner: Bryson Hawthorne.
 
-Status updated November 11, 2026: health, authentication, quote/order submission,
+Status updated November 14, 2026: health, authentication, quote/order submission,
 owner order reads, Dashboard, Calendar feed, inventory and owner CSV exports are
 implemented locally. Booking/payment/email/Calendar automation uses its separate
 [workflow contract](calendar-automation.md). The general `/orders` edit/status/
 deposit interfaces below retain their earlier proposal status; implementing an
-owner workspace counterpart does not implement those routes. Quote persistence and live provider verification remain open. Server-side address
+owner workspace counterpart does not implement those routes. Quotes are now persisted
+with server-enforced expiry, request binding, single use and trusted pricing;
+live provider verification remains open. Server-side address
 checks and Geoapify setup are documented in [catering addresses](catering-addresses.md). See the
 [current admin completion report](admin-api-completion.md).
 
@@ -238,6 +240,12 @@ These are requested quantities, not inventory item IDs or stock reservations.
 `POST /orders` receives customer name/email/phone, complete catering/event objects,
 and `quote_id`. Require `Idempotency-Key`; reject client totals or deposit declarations.
 Verify quote expiry, revision, request equality, and final price before persistence.
+The implemented submission flow uses the saved pricing revision and snapshot.
+Surrounding whitespace in bound text is trimmed consistently with order validation;
+changes to quantities, flavors, service, address or schedule still require a new quote.
+Concurrent identical retries replay the original response, conflicting payloads
+return `409 idempotency_conflict`, and another key cannot consume a used quote
+(`409 quote_already_used`).
 
 Return a public-safe order summary: ID/version/status, customer/event/request,
 historical pricing/revision, deposit due/status, configured payment links, coarse
