@@ -558,6 +558,24 @@ def inserts(connection):
     return [(sql, params) for sql, params in connection.statements if sql.startswith("INSERT")]
 
 
+def test_quote_endpoint_persists_the_quote_to_the_database(client, database):
+    body = {key: order_payload()[key] for key in ("catering_request", "event")}
+    response = client.post("/api/v1/quotes", json=body)
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["id"].startswith("quote_") and data["expires_at"]
+    connection = database.connection
+    assert connection.committed and connection.closed and not connection.rolled_back
+    quote_inserts = [(sql, params) for sql, params in inserts(connection) if "INTO quotes" in sql]
+    assert len(quote_inserts) == 1
+    sql, params = quote_inserts[0]
+    assert "expires_at" in sql and "delivery_distance_miles" in sql and "total_minor" in sql
+    assert params[0] == data["id"]
+    assert params[2] >= 0
+    assert params[3] == data["pricing"]["total_cents"] == 25000
+    assert json.loads(params[4])["id"] == data["id"]
+
+
 def test_database_mode_inserts_customer_order_and_items_then_commits(client, database):
     response = post_order(client)
     connection = database.connection

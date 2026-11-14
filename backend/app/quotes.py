@@ -36,6 +36,7 @@ import copy
 import json
 import math
 import os
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -43,9 +44,11 @@ from fractions import Fraction
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pymysql
 from flask import Blueprint, current_app, g, jsonify, request
 
 from .flavors import FlavorAllocationError, clean_flavor_allocations
+from .health import connection_options, database_configured
 
 quotes_bp = Blueprint("quotes", __name__)
 
@@ -256,6 +259,7 @@ def load_business_rules(path=None):
 def _load_rules_on_registration(state):
     app = state.app
     app.extensions["pricing_rules"] = load_business_rules(app.config.get("PRICING_CONFIG_PATH"))
+    app.extensions["quotes_memory"] = {"lock": threading.Lock(), "quotes": {}}
 
 
 # --------------------------------------------------------------------------- #
@@ -698,7 +702,7 @@ def _contract_quote(raw_payload, status, pricing, rules, unresolved_decisions, n
         else {}
     )
     return {
-        "id": f"quote_{uuid.uuid4().hex}",  # not persisted yet; order creation will bind a stored quote
+        "id": f"quote_{uuid.uuid4().hex}",
         "status": status,
         "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "catering_request": raw_payload["catering_request"],
@@ -777,6 +781,43 @@ def contract_address_review_quote(rules, raw_payload, message):
 # --------------------------------------------------------------------------- #
 
 
+def _persist_quote(quote, validated):
+    """Store a priced quote for later expiry and payload-binding checks."""
+    quote_id = quote["id"]
+    expires_at = datetime.strptime(quote["expires_at"], "%Y-%m-%dT%H:%M:%SZ")
+    distance = float((validated or {}).get("delivery_distance_miles") or 0)
+    pricing = quote.get("pricing") if isinstance(quote.get("pricing"), dict) else {}
+    total_minor = int(pricing.get("total_cents") or 0)
+    payload_json = json.dumps(quote, separators=(",", ":"))
+    row = {
+        "id": quote_id,
+        "expires_at": expires_at,
+        "delivery_distance_miles": distance,
+        "total_minor": total_minor,
+        "payload_json": quote,
+        "is_used": False,
+    }
+    if not database_configured(current_app.config):
+        store = current_app.extensions["quotes_memory"]
+        with store["lock"]:
+            store["quotes"][quote_id] = row
+        return
+    connection = pymysql.connect(**connection_options(current_app.config))
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO quotes (id, expires_at, delivery_distance_miles, total_minor, payload_json)"
+                " VALUES (%s, %s, %s, %s, %s)",
+                (quote_id, expires_at, distance, total_minor, payload_json),
+            )
+        connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def _inquiry_url():
     """Approved Custom Event Inquiry destination; null until CUSTOM_EVENT_INQUIRY_URL is set."""
     url = str(
@@ -832,6 +873,7 @@ def create_quote():
         return _validation_error("Malformed JSON payload")
     rules = current_app.extensions["pricing_rules"]
     contract = is_contract_payload(payload)
+    validated = None
     try:
         validated = prepare_quote_payload(rules, payload)
         calculation = calculate_order_quote(rules, validated)
@@ -854,4 +896,17 @@ def create_quote():
             field = _CONTRACT_FIELD_PATHS[field]
             message = message.replace('"total_quantity"', '"catering_request.quantity"')
         return _validation_error(message, field)
+    if isinstance(quote, dict) and quote.get("id"):
+        try:
+            _persist_quote(quote, validated)
+        except (pymysql.MySQLError, OSError):
+            current_app.logger.error("Quote persistence failed; request_id=%s", g.request_id)
+            return jsonify(
+                error={
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": g.request_id,
+                }
+            ), 503
     return jsonify(data=quote, meta={"request_id": g.request_id})

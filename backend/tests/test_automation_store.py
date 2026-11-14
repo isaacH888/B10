@@ -28,6 +28,10 @@ def test_existing_email_branch_migration_history_is_preserved():
         assert checksum(MIGRATIONS / name) == expected
     assert (MIGRATIONS / "0007_booking_automation.sql").exists()
     assert not (MIGRATIONS / "0005_booking_automation.sql").exists()
+    quote_migration = MIGRATIONS / "0011_quotes_persistence.sql"
+    assert quote_migration.exists()
+    assert "CREATE TABLE IF NOT EXISTS quotes" in quote_migration.read_text(encoding="utf-8")
+    assert statements(quote_migration)  # resumable for the shared migration runner
 
 
 def test_memory_transactions_rollback_all_changes_and_copy_reads():
