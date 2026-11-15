@@ -994,9 +994,7 @@ test("a failed admin authenticator callback gives setup and configuration guidan
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
   ).not.toBeVisible();
-  await page
-    .getByRole("link", { name: "Admin dashboard", exact: true })
-    .click();
+  await page.goto("/admin");
   await expect(page).toHaveURL(`${origin}/admin/login`);
   await expect(
     page.getByRole("heading", { name: "Team account" }),

@@ -121,6 +121,29 @@ read-only repository access and receive no AWS credentials. Public verification
 uses HTTPS. See [Lambda permissions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html)
 and [API Gateway payload formats](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).
 
+### Access denied after successful AWS session verification
+
+If the log says `AWS session credentials verified` and then access is denied at
+`inspect existing Lambda configuration`, the rejected operation is
+`lambda:GetFunction` on `b10-lab-api` in `us-east-1`. The script has not uploaded
+code or reached the migration review. Check that the Actions credentials belong
+to the account containing this function and that their deployment identity has
+the policy above. This is the identity represented by the Actions secrets, not
+the Lambda function's runtime execution role. A lab administrator must resolve
+any restricting lab policy or permission boundary.
+
+Using the same deployment identity, verify read access without printing the
+function's environment or signed code-download URL:
+
+```sh
+aws lambda get-function --function-name b10-lab-api --region us-east-1 \
+  --query 'Configuration.FunctionName' --output text
+```
+
+After access is restored, finish the database review for the current release and
+rerun the latest DEV run's failed jobs. Replacing expired credentials alone does
+not grant a session missing permissions to this function.
+
 ## Database and dependency review
 
 Before first release, the database owner must reconcile actual `schema_migrations`

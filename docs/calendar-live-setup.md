@@ -13,6 +13,10 @@ access to his own Google Calendar through the website without having AWS access.
 Use the existing deployment account/lab access. A local `aws login` session on
 Isaac's computer is not a prerequisite for hosting this feature.
 
+If deployment verifies the AWS session but is denied access when reading Lambda,
+follow the [deployment permissions recovery steps](lambda-auto-deploy.md#access-denied-after-successful-aws-session-verification)
+before rerunning it.
+
 Back up the target database and compare its migration history with the release.
 Using the separately configured migration account, run the existing runner from
 the reviewed checkout:

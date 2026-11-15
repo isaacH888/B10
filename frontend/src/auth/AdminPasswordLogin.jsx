@@ -240,6 +240,12 @@ function PasswordForm() {
   }
 
   const step = transaction?.step;
+  const submitLabel =
+    step === "password"
+      ? "Continue with password"
+      : step === "new_password"
+        ? "Save new password"
+        : "Verify authenticator code";
   const missingSetupKey =
     step === "totp_enrollment" && !transaction.enrollment_secret && !busy;
   return (
@@ -401,18 +407,16 @@ function PasswordForm() {
                   type="submit"
                   className="pill red auth-submit-btn"
                   disabled={busy}
+                  aria-label={submitLabel}
+                  aria-busy={busy}
                 >
                   {busy ? (
                     <span className="auth-btn-loading">
                       <span className="auth-btn-spinner" aria-hidden="true" />
                       <span>Verifying…</span>
                     </span>
-                  ) : step === "password" ? (
-                    "Continue with password"
-                  ) : step === "new_password" ? (
-                    "Save new password"
                   ) : (
-                    "Verify authenticator code"
+                    submitLabel
                   )}
                 </button>
               </div>
