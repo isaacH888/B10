@@ -67,6 +67,17 @@ session:
    secrets, and rerun failed jobs on the latest `dev` run with passing checks and
    package validation. The workflow cannot refresh a Learner Lab session itself.
 
+Store only each credential's value in its Actions secret, without shell commands,
+quotes or an entire credentials-file block. The deployment script trims surrounding
+whitespace and rejects embedded whitespace or assignment text before contacting AWS.
+It verifies the session with STS before reading Lambda or changing code. An expired
+session is reported separately from HTTP transport errors. Stage messages identify
+which check failed without printing credentials, signed download URLs or SDK responses.
+Updating a local `learner-lab` profile does not update GitHub Actions secrets.
+
+Workflow fixes take effect in a new commit's run. Rerunning an older run continues
+to use that run's original deployment script.
+
 GitHub documents [repository secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets);
 Boto3 documents the [credential environment variables](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html#environment-variables).
 `B10_DEPLOY_ROLE_ARN` is not read by this workflow. It has no OIDC authentication

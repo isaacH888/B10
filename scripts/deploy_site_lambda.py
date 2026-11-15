@@ -58,6 +58,55 @@ def summary(message):
             output.write(message + "\n\n")
 
 
+def deployment_credentials():
+    names = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")
+    if not any(name in os.environ for name in names):
+        return {}  # Preserve named-profile support for local operator runs.
+    credentials = {}
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        require(bool(value), f"Set the {name} Actions secret from the current Learner Lab session")
+        require(
+            re.fullmatch(r"[A-Za-z0-9/+=]+", value),
+            f"{name} contains invalid characters. Save only the credential value, "
+            "without quotes, export commands, or embedded whitespace",
+        )
+        credentials[name.lower()] = value
+    return credentials
+
+
+def failure_message(error):
+    from botocore.exceptions import ClientError, HTTPClientError
+
+    if type(error) is RuntimeError:
+        return str(error)
+    if isinstance(error, ClientError):
+        code = error.response.get("Error", {}).get("Code")
+        if code in {"ExpiredToken", "ExpiredTokenException", "RequestExpired"}:
+            return (
+                "AWS session expired; refresh all three Actions secrets from one active lab session"
+            )
+        if code in {"InvalidClientTokenId", "UnrecognizedClientException", "SignatureDoesNotMatch"}:
+            return "AWS credentials were rejected; refresh all three Actions secrets from the same session"
+        if code in {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation"}:
+            return "AWS denied access; check the lab role's deployment permissions"
+        if code in {"ResourceNotFoundException", "NotFoundException"}:
+            return "AWS resource not found; check the lab account, region, Lambda and API configuration"
+        return (
+            "AWS rejected a deployment request (ClientError); inspect the current lab configuration"
+        )
+    if isinstance(error, HTTPClientError):
+        cause = error.kwargs.get("error")
+        if "invalid header" in str(cause).lower():
+            return (
+                "HTTPClientError: invalid HTTP header; check Actions credentials for "
+                "embedded whitespace or copied shell commands"
+            )
+        return "HTTPClientError: AWS transport failed; check runner connectivity, proxy and TLS settings"
+    # Exceptions and signed URLs can include credentials. Never log raw SDK errors.
+    return type(error).__name__
+
+
 def configuration(config):
     # Never print this mapping: Environment can contain runtime secrets.
     return {key: config.get(key) for key in CONFIG_KEYS}
@@ -212,10 +261,13 @@ def download_backup(location, expected_digest):
 
 def deploy(client, gateway, package, commit, reviewed_sha=""):
     require(re.fullmatch(r"[0-9a-f]{40}", commit), "Expected the exact full commit SHA")
+    summary("Deployment stage: inspect existing Lambda configuration.")
     initial = client.get_function(FunctionName=FUNCTION)
     original_config = initial["Configuration"]
     validate_configuration(original_config)
+    summary("Deployment stage: validate existing API Gateway integration.")
     validate_gateway(gateway, original_config["FunctionArn"])
+    summary("Deployment stage: download and validate the rollback ZIP.")
     old_data = download_backup(initial["Code"]["Location"], original_config["CodeSha256"])
     new_data = assemble(old_data, Path(package).read_bytes(), commit, reviewed_sha)
     old_files, new_files = (
@@ -223,11 +275,13 @@ def deploy(client, gateway, package, commit, reviewed_sha=""):
         frontend_files(io.BytesIO(new_data)),
     )
     # A preexisting outage must not be mistaken for a release regression.
+    summary("Deployment stage: verify the current website before changing code.")
     verify(SITE_URL, old_files, attempts=2, delay=5)
     require(json.loads(new_files["/release.json"])["commit"] == commit, "Wrong package commit")
     expected_digest = digest(new_data)
     attempted = False
     try:
+        summary("Deployment stage: upload the candidate Lambda code.")
         attempted = True
         client.update_function_code(
             FunctionName=FUNCTION,
@@ -240,6 +294,7 @@ def deploy(client, gateway, package, commit, reviewed_sha=""):
         require(
             configuration(current) == configuration(original_config), "AWS configuration drifted"
         )
+        summary("Deployment stage: verify the deployed frontend and API.")
         verify(SITE_URL, new_files, commit)
         summary(
             f"Deployed and verified `{commit}` at {SITE_URL}; Lambda CodeSha256 `{expected_digest}`."
@@ -309,16 +364,19 @@ def main():
     import boto3
 
     try:
+        session = boto3.Session(**deployment_credentials())
+        summary("Deployment stage: validate AWS session credentials (STS).")
+        session.client("sts", region_name=REGION).get_caller_identity()
+        summary("AWS session credentials verified.")
         deploy(
-            boto3.client("lambda", region_name=REGION),
-            boto3.client("apigatewayv2", region_name=REGION),
+            session.client("lambda", region_name=REGION),
+            session.client("apigatewayv2", region_name=REGION),
             args.package,
             args.commit,
             os.environ.get("B10_MIGRATIONS_REVIEWED_SHA", ""),
         )
     except Exception as error:
-        # AWS SDK responses can contain private details. Log only deliberate local errors.
-        message = str(error) if type(error) is RuntimeError else type(error).__name__
+        message = failure_message(error)
         summary(
             f"Deployment FAILED for `{args.commit}`: {message}. "
             "Foundation checks remain independent. Check AWS/lab availability and rerun this run's failed jobs."
