@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "./AuthContext.jsx";
 import { ApiError, apiRequest, callbackMessage, errorMessage } from "./api.js";
+import "./admin-login.css";
 
 const endpoint = "/admin/password/transaction";
 const steps = new Set([
@@ -29,10 +30,10 @@ function validTransaction(data) {
   );
 }
 
-function Alert({ children }) {
+function Alert({ children, type = "error" }) {
   return (
-    <div className="notice" role="alert">
-      {children}
+    <div className={`notice auth-alert auth-alert--${type}`} role="alert">
+      <div className="auth-alert-content">{children}</div>
     </div>
   );
 }
@@ -50,28 +51,32 @@ function AuthenticatorSetup({ secret, account }) {
   // Encode in the browser; never send an enrollment secret to a QR service.
   const uri = `otpauth://totp/${label}?${parameters}`;
   return (
-    <>
-      <p>
+    <div className="auth-totp-setup">
+      <p className="auth-totp-instruction">
         Scan this QR code with your authenticator app, then enter the six-digit
         code.
       </p>
-      <QRCodeSVG
-        value={uri}
-        size={240}
-        level="M"
-        marginSize={4}
-        bgColor="#ffffff"
-        fgColor="#000000"
-        role="img"
-        title="Authenticator setup QR code"
-        aria-label="Authenticator setup QR code"
-        style={{ display: "block", maxWidth: "100%", height: "auto" }}
-      />
-      <p>
-        Can’t scan? Add a time-based account manually using this setup key:{" "}
+      <div className="auth-qr-frame">
+        <QRCodeSVG
+          value={uri}
+          size={200}
+          level="M"
+          marginSize={4}
+          bgColor="#ffffff"
+          fgColor="#000000"
+          role="img"
+          title="Authenticator setup QR code"
+          aria-label="Authenticator setup QR code"
+          style={{ display: "block", maxWidth: "100%", height: "auto" }}
+        />
+      </div>
+      <div className="auth-setup-key-block">
+        <span className="auth-setup-key-label">
+          Can’t scan? Add a time-based account manually using this setup key:
+        </span>
         <code className="setup-key">{secret}</code>
-      </p>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -240,18 +245,25 @@ function PasswordForm() {
   return (
     <div className="admin-password-login">
       {error && <Alert>{error}</Alert>}
-      {notice && <p role="status">{notice}</p>}
+      {notice && (
+        <div className="notice auth-alert auth-alert--info" role="status">
+          <div className="auth-alert-content">{notice}</div>
+        </div>
+      )}
       {busy && (
-        <p role="status">
-          {transaction ? "Verifying sign-in…" : "Preparing secure sign-in…"}
-        </p>
+        <div className="auth-loading" role="status">
+          <span className="auth-spinner" aria-hidden="true" />
+          <span>
+            {transaction ? "Verifying sign-in…" : "Preparing secure sign-in…"}
+          </span>
+        </div>
       )}
       {transaction && (
         <>
           {step === "new_password" && (
             <>
-              <h2>Choose a new password</h2>
-              <p>
+              <h2 className="auth-step-title">Choose a new password</h2>
+              <p className="auth-step-desc">
                 Replace your temporary password with a password of at least 16
                 characters.
               </p>
@@ -259,7 +271,7 @@ function PasswordForm() {
           )}
           {step === "totp_enrollment" && (
             <>
-              <h2>Set up your authenticator</h2>
+              <h2 className="auth-step-title">Set up your authenticator</h2>
               {transaction.enrollment_secret ? (
                 <AuthenticatorSetup
                   secret={transaction.enrollment_secret}
@@ -267,7 +279,7 @@ function PasswordForm() {
                 />
               ) : (
                 missingSetupKey && (
-                  <p>
+                  <p className="auth-step-desc">
                     The private setup key is no longer shown. Start again to set
                     up your authenticator.
                   </p>
@@ -277,79 +289,97 @@ function PasswordForm() {
           )}
           {step === "totp" && (
             <>
-              <h2>Verify your authenticator</h2>
-              <p>Enter a new six-digit code from your authenticator app.</p>
+              <h2 className="auth-step-title">Verify your authenticator</h2>
+              <p className="auth-step-desc">
+                Enter a new six-digit code from your authenticator app.
+              </p>
             </>
           )}
           {!missingSetupKey && (
             <form key={step} ref={form} onSubmit={submit}>
               {step === "password" && (
                 <>
-                  <p>
-                    <label htmlFor="admin-email">Team email</label>
-                  </p>
-                  <input
-                    id="admin-email"
-                    name="email"
-                    type="email"
-                    autoComplete="username"
-                    maxLength={254}
-                    required
-                    disabled={busy}
-                  />
-                  <p>
-                    <label htmlFor="admin-password">Password</label>
-                  </p>
-                  <input
-                    id="admin-password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    maxLength={256}
-                    required
-                    disabled={busy}
-                  />
+                  <div className="auth-field">
+                    <label htmlFor="admin-email" className="auth-label">
+                      Team email
+                    </label>
+                    <input
+                      id="admin-email"
+                      name="email"
+                      type="email"
+                      autoComplete="username"
+                      maxLength={254}
+                      required
+                      disabled={busy}
+                      className="auth-input"
+                      placeholder="team@popssibilities.com"
+                    />
+                  </div>
+                  <div className="auth-field">
+                    <label htmlFor="admin-password" className="auth-label">
+                      Password
+                    </label>
+                    <input
+                      id="admin-password"
+                      name="password"
+                      type="password"
+                      autoComplete="current-password"
+                      maxLength={256}
+                      required
+                      disabled={busy}
+                      className="auth-input"
+                      placeholder="••••••••••••"
+                    />
+                  </div>
                 </>
               )}
               {step === "new_password" && (
                 <>
-                  <p>
-                    <label htmlFor="admin-new-password">New password</label>
-                  </p>
-                  <input
-                    id="admin-new-password"
-                    name="new_password"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={16}
-                    maxLength={256}
-                    required
-                    disabled={busy}
-                  />
-                  <p>
-                    <label htmlFor="admin-confirm-password">
+                  <div className="auth-field">
+                    <label htmlFor="admin-new-password" className="auth-label">
+                      New password
+                    </label>
+                    <input
+                      id="admin-new-password"
+                      name="new_password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={16}
+                      maxLength={256}
+                      required
+                      disabled={busy}
+                      className="auth-input"
+                    />
+                  </div>
+                  <div className="auth-field">
+                    <label
+                      htmlFor="admin-confirm-password"
+                      className="auth-label"
+                    >
                       Confirm new password
                     </label>
-                  </p>
-                  <input
-                    id="admin-confirm-password"
-                    name="confirm_password"
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={16}
-                    maxLength={256}
-                    required
-                    disabled={busy}
-                  />
+                    <input
+                      id="admin-confirm-password"
+                      name="confirm_password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={16}
+                      maxLength={256}
+                      required
+                      disabled={busy}
+                      className="auth-input"
+                    />
+                  </div>
                 </>
               )}
               {["totp", "totp_enrollment"].includes(step) && (
-                <>
-                  <p>
-                    <label htmlFor="admin-authenticator-code">
-                      Six-digit authenticator code
-                    </label>
-                  </p>
+                <div className="auth-field auth-field--totp">
+                  <label
+                    htmlFor="admin-authenticator-code"
+                    className="auth-label"
+                  >
+                    Six-digit authenticator code
+                  </label>
                   <input
                     id="admin-authenticator-code"
                     name="code"
@@ -358,26 +388,44 @@ function PasswordForm() {
                     autoComplete="one-time-code"
                     pattern="[0-9]{6}"
                     maxLength={6}
+                    placeholder="000000"
                     required
                     disabled={busy}
+                    className="auth-input auth-input--totp"
+                    autoFocus
                   />
-                </>
+                </div>
               )}
-              <p>
-                <button type="submit" disabled={busy}>
-                  {step === "password"
-                    ? "Continue with password"
-                    : step === "new_password"
-                      ? "Save new password"
-                      : "Verify authenticator code"}
+              <div className="auth-submit-wrap">
+                <button
+                  type="submit"
+                  className="pill red auth-submit-btn"
+                  disabled={busy}
+                >
+                  {busy ? (
+                    <span className="auth-btn-loading">
+                      <span className="auth-btn-spinner" aria-hidden="true" />
+                      <span>Verifying…</span>
+                    </span>
+                  ) : step === "password" ? (
+                    "Continue with password"
+                  ) : step === "new_password" ? (
+                    "Save new password"
+                  ) : (
+                    "Verify authenticator code"
+                  )}
                 </button>
-              </p>
+              </div>
             </form>
           )}
-          <p>
+          <p className="auth-expiry">
             This sign-in expires at{" "}
             <time dateTime={transaction.expires_at}>
-              {new Date(transaction.expires_at).toLocaleTimeString()}
+              {new Date(transaction.expires_at).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
             </time>
             .
           </p>
@@ -385,9 +433,15 @@ function PasswordForm() {
       )}
       {!busy &&
         (error || missingSetupKey || (transaction && step !== "password")) && (
-          <button type="button" onClick={restart}>
-            Start again
-          </button>
+          <div className="auth-restart-wrap">
+            <button
+              type="button"
+              className="pill outline auth-restart-btn"
+              onClick={restart}
+            >
+              Start again
+            </button>
+          </div>
         )}
     </div>
   );
@@ -414,18 +468,26 @@ export function AdminPasswordLogin() {
       />
     );
   return (
-    <section>
-      <h1>{reauthentication ? "Verify your access" : "Team sign-in"}</h1>
-      <p>
+    <section className="admin-login-view">
+      <h1 className="auth-heading">
+        {reauthentication ? "Verify your access" : "Team sign-in"}
+      </h1>
+      <p className="auth-description">
         Sign in with your team email and password. Your authenticator app is
         required each time you sign in.
       </p>
-      <p>Administrator access is invitation only.</p>
+      <p className="auth-invitation-note">
+        Administrator access is invitation only.
+      </p>
       {message && <Alert>{message}</Alert>}
       {session.status === "error" && (
         <Alert>
           <p>{errorMessage(session.error)}</p>
-          <button type="button" onClick={() => refresh("admin")}>
+          <button
+            type="button"
+            className="auth-session-retry"
+            onClick={() => refresh("admin")}
+          >
             Check session again
           </button>
         </Alert>
@@ -433,27 +495,38 @@ export function AdminPasswordLogin() {
       {session.logoutPending && (
         <Alert>
           <p>We couldn’t confirm sign-out. Please retry to end your session.</p>
-          <button type="button" onClick={() => logout("admin")}>
+          <button
+            type="button"
+            className="auth-session-retry"
+            onClick={() => logout("admin")}
+          >
             Retry sign-out
           </button>
         </Alert>
       )}
       {session.status === "loading" ? (
-        <p role="status">Checking your session…</p>
+        <div className="auth-loading" role="status">
+          <span className="auth-spinner" aria-hidden="true" />
+          <span>Checking your session…</span>
+        </div>
       ) : (
         !session.logoutPending &&
         (started ? (
           <PasswordForm />
         ) : (
-          <div className="actions">
+          <div className="actions auth-initial-actions">
             {/* Start the short-lived MFA transaction only after the user continues. */}
-            <button type="button" onClick={() => setStarted(true)}>
+            <button
+              type="button"
+              className="pill red auth-submit-btn"
+              onClick={() => setStarted(true)}
+            >
               Continue with password
             </button>
           </div>
         ))
       )}
-      <p>
+      <p className="auth-help-note">
         Need an invitation or help with your authenticator? Contact the account
         owner.
       </p>

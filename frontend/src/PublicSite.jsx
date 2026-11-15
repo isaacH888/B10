@@ -289,3 +289,43 @@ export function CustomerSignInLayout({ children }) {
     </div>
   );
 }
+
+export function AdminSignInLayout({ children }) {
+  return (
+    <div className="customer-signin admin-signin">
+      <main id="main-content" className="auth-body">
+        <div className="auth-shell">
+          <div className="auth-stripe" />
+          <div className="auth-columns">
+            <div className="auth-visual">
+              <Link to="/" className="back-home">
+                ← Back to homepage
+              </Link>
+              <div className="auth-image">
+                <img
+                  src={paletas}
+                  srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
+                  sizes="(max-width: 800px) 300px, (max-width: 1280px) 40vw, 520px"
+                  alt="Popssibilities paletas"
+                  width="1254"
+                  height="1254"
+                />
+              </div>
+            </div>
+            <div className="auth-panel">
+              <div className="welcome">BIENVENIDO!</div>
+              <div className="sun" aria-hidden="true">
+                <Sunburst />
+              </div>
+              <div className="auth-card">{children}</div>
+              <Link className="team-signin" to="/login">
+                Customer Sign-In
+              </Link>
+            </div>
+          </div>
+          <div className="auth-stripe" />
+        </div>
+      </main>
+    </div>
+  );
+}

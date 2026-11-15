@@ -23,6 +23,7 @@ import { CustomerAccount } from "./CustomerAccount.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
 import { RouteScroll } from "./RouteScroll.jsx";
 import {
+  AdminSignInLayout,
   CustomerSignInLayout,
   PublicHome,
   PublicLayout,
@@ -42,6 +43,9 @@ function Layout({ children }) {
   }
   if (pathname === "/login") {
     return <CustomerSignInLayout>{children}</CustomerSignInLayout>;
+  }
+  if (pathname === "/admin/login") {
+    return <AdminSignInLayout>{children}</AdminSignInLayout>;
   }
   if (
     pathname === "/" ||

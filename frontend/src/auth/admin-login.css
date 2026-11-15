@@ -1,0 +1,424 @@
+/* Styling for Popssibilities Admin Authentication & MFA screens */
+
+.admin-signin .auth-card {
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.admin-password-login {
+  width: 100%;
+}
+
+/* Headings & Typography */
+.admin-signin .auth-heading {
+  font-family: Anton, Impact, "Arial Narrow", sans-serif;
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 36px);
+  line-height: 1.1;
+  color: var(--red);
+  margin: 0 0 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.admin-signin .auth-description {
+  font-size: 0.95rem;
+  color: #553e51;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.admin-signin .auth-invitation-note {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--purple);
+  margin: 0 0 16px;
+  display: inline-block;
+  background: #f3edf6;
+  padding: 4px 12px;
+  border-radius: 100px;
+}
+
+.admin-signin .auth-step-title {
+  font-family: Anton, Impact, "Arial Narrow", sans-serif;
+  font-weight: 400;
+  font-size: clamp(22px, 3.2vw, 26px);
+  color: var(--purple);
+  margin: 16px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.admin-signin .auth-step-desc {
+  font-size: 0.9rem;
+  color: #605262;
+  line-height: 1.45;
+  margin: 0 0 18px;
+}
+
+/* Form Fields */
+.admin-signin .auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.admin-signin .auth-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.admin-signin .auth-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1.5px solid #d4ccd5;
+  border-radius: 12px;
+  background: #ffffff;
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 1rem;
+  color: var(--ink);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.admin-signin .auth-input:hover:not(:disabled) {
+  border-color: #a497a6;
+}
+
+.admin-signin .auth-input:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(103, 97, 168, 0.22);
+}
+
+.admin-signin .auth-input:disabled {
+  background: #f7f3f8;
+  color: #8a7f8e;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* MFA TOTP 6-digit input */
+.admin-signin .auth-field--totp {
+  align-items: center;
+  margin: 20px 0;
+}
+
+.admin-signin .auth-field--totp .auth-label {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.admin-signin .auth-input--totp {
+  font-family: "DM Sans", monospace;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-align: center;
+  padding: 10px 14px 10px calc(14px + 0.35em);
+  max-width: 260px;
+  min-height: 58px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: var(--purple);
+  border: 2px solid #cfc2d1;
+}
+
+.admin-signin .auth-input--totp:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 4px rgba(103, 97, 168, 0.25);
+}
+
+.admin-signin .auth-input--totp::placeholder {
+  color: #d1c7d2;
+  letter-spacing: 0.35em;
+}
+
+/* Authenticator Setup (QR Code & Key) */
+.admin-signin .auth-totp-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0 18px;
+}
+
+.admin-signin .auth-totp-instruction {
+  font-size: 0.9rem;
+  color: #553e51;
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+
+.admin-signin .auth-qr-frame {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid #e2d9e3;
+  box-shadow: 0 4px 14px rgba(53, 22, 47, 0.06);
+  margin: 8px auto 14px;
+  display: grid;
+  place-items: center;
+}
+
+.admin-signin .auth-setup-key-block {
+  background: #f4ecf5;
+  border: 1px dashed #bbaebc;
+  border-radius: 12px;
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 380px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.admin-signin .auth-setup-key-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6e6071;
+  margin-bottom: 4px;
+}
+
+.admin-signin .setup-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--purple);
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  display: inline-block;
+  user-select: all;
+}
+
+/* Buttons */
+.admin-signin .auth-submit-wrap {
+  margin-top: 14px;
+}
+
+.admin-signin .auth-submit-btn {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 100px;
+  border: none;
+  background: var(--red);
+  color: #ffffff;
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
+  margin: 0;
+}
+
+.admin-signin .auth-submit-btn:hover:not(:disabled) {
+  background: #be2030;
+  box-shadow: 0 4px 14px rgba(218, 41, 53, 0.3);
+}
+
+.admin-signin .auth-submit-btn:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.admin-signin .auth-submit-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.admin-signin .auth-restart-wrap {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.admin-signin .auth-restart-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 100px;
+  border: 1.5px solid var(--red);
+  background: transparent;
+  color: var(--red);
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-signin .auth-restart-btn:hover {
+  background: #fbe2dd;
+}
+
+.admin-signin .auth-initial-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin: 20px 0 14px;
+}
+
+/* Alerts & Messages (No emojis, clean styled borders) */
+.admin-signin .auth-alert {
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin: 14px 0;
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.admin-signin .auth-alert--error {
+  background: #fdf2f2;
+  border: 1.5px solid #f8c9cf;
+  border-left: 4px solid var(--red);
+  color: #a11f32;
+  font-weight: 500;
+}
+
+.admin-signin .auth-alert--info {
+  background: #fff9e6;
+  border: 1.5px solid #ffecb3;
+  border-left: 4px solid var(--yellow);
+  color: #7a5200;
+}
+
+.admin-signin .auth-alert-content p {
+  margin: 0;
+}
+
+.admin-signin .auth-session-retry {
+  margin-top: 8px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.admin-signin .auth-session-retry:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Loading States & Spinners */
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.admin-signin .auth-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(103, 97, 168, 0.25);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: auth-spin 0.75s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.admin-signin .auth-btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: auth-spin 0.75s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.admin-signin .auth-btn-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.admin-signin .auth-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #f4edf6;
+  border-radius: 100px;
+  color: var(--purple);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 12px auto;
+  box-shadow: 0 2px 6px rgba(103, 97, 168, 0.08);
+}
+
+/* Expiry & Footnotes */
+.admin-signin .auth-expiry {
+  font-size: 0.8rem;
+  color: #786d7b;
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.admin-signin .auth-help-note {
+  font-size: 0.8rem;
+  color: #786d7b;
+  margin-top: 22px;
+  border-top: 1px solid #ebdbe2;
+  padding-top: 14px;
+  text-align: center;
+  line-height: 1.45;
+}
+
+/* Mobile & Tablet Responsiveness */
+@media (max-width: 800px) {
+  .admin-signin .auth-card {
+    padding: 26px 20px 32px;
+  }
+
+  .admin-signin .auth-heading {
+    font-size: 28px;
+  }
+
+  .admin-signin .auth-step-title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-signin .auth-card {
+    padding: 22px 16px 28px;
+    border-radius: 20px;
+  }
+
+  .admin-signin .auth-input--totp {
+    font-size: 1.5rem;
+    letter-spacing: 0.25em;
+    padding: 8px 10px 8px calc(10px + 0.25em);
+    max-width: 220px;
+    min-height: 52px;
+  }
+
+  .admin-signin .auth-qr-frame {
+    padding: 12px;
+  }
+}

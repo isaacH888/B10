@@ -519,7 +519,71 @@
 }
 
 .customer-signin .notice {
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin: 14px 0;
   text-align: left;
+  background: #fdf2f2;
+  border: 1.5px solid #f8c9cf;
+  border-left: 4px solid var(--red);
+  color: #a11f32;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.customer-signin .notice p {
+  margin: 0;
+}
+
+.customer-signin .notice button {
+  margin-top: 8px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.customer-signin .notice button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.customer-signin p[role="status"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: #f4edf6;
+  border-radius: 100px;
+  color: var(--purple);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 12px auto;
+  box-shadow: 0 2px 6px rgba(103, 97, 168, 0.08);
+}
+
+.customer-signin p[role="status"]::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(103, 97, 168, 0.25);
+  border-top-color: var(--purple);
+  border-radius: 50%;
+  animation: customer-spin 0.75s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes customer-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .customer-signin .team-signin {
