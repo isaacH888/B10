@@ -123,9 +123,10 @@ export function AdminAccountPage({
                   <Link
                     to="/admin/automation"
                     className="adm-workspace-shortcut-card"
+                    aria-label="Manage catering bookings and Calendar"
                   >
                     <span className="adm-workspace-shortcut-title">
-                      Manage catering bookings and Calendar ↗
+                      Manage catering bookings and Calendar
                     </span>
                     <span className="adm-workspace-shortcut-desc">
                       Requests, deposits, external payments & sync
@@ -134,9 +135,10 @@ export function AdminAccountPage({
                   <Link
                     to="/admin/dashboard"
                     className="adm-workspace-shortcut-card"
+                    aria-label="Open admin dashboard"
                   >
                     <span className="adm-workspace-shortcut-title">
-                      Open admin dashboard ↗
+                      Open admin dashboard
                     </span>
                     <span className="adm-workspace-shortcut-desc">
                       Metrics, attention items & upcoming events
@@ -145,6 +147,7 @@ export function AdminAccountPage({
                   <Link
                     to="/admin/orders"
                     className="adm-workspace-shortcut-card"
+                    aria-label="View customer orders"
                   >
                     <span className="adm-workspace-shortcut-title">
                       View customer orders
