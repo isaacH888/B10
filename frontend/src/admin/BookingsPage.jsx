@@ -209,7 +209,7 @@ function EventFields({ booking = {} }) {
             fontWeight: 600,
           }}
         >
-          📅 Event window: {friendlyPreview} ({timezone})
+          Event window: {friendlyPreview} ({timezone})
         </div>
       )}
 
@@ -1772,10 +1772,8 @@ function OrderSelections({ order }) {
         <p className="bkg-info-label">Popsicles &amp; Service</p>
         <p className="bkg-info-val">
           {order.catering_request.quantity}{" "}
-          {order.catering_request.popsicle_shape} popsicles
-        </p>
-        <p className="bkg-info-sub">
-          Service: {order.catering_request.service_type}
+          {order.catering_request.popsicle_shape} popsicles ·{" "}
+          {order.catering_request.service_type}
         </p>
       </div>
 

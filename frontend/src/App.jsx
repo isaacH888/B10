@@ -29,7 +29,10 @@ import {
 
 function Layout({ children }) {
   const { pathname } = useLocation();
-  if (pathname === "/order" || /^\/admin(\/|$)/.test(pathname)) {
+  if (
+    pathname === "/order" ||
+    /^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)
+  ) {
     return children;
   }
   if (pathname === "/login") {

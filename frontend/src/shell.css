@@ -140,7 +140,11 @@ a:focus-visible,
   margin: 1rem 0;
 }
 .admin-preview-notice {
-  display: none;
+  padding: 0.75rem 1.5rem;
+  color: #3b003d;
+  background: #ffedb0;
+  border-bottom: 2px solid #3b003d;
+  font-family: "DM Sans", system-ui, sans-serif;
 }
 .admin-preview-notice p {
   margin: 0 0 0.5rem;

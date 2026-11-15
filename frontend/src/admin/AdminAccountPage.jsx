@@ -147,7 +147,7 @@ export function AdminAccountPage({
                     className="adm-workspace-shortcut-card"
                   >
                     <span className="adm-workspace-shortcut-title">
-                      View customer orders ↗
+                      View customer orders
                     </span>
                     <span className="adm-workspace-shortcut-desc">
                       Customer catering requests and orders
