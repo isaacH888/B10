@@ -5,7 +5,7 @@ name: Shared foundation checks
   pull_request:
   workflow_dispatch:
 
-# Checks need no AWS access; only deploy-dev receives an OIDC token after they pass.
+# Only the deployment step receives AWS session credentials.
 permissions:
   contents: read
 
@@ -187,7 +187,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      id-token: write
     concurrency:
       group: b10-lab-api-dev-deployment
       cancel-in-progress: false
@@ -208,42 +207,29 @@ jobs:
         with:
           name: b10-lambda-${{ github.sha }}
           path: ${{ runner.temp }}/b10-artifact
-      - name: Require the administrator's OIDC role
-        env:
-          DEPLOY_ROLE_ARN: ${{ vars.B10_DEPLOY_ROLE_ARN }}
-        run: |
-          if [ -z "$DEPLOY_ROLE_ARN" ]; then
-            echo "::error::Set repository Actions variable B10_DEPLOY_ROLE_ARN after the AWS administrator configures GitHub OIDC. CI checks passed; deployment has not run."
-            exit 1
-          fi
-      - name: Authenticate to AWS using GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.B10_DEPLOY_ROLE_ARN }}
-          aws-region: us-east-1
-          role-session-name: b10-${{ github.run_id }}
-          role-duration-seconds: 3600
-          unset-current-credentials: true
-          retry-max-attempts: 2
-          action-timeout-s: 60
       - name: Install deployment tooling
         run: python -m pip install boto3==1.43.109
       - name: Deploy exact package, verify frontend and API, roll back on failure
         env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           BUILD_SHA: ${{ github.sha }}
           B10_MIGRATIONS_REVIEWED_SHA: ${{ vars.B10_MIGRATIONS_REVIEWED_SHA }}
-        run: >-
-          python scripts/deploy_site_lambda.py
-          --package "$RUNNER_TEMP/b10-artifact/b10-site.zip" --commit "$BUILD_SHA"
+        run: |
+          : "${AWS_ACCESS_KEY_ID:?Set the AWS_ACCESS_KEY_ID Actions secret}"
+          : "${AWS_SECRET_ACCESS_KEY:?Set the AWS_SECRET_ACCESS_KEY Actions secret}"
+          : "${AWS_SESSION_TOKEN:?Set the AWS_SESSION_TOKEN Actions secret}"
+          python scripts/deploy_site_lambda.py --package "$RUNNER_TEMP/b10-artifact/b10-site.zip" --commit "$BUILD_SHA"
       - name: Explain a failed deployment separately from CI
         if: failure()
         env:
           BUILD_SHA: ${{ github.sha }}
         run: |
-          echo "::error::DEV deployment failed for $BUILD_SHA. Read the failed step and job summary. Foundation checks do not require AWS. If the lab/OIDC is unavailable, start the lab or contact the administrator, then rerun failed jobs on the latest passing DEV run."
+          echo "::error::DEV deployment failed for $BUILD_SHA. Read the failed step and job summary. Foundation checks do not require AWS. If the lab credentials have expired, start the lab, refresh all three AWS Actions secrets, and rerun failed jobs on the latest passing DEV run."
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
           Deployment failed. The foundation checks and package job are independent of AWS.
-          Check the failed step for OIDC, lab availability, migration, package or verification errors.
+          Check the failed step for AWS session credentials, lab availability, migration, package or verification errors.
           When resolved, rerun failed jobs on the latest DEV run with passing checks.
           A failed public verification triggers code rollback; a hard runner cancellation can interrupt recovery.
           See readme.md for setup, recovery, and the lab-off availability test.
