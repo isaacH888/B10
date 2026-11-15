@@ -257,6 +257,11 @@
   font-size: 12px;
 }
 
+.public-chrome .site-footer__copy a {
+  color: inherit;
+  font: inherit;
+}
+
 @media (max-width: 760px) {
   .public-site {
     --site-header-height: 162px;

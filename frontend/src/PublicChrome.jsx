@@ -2,7 +2,10 @@ import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext.jsx";
 import SocialLinks from "./SocialLinks.jsx";
 import logo from "./assets/logo.png";
+import { version } from "../package.json";
 import "./public-chrome.css";
+
+const siteCommit = typeof __SITE_COMMIT__ === "string" ? __SITE_COMMIT__ : null;
 
 function SectionLinks() {
   return (
@@ -70,6 +73,17 @@ export function PublicFooter() {
         <SocialLinks />
         <p className="site-footer__copy">
           © {new Date().getFullYear()} Popssibilities. All rights reserved.
+          <br />
+          Version {version} ·{" "}
+          <a href="https://github.com/isaacH888/B10/tree/main">main</a>
+          {siteCommit && (
+            <>
+              {" · "}
+              <a href={`https://github.com/isaacH888/B10/commit/${siteCommit}`}>
+                {siteCommit.slice(0, 7)}
+              </a>
+            </>
+          )}
         </p>
       </div>
     </footer>
