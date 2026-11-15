@@ -971,6 +971,13 @@
   flex-wrap: wrap;
 }
 
+.ord-filter-counts {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .ord-count-badge {
   display: inline-flex;
   align-items: center;
