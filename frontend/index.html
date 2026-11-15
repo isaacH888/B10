@@ -9,9 +9,349 @@
       content="Mexican paletas. Endless Popssibilities. Discover the paleta life and bring a little joy to your next event in Stafford, Texas."
     />
     <title>Popssibilities | Mexican Paletas</title>
+    <style>
+      #startup-intro[hidden],
+      #startup-fallback[hidden] {
+        display: none;
+      }
+      #startup-intro {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 16px;
+        box-sizing: border-box;
+        padding: 24px;
+        overflow: auto;
+        background: #fff3d8;
+        color: #4b004b;
+        font:
+          16px/1.5 "DM Sans",
+          Arial,
+          sans-serif;
+        text-align: center;
+        transition: opacity 200ms ease;
+      }
+      #startup-intro[data-leaving] {
+        opacity: 0;
+      }
+      #startup-intro .startup-intro__brand {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+      }
+      #startup-intro .startup-intro__art {
+        display: block;
+        width: min(240px, 65vw);
+        height: auto;
+        max-height: 42svh;
+      }
+      #startup-intro h2 {
+        margin: 0;
+        font-size: clamp(24px, 5vw, 32px);
+        font-weight: 800;
+        line-height: 1.2;
+      }
+      #startup-intro .startup-intro__message {
+        margin: 0 0 8px;
+      }
+      #startup-intro-skip,
+      #startup-fallback button {
+        min-height: 48px;
+        padding: 12px 24px;
+        border: 0;
+        border-radius: 99px;
+        background: #4b004b;
+        color: #fff;
+        font:
+          700 14px/1.5 Arial,
+          sans-serif;
+        cursor: pointer;
+      }
+      #startup-intro-skip:focus-visible,
+      #startup-fallback button:focus-visible {
+        outline: 3px solid #293eaa;
+        outline-offset: 5px;
+      }
+      #startup-fallback,
+      .startup-noscript {
+        max-width: 480px;
+        margin: 15vh auto;
+        padding: 24px;
+        font:
+          18px/1.6 Arial,
+          sans-serif;
+        color: #4b004b;
+        text-align: center;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #startup-intro {
+          transition: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div
+      id="startup-intro"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome to Popssibilities"
+      aria-describedby="startup-intro-message"
+      hidden
+    >
+      <p class="startup-intro__brand">POPSSIBILITIES</p>
+      <svg class="startup-intro__art" viewBox="0 0 240 300" aria-hidden="true">
+        <defs>
+          <mask
+            id="intro-bites"
+            maskUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width="240"
+            height="300"
+            style="mask-type: luminance"
+          >
+            <rect width="240" height="300" fill="white" />
+            <g data-bite="1" fill="black" style="opacity: 0">
+              <circle cx="68" cy="39" r="34" />
+              <circle cx="95" cy="24" r="25" />
+              <circle cx="53" cy="66" r="25" />
+            </g>
+            <g data-bite="2" fill="black" style="opacity: 0">
+              <rect x="40" width="160" height="38" />
+              <circle cx="143" cy="39" r="36" />
+              <circle cx="178" cy="63" r="30" />
+            </g>
+            <g data-bite="3" fill="black" style="opacity: 0">
+              <circle cx="68" cy="110" r="43" />
+              <circle cx="104" cy="89" r="31" />
+              <rect x="40" y="38" width="60" height="52" />
+            </g>
+            <g data-bite="4" fill="black" style="opacity: 0">
+              <circle cx="166" cy="138" r="45" />
+              <circle cx="132" cy="120" r="34" />
+              <rect x="100" y="38" width="100" height="75" />
+            </g>
+            <g data-bite="5" fill="black" style="opacity: 0">
+              <circle cx="117" cy="200" r="90" />
+            </g>
+          </mask>
+        </defs>
+        <circle cx="120" cy="140" r="102" fill="#f7c2ce" />
+        <path d="m28 56 5-13 5 13 13 5-13 5-5 13-5-13-13-5Z" fill="#ffcf4b" />
+        <path d="m200 210 4-10 4 10 10 4-10 4-4 10-4-10-10-4Z" fill="#da2935" />
+        <g data-popsicle-stick>
+          <rect x="104" y="95" width="32" height="181" rx="16" fill="#d6a66c" />
+          <path
+            d="M115 112v143m10-124v118"
+            fill="none"
+            stroke="#b98451"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </g>
+        <g data-popsicle-body mask="url(#intro-bites)">
+          <rect x="62" y="30" width="116" height="184" rx="30" fill="#da2935" />
+          <path
+            d="M79 93V66a19 19 0 0 1 19-19"
+            fill="none"
+            stroke="#ff96a8"
+            stroke-width="9"
+            stroke-linecap="round"
+          />
+          <path
+            d="M154 78v108"
+            fill="none"
+            stroke="#bd182a"
+            stroke-width="10"
+            stroke-linecap="round"
+          />
+          <g fill="#fff3d8">
+            <ellipse
+              cx="103"
+              cy="91"
+              rx="3"
+              ry="5"
+              transform="rotate(-25 103 91)"
+            />
+            <ellipse
+              cx="130"
+              cy="116"
+              rx="3"
+              ry="5"
+              transform="rotate(25 130 116)"
+            />
+            <ellipse
+              cx="92"
+              cy="141"
+              rx="3"
+              ry="5"
+              transform="rotate(-15 92 141)"
+            />
+            <ellipse
+              cx="117"
+              cy="174"
+              rx="3"
+              ry="5"
+              transform="rotate(20 117 174)"
+            />
+          </g>
+        </g>
+      </svg>
+      <h2>One little moment.</h2>
+      <p
+        id="startup-intro-message"
+        class="startup-intro__message"
+        role="status"
+      >
+        A little joy is on its way.
+      </p>
+      <button id="startup-intro-skip" type="button">Skip animation</button>
+    </div>
+    <div id="startup-fallback" role="status" hidden>
+      <h1>Taking a little longer than expected.</h1>
+      <p>Please reload to get back to the paletas.</p>
+      <button type="button" onclick="window.location.reload()">
+        Reload page
+      </button>
+    </div>
+    <noscript>
+      <div class="startup-noscript">
+        <h1>Popssibilities</h1>
+        <p>Please enable JavaScript to explore flavors or request a quote.</p>
+        <p>You can also call <a href="tel:+12812487514">281-248-7514</a>.</p>
+      </div>
+    </noscript>
     <div id="root"></div>
+    <script>
+      (() => {
+        const intro = document.getElementById("startup-intro");
+        const root = document.getElementById("root");
+        const key = "popssibilities:intro:v1";
+        if (!["/", "/order"].includes(location.pathname) || location.hash)
+          return;
+        // This watchdog survives Skip and seen-session entries as well as slow bundles.
+        let ready = false;
+        let finishIntro = () => {};
+        let dismissIntro = () => {};
+        const watchdog = setTimeout(() => {
+          if (!ready)
+            document.getElementById("startup-fallback").hidden = false;
+          dismissIntro();
+        }, 4000);
+        window.addEventListener(
+          "popssibilities:app-ready",
+          () => {
+            ready = true;
+            clearTimeout(watchdog);
+            document.getElementById("startup-fallback").hidden = true;
+            finishIntro();
+          },
+          { once: true },
+        );
+        try {
+          if (sessionStorage.getItem(key) === "seen") return;
+          sessionStorage.setItem(key, "seen");
+        } catch {
+          // Storage may be unavailable. This document still shows the intro only once.
+        }
+        const skip = document.getElementById("startup-intro-skip");
+        const body = intro.querySelector("[data-popsicle-body]");
+        const motion = matchMedia("(prefers-reduced-motion: reduce)");
+        let reducedMotion = motion.matches;
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        const previousInert = root.inert;
+        const timers = [];
+        const started = performance.now();
+        let finished = false;
+        let leaving = false;
+
+        function dismiss() {
+          if (finished) return;
+          finished = true;
+          timers.forEach(clearTimeout);
+          root.inert = previousInert;
+          document.body.style.overflow = previousOverflow;
+          const restoreFocus = intro.contains(document.activeElement);
+          finishIntro = () => {};
+          document.removeEventListener("keydown", onKey, true);
+          motion.removeEventListener("change", onMotion);
+          intro.remove();
+          if (restoreFocus) {
+            const target =
+              previousFocus !== document.body && previousFocus?.isConnected
+                ? previousFocus
+                : document.getElementById("main-content");
+            if (target) {
+              const tabIndex = target.getAttribute("tabindex");
+              target.setAttribute("tabindex", "-1");
+              target.focus({ preventScroll: true });
+              if (tabIndex === null) target.removeAttribute("tabindex");
+              else target.setAttribute("tabindex", tabIndex);
+            }
+          }
+        }
+        function maybeFinish() {
+          if (finished || leaving || !ready) return;
+          if (reducedMotion) {
+            dismiss();
+          } else if (performance.now() - started >= 1800) {
+            leaving = true;
+            intro.dataset.leaving = "true";
+            timers.push(setTimeout(dismiss, 200));
+          }
+        }
+        function onMotion() {
+          // Once requested, keep reduced motion for the rest of this intro.
+          if (motion.matches) {
+            reducedMotion = true;
+            if (ready) dismiss();
+          }
+        }
+        function onKey(event) {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            dismiss();
+          } else if (event.key === "Tab") {
+            event.preventDefault();
+            skip.focus({ preventScroll: true });
+          }
+        }
+
+        intro.dataset.stage = "0";
+        intro.hidden = false;
+        root.inert = true;
+        document.body.style.overflow = "hidden";
+        skip.addEventListener("click", dismiss, { once: true });
+        skip.focus({ preventScroll: true });
+        finishIntro = maybeFinish;
+        dismissIntro = dismiss;
+        document.addEventListener("keydown", onKey, true);
+        motion.addEventListener("change", onMotion);
+        if (!reducedMotion) {
+          intro.querySelectorAll("[data-bite]").forEach((bite, index) => {
+            timers.push(
+              setTimeout(
+                () => {
+                  if (reducedMotion) return;
+                  bite.style.opacity = "1";
+                  intro.dataset.stage = String(index + 1);
+                  if (index === 4) body.style.visibility = "hidden";
+                },
+                320 * (index + 1),
+              ),
+            );
+          });
+          timers.push(setTimeout(maybeFinish, 1800));
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
