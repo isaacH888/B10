@@ -62,6 +62,15 @@ class MemoryTransaction:
     def save_order_link(self, link):
         self.state["order_links"][link["order_id"]] = deepcopy(link)
 
+    def get_request(self, request_id):
+        return deepcopy(self.state["requests"].get(request_id))
+
+    def save_request(self, record):
+        self.state["requests"][record["id"]] = deepcopy(record)
+
+    def list_requests(self):
+        return deepcopy(list(self.state["requests"].values()))
+
     def add_payment(self, payment):
         if payment["reference"] in self.state["payments"]:
             return False
@@ -146,6 +155,7 @@ class MemoryStore:
         }
         self._state["audits"] = []
         self._state["order_links"] = {}
+        self._state["requests"] = {}
         self._lock = threading.RLock()
         self._booking_locks = {}
         self._local = threading.local()
@@ -202,6 +212,44 @@ class SQLTransaction:
         self._execute(
             "INSERT INTO automation_order_links (order_id, booking_id, data) VALUES (%s,%s,%s)",
             (link["order_id"], link["booking_id"], _json(link)),
+        )
+
+    def get_request(self, request_id):
+        return self._read(
+            "SELECT data FROM automation_requests WHERE id=%s FOR UPDATE", (request_id,)
+        )
+
+    def save_request(self, record):
+        self._execute(
+            "INSERT INTO automation_requests (id,order_id,data) VALUES (%s,%s,%s) "
+            "ON DUPLICATE KEY UPDATE data=VALUES(data)",
+            (record["id"], record["source_order_id"], _json(record)),
+        )
+
+    def list_requests(self):
+        return self._read(
+            "SELECT data FROM automation_requests ORDER BY order_id FOR UPDATE", many=True
+        )
+
+    def request_boundary(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute("SELECT COALESCE(MAX(id),0) AS boundary FROM orders")
+            return int(cursor.fetchone()["boundary"])
+
+    def request_orders(self, boundary, enabled=True, limit=100, order_id=None):
+        # Orders themselves are durable intake intent. A dispatcher crash cannot
+        # lose a committed request; a later sweep finds it again. This consistent
+        # read takes no order row locks while holding the automation mutex.
+        return self._read(
+            "SELECT o.response_json AS data FROM orders o "
+            "LEFT JOIN automation_requests r ON r.order_id=o.public_id "
+            "LEFT JOIN automation_order_links l ON l.order_id=o.public_id "
+            "WHERE l.order_id IS NULL AND ((r.id IS NULL AND "
+            "o.id > %s AND %s) OR "
+            "(r.id IS NOT NULL AND o.version > JSON_EXTRACT(r.data,'$.source_version'))) "
+            "AND (%s IS NULL OR o.public_id=%s) ORDER BY o.id LIMIT %s",
+            (boundary, enabled, order_id, order_id, limit),
+            many=True,
         )
 
     def save_booking(self, booking):

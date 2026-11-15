@@ -92,6 +92,38 @@ def google_callback():
     )
 
 
+@automation.get("/requests")
+@owner_only()
+def request_notifications_status():
+    return response(current_app.extensions["request_notifications"].status())
+
+
+@automation.post("/requests")
+@owner_only(fresh=True)
+def configure_request_notifications():
+    body = payload()
+    if set(body) - {"recipient", "enabled"}:
+        raise AuthError("validation_error", "Use recipient and enabled only.", 422)
+    return response(
+        current_app.extensions["request_notifications"].configure(
+            actor(), body.get("recipient", ""), body.get("enabled", True)
+        )
+    )
+
+
+@automation.post("/requests/<order_id>/retry")
+@owner_only(fresh=True)
+def retry_request_calendar(order_id):
+    body = payload()
+    if set(body) - {"repair"} or not isinstance(body.get("repair", False), bool):
+        raise AuthError("validation_error", "repair must be true or false.", 422)
+    return response(
+        current_app.extensions["request_notifications"].retry_calendar(
+            order_id, actor(), repair=body.get("repair", False)
+        )
+    )
+
+
 @automation.get("/bookings")
 @owner_only()
 def list_bookings():

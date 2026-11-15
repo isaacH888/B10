@@ -8,6 +8,8 @@ from test_auth import auth_app as auth_app
 
 BASE = "/api/v1/admin/automation"
 WRITES = [
+    "/requests",
+    "/requests/unknown/retry",
     "/google/connect",
     "/google/disconnect",
     "/bookings",
@@ -62,7 +64,14 @@ def signed_owner(app):
 
 @pytest.mark.parametrize(
     "path",
-    ["/google", "/orders", "/bookings", "/bookings/unknown", "/google/callback?state=x&code=x"],
+    [
+        "/google",
+        "/requests",
+        "/orders",
+        "/bookings",
+        "/bookings/unknown",
+        "/google/callback?state=x&code=x",
+    ],
 )
 def test_automation_reads_require_real_owner_session(owner_app, path):
     assert owner_app.test_client().get(BASE + path).status_code == 401

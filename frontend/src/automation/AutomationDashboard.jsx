@@ -73,6 +73,8 @@ export function AutomationDashboard({ identity, csrfToken }) {
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [ordersError, setOrdersError] = useState("");
+  const [notifications, setNotifications] = useState(null);
+  const [notificationsError, setNotificationsError] = useState("");
   const [connection, setConnection] = useState(null);
   const [connectionLoading, setConnectionLoading] = useState(true);
   const [connectionError, setConnectionError] = useState("");
@@ -91,14 +93,16 @@ export function AutomationDashboard({ identity, csrfToken }) {
     setConnectionLoading(true);
     setConnection(null);
     setConnectionError("");
-    const [bookings, google, selected, intake] = await Promise.allSettled([
-      apiRequest(`${base}/bookings`),
-      apiRequest(`${base}/google`),
-      bookingId
-        ? apiRequest(`${base}/bookings/${encodeURIComponent(bookingId)}`)
-        : Promise.resolve(null),
-      apiRequest(`${base}/orders`),
-    ]);
+    const [bookings, google, selected, intake, requests] =
+      await Promise.allSettled([
+        apiRequest(`${base}/bookings`),
+        apiRequest(`${base}/google`),
+        bookingId
+          ? apiRequest(`${base}/bookings/${encodeURIComponent(bookingId)}`)
+          : Promise.resolve(null),
+        apiRequest(`${base}/orders`),
+        apiRequest(`${base}/requests`),
+      ]);
     if (bookings.status === "fulfilled") setItems(bookings.value);
     if (selected.status === "fulfilled") setDetail(selected.value);
     else setDetail(null);
@@ -108,6 +112,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
     setError(bookingFailure ? explain(bookingFailure.reason) : "");
     setOrders(intake.status === "fulfilled" ? intake.value : []);
     setOrdersError(intake.status === "rejected" ? explain(intake.reason) : "");
+    setNotifications(requests.status === "fulfilled" ? requests.value : null);
+    setNotificationsError(
+      requests.status === "rejected" ? explain(requests.reason) : "",
+    );
     if (google.status === "fulfilled") setConnection(google.value);
     else
       setConnectionError(
@@ -224,6 +232,122 @@ export function AutomationDashboard({ identity, csrfToken }) {
             Refresh status
           </button>
         </div>
+      </fieldset>
+      <fieldset disabled={busy}>
+        <legend>Incoming request notifications</legend>
+        <p>
+          Email each new submitted request to your business inbox and add a
+          non-blocking Pending entry to the connected calendar. Quote previews
+          are excluded. Approval and a verified deposit confirm the booking.
+          Enabling starts with future submissions.
+        </p>
+        {notificationsError && (
+          <p>Could not load request notifications. {notificationsError}</p>
+        )}
+        {notifications && (
+          <>
+            {notifications.email_mode === "simulated" && (
+              <p>Email delivery is simulated in this local preview.</p>
+            )}
+            <p role="status">
+              {notifications.enabled
+                ? `Enabled for ${notifications.recipient}`
+                : "Request notifications are not enabled."}
+            </p>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                mutate("/requests", {
+                  recipient: form.get("recipient"),
+                  enabled: true,
+                });
+              }}
+            >
+              <label htmlFor="request-notification-email">
+                Notification email
+              </label>
+              <input
+                id="request-notification-email"
+                name="recipient"
+                type="email"
+                required
+                maxLength={254}
+                defaultValue={notifications.recipient || ""}
+              />
+              <button
+                type="submit"
+                disabled={
+                  connectionLoading || connection?.status !== "connected"
+                }
+              >
+                Use this calendar for incoming requests
+              </button>
+            </form>
+            {notifications.enabled && (
+              <button
+                type="button"
+                onClick={() => mutate("/requests", { enabled: false })}
+              >
+                Stop new request notifications
+              </button>
+            )}
+            {notifications.calendar_id && (
+              <p>Request calendar: {notifications.calendar_id}</p>
+            )}
+            <ul aria-label="Recent request notifications">
+              {(notifications.requests || []).map((item) => (
+                <li key={item.order_id}>
+                  <Link
+                    to={`/admin/orders/${encodeURIComponent(item.order_id)}`}
+                  >
+                    {item.order_id}
+                  </Link>
+                  {` · Email: ${item.email_status} · Calendar: ${item.calendar_status}`}
+                  {item.email_error && <p>{item.email_error}</p>}
+                  {item.calendar_error && <p>{item.calendar_error}</p>}
+                  {["failed", "dead_letter"].includes(item.email_status) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        mutate(
+                          `/jobs/${encodeURIComponent(item.email_job)}/retry`,
+                        )
+                      }
+                    >
+                      Retry request email
+                    </button>
+                  )}
+                  {!["synced", "booking"].includes(item.calendar_status) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        mutate(
+                          `/requests/${encodeURIComponent(item.order_id)}/retry`,
+                        )
+                      }
+                    >
+                      Retry request calendar
+                    </button>
+                  )}
+                  {item.calendar_status === "repair_required" && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        mutate(
+                          `/requests/${encodeURIComponent(item.order_id)}/retry`,
+                          { repair: true },
+                        )
+                      }
+                    >
+                      Repair request calendar event
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </fieldset>
       <section aria-labelledby="customer-intake-heading">
         <h3 id="customer-intake-heading">Customer order intake</h3>

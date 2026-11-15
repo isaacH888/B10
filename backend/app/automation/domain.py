@@ -224,6 +224,8 @@ class BookingService:
             {"booking_id": booking["id"], "revision": booking["revision"]},
             iso(now),
         )
+        if booking.get("request_calendar") and "calendar" not in kinds:
+            kinds = (*kinds, "calendar")
         for kind in kinds:
             payload = {"schedule_revision": booking["schedule_revision"]}
             if kind in {"confirmation_customer", "confirmation_owner"}:
@@ -245,7 +247,9 @@ class BookingService:
         with self.store.transaction(capacity=True) as tx:
             return self.create_in_transaction(tx, payload, actor)
 
-    def create_in_transaction(self, tx, payload, actor, *, source_order=None):
+    def create_in_transaction(
+        self, tx, payload, actor, *, source_order=None, calendar_projection=None
+    ):
         """Reuse owner validation inside an atomic customer-order handoff."""
         actor, now = self._actor(actor), self._now()
         data = schedule(payload)
@@ -265,7 +269,7 @@ class BookingService:
         if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
             raise DomainError("contract_url must be an absolute HTTPS link")
         total = integer(payload.get("total_minor"), "total_minor")
-        booking_id = uuid4().hex
+        booking_id = calendar_projection["id"] if calendar_projection else uuid4().hex
         booking = {
             "id": booking_id,
             "reference": "POP-" + booking_id[:10].upper(),
@@ -302,6 +306,23 @@ class BookingService:
             booking["source_order_id"] = source_order["id"]
             booking["source_order"] = source_order
             booking["deposit_minor"] = source_order["pricing"]["deposit_due_cents"]
+        if calendar_projection:
+            booking.update(
+                owner_id=calendar_projection["owner_id"],
+                request_calendar=True,
+                event_type=calendar_projection["event_type"],
+                request_recipient=calendar_projection["recipient"],
+            )
+            for key in (
+                "google_event_id",
+                "google_calendar_id",
+                "event_generation",
+                "calendar_create_pending",
+                "calendar_repair_pending",
+                "calendar_synced_status",
+            ):
+                if key in calendar_projection:
+                    booking[key] = calendar_projection[key]
         return self._save(tx, booking, actor, "created", now)
 
     def approve(self, booking_id, payload, actor):

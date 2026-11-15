@@ -392,7 +392,14 @@ test("editing an autofilled ZIP invalidates the earlier eligible result", async 
   await expect(
     page.getByText("Owner review needed", { exact: true }),
   ).toBeVisible();
-  expect(calls.checks).toHaveLength(2);
+  // The automatic ZIP lookup can finish before the manual check is clicked.
+  expect(calls.checks.length).toBeGreaterThanOrEqual(2);
+  expect(calls.checks[0].location.postal_code).toBe("77000");
+  expect(
+    calls.checks
+      .slice(1)
+      .every((call) => call.location.postal_code === "79900"),
+  ).toBe(true);
 });
 
 test("a delayed selection cannot overwrite fields the customer edits", async ({

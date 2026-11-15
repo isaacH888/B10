@@ -50,11 +50,19 @@ def pending_orders():
 
 
 def import_order(order_id, payload, actor):
+    from .requests import request_id
+
     if set(payload) - {"end", "contract_url"}:
         raise DomainError(
             "Only end and contract_url may be supplied; customer details and prices come from the saved order"
         )
-    with intake_transaction() as (tx, memory):
+    notifications = current_app.extensions.get("request_notifications")
+    if notifications:
+        # A fast owner handoff can precede the next scheduled dispatcher tick.
+        # Capture this committed request before linking it to a booking.
+        notifications.reconcile(order_id=order_id)
+    store = current_app.extensions["automation_store"]
+    with store.booking_lock(request_id(order_id)), intake_transaction() as (tx, memory):
         if memory is None:
             with tx.connection.cursor() as cursor:
                 cursor.execute(
@@ -107,11 +115,14 @@ def import_order(order_id, payload, actor):
             "currency": pricing["currency"],
             "contract_url": supplement["contract_url"],
         }
+        routing = tx.get_connection("company-request-calendar")
+        projection = tx.get_request(request_id(order_id)) if routing else None
         booking = current_app.extensions["booking_service"].create_in_transaction(
             tx,
             body,
             actor,
             source_order=order,
+            calendar_projection=projection,
         )
         tx.save_order_link(
             {"order_id": order_id, "booking_id": booking["id"], "request_hash": digest}

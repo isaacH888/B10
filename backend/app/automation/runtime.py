@@ -13,9 +13,10 @@ from .reminders import AwsScheduler, MemoryScheduler, ReminderService, instant
 _application = None
 
 
-def build_services(settings, store):
+def build_services(settings, store, orders=None):
     from .calendar import CalendarWorker
     from .oauth import OAuthService
+    from .requests import RequestNotifications
 
     local = settings.get("AUTOMATION_MODE", "local") == "local"
     clock = settings.get("AUTOMATION_CLOCK")
@@ -38,10 +39,14 @@ def build_services(settings, store):
         settings, store, oauth, google=settings.get("AUTOMATION_GOOGLE"), clock=epoch_clock
     )
     reminders = ReminderService(settings, store, scheduler, clock=settings.get("AUTOMATION_CLOCK"))
+    requests = RequestNotifications(
+        settings, store, oauth, mail, orders, clock=settings.get("AUTOMATION_CLOCK")
+    )
     processor = JobProcessor(
         settings, store, queue, mail, reminders, calendar, clock=settings.get("AUTOMATION_CLOCK")
     )
     dispatcher = OutboxDispatcher(settings, store, queue, clock=settings.get("AUTOMATION_CLOCK"))
+    dispatcher.requests = processor.requests = requests
     return {
         "queue": queue,
         "mail": mail,
@@ -51,6 +56,7 @@ def build_services(settings, store):
         "reminders": reminders,
         "processor": processor,
         "dispatcher": dispatcher,
+        "request_notifications": requests,
     }
 
 
@@ -206,6 +212,7 @@ def main():
             raise SystemExit("work-local requires AUTOMATION_MODE=local")
         processed = set()
         for _ in range(20):
+            adapters["dispatcher"].dispatch()
             with application().extensions["automation_store"].transaction() as tx:
                 jobs = tx.list_outbox()
             jobs = [job for job in jobs if job["key"] not in processed]
