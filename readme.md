@@ -20,56 +20,31 @@ verifies `/release.json` identifies the commit, and requires healthy
 and verifies the saved previous ZIP where AWS remains reachable. It never runs
 database migrations. See the [full setup and recovery guide](docs/lambda-auto-deploy.md).
 
-Before the first deployment:
+Deployment credentials are the three repository **Actions secrets** read by the
+current workflow:
 
-1. Ask your instructor/AWS administrator to configure the GitHub OIDC provider,
-   dedicated deploy role, exact `dev` trust and scoped permissions from the guide.
-   Learner Lab may prohibit students from creating them. The existing Lambda
-   execution role is a separate role and must be preserved.
-2. In GitHub **B10 → Settings → Secrets and variables → Actions → Variables → New
-   repository variable**, enter **Name:** `B10_DEPLOY_ROLE_ARN`; **Value:** the
-   administrator's `arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME`.
-3. Have the database owner compare the deployed schema/history with this commit.
-   The local prior package has `0009_automation_scheduled_reminders.sql`, while
-   this checkout has `0009_orders_event_start_index.sql`, `0010_admin_inventory.sql`
-   and `0011_quotes_persistence.sql`. Resolve any applied-version conflict and
-   confirm rollback compatibility. If the workflow reports changed migration
-   files, set Actions variable `B10_MIGRATIONS_REVIEWED_SHA` to the exact reviewed
-   40-character commit SHA only after that work. This acknowledges review; it does
-   not apply SQL or prove the live schema. Dependencies are rebuilt from pinned
-   requirements, and changes from the live package are listed in the job summary.
-4. Review the uncommitted changes on `chore/dev-lambda-auto-deploy`. No commit,
-   push, PR, AWS mutation or live deployment was performed during setup. The named
-   `b10-lambda-auto-deploy.zip` attachment was not available in this workspace;
-   these files were implemented from the checkout and local prior package, rather
-   than extracted from an inspected attachment.
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN`
 
-To commit and open the review PR yourself, after reviewing `git diff`:
+Start the Learner Lab and save all three values from the same active session in
+**B10 -> Settings -> Secrets and variables -> Actions -> Secrets**. Refresh all
+three when that session expires. The current workflow uses these temporary
+credentials directly; `B10_DEPLOY_ROLE_ARN` and OIDC setup are not required by it.
+See [GitHub secret setup](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+and [the deployment guide](docs/lambda-auto-deploy.md#learner-lab-credentials-and-permissions).
 
-```sh
-git switch chore/dev-lambda-auto-deploy
-git add readme.md docs/lambda-auto-deploy.md docs/lambda-auto-deploy-pr.md \
-  .github/workflows/foundation-checks.yml \
-  backend/site_handler.py backend/tests/test_site_lambda.py \
-  backend/tests/test_site_deployment.py scripts/build_site_lambda.py \
-  scripts/check_deploy_candidate.py scripts/deploy_site_lambda.py \
-  scripts/smoke_site_lambda.py scripts/verify_site_lambda.py
-git diff --cached --check
-git diff --cached
-git commit -m "ci: deploy checked dev builds to the existing Lambda website"
-git push -u origin chore/dev-lambda-auto-deploy
-gh pr create --repo isaacH888/B10 --base dev --head chore/dev-lambda-auto-deploy \
-  --title "Deploy checked dev builds to the existing Lambda website" \
-  --body-file docs/lambda-auto-deploy-pr.md
-```
+Before the first deployment, have the database owner compare the actual live
+schema/history with the candidate. If the workflow lists changed migration files,
+set Actions variable `B10_MIGRATIONS_REVIEWED_SHA` to the exact reviewed 40-character
+commit SHA only after the schema and rollback compatibility have been checked.
+The variable acknowledges review; deployment does not run SQL. Dependencies are
+rebuilt from pinned requirements and compared with the live package.
 
-The PR body is provided in [this file](docs/lambda-auto-deploy-pr.md). A remote `403` can
-still require your own repository access and workflow write permission. Remote
-branch creation was not retried because the requested changes must stay uncommitted.
-
-When the lab is back, open **Actions → Shared foundation checks**, select the
+When the lab is available, open **Actions -> Shared foundation checks**, select the
 latest `dev` run whose four original check jobs and package job passed, then choose
-**Re-run jobs → Re-run failed jobs**. This preserves its original SHA and artifact:
+**Re-run jobs -> Re-run failed jobs**. After expired credentials, refresh all three
+secrets before rerunning. This preserves the original SHA and artifact:
 
 ```sh
 gh run list --repo isaacH888/B10 --workflow foundation-checks.yml --branch dev
@@ -77,19 +52,18 @@ gh run view RUN_ID --repo isaacH888/B10
 gh run rerun RUN_ID --failed --repo isaacH888/B10
 ```
 
-Successful checks can coexist with a failed overall run because deployment failed.
 An old rerun is rejected if a newer `dev` commit already passed all release checks.
 Artifacts/reruns last 30 days; if unavailable, run the workflow on `dev` to rerun
-all checks and rebuild its current commit. For an expired older commit, restore it
-through a reviewed `dev` change instead of dispatching an unchecked SHA.
+all checks and rebuild its current commit. A failed deployment remains visibly
+failed even when CI checks pass or automatic code rollback succeeds.
 
-The public homepage, its current JavaScript, liveness and database/auth readiness
-returned HTTP 200 during the November 14, 2026 setup check. `/release.json` was
-404 because this workflow has not deployed yet. **Lab-off uptime is unverified:**
-the session state was not observable and no AWS credentials were available. End
-your session yourself and repeat the guide's exact package verification from
-outside AWS. Lambda/API Gateway resource persistence does not establish MySQL
-availability; your instructor must confirm the account's actual stop/expiry rules.
+The CI/CD implementation was merged through PR #10. The
+[November 14 run for `63383a9`](https://github.com/isaacH888/B10/actions/runs/43658474172)
+passed the checks, package smoke test, deployment and public verification.
+**Lab-off uptime is still unverified:** resource persistence does not establish
+MySQL availability after a session ends. Follow the guide's
+[lab-off verification](docs/lambda-auto-deploy.md#verify-behavior-when-the-lab-session-ends)
+with the actual lab operator and instructor.
 
 ## Booking and Google Calendar automation
 

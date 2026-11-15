@@ -29,12 +29,9 @@ frontend/              # actual frontend/dist output, served at the site root
 <installed Python dependencies and native wheels>
 ```
 
-The handler source was copied byte for byte from the existing local staging
-directory `/tmp/tmp.Yz3ipWh9Hl/site_handler.py`. Its provenance is local evidence,
-not a fresh authenticated download. Each deployment downloads the actual current
-Lambda ZIP and rejects any handler-byte/layout mismatch before changing code.
-The missing `b10-lambda-auto-deploy.zip` attachment was not inspected/extracted;
-compare it with this implementation when it is available, including hidden files.
+Each deployment downloads the actual current Lambda ZIP and rejects any
+handler-byte or layout mismatch before changing code. A changed handler requires
+separate reconciliation with the live deployment.
 
 The package is smoke-tested in the official Lambda Python 3.12 image on x86_64,
 including native module imports, frontend hashes, SPA routing, missing asset 404s
@@ -42,61 +39,43 @@ and a payload `1.0` API request. Source allowlists omit `.env`, tests, caches an
 virtual environments. The uploaded Actions artifact is built from repository
 source and dependencies; the downloaded live ZIP and configuration are not uploaded.
 
-## Instructor/AWS administrator setup
+## Learner Lab credentials and permissions
 
-First confirm that this Learner Lab account permits a GitHub IAM OIDC provider,
-a dedicated federated role and STS role assumption, including outside an active
-session if unattended deployment is expected. Student IAM restrictions may prevent
-this. Do not reuse or change `LabRole` or the Lambda execution role for GitHub.
-If guardrails prohibit federation, CI still works but automatic OIDC deployment
-cannot work until an administrator provides an allowed account/role arrangement.
-No expiring Learner Lab access keys are embedded in this workflow.
+The current `deploy-dev` job reads repository Actions secrets and passes them only
+to its deployment step. All three must come from the same active Learner Lab
+session:
 
-1. In **IAM → Identity providers → Add provider**, choose **OpenID Connect**,
-   provider URL `https://token.actions.githubusercontent.com`, audience
-   `sts.amazonaws.com`. Reuse an existing provider with these settings.
-2. Create a separate role, for example `B10GitHubDevDeploy`, with a maximum session
-   of at least one hour. Use the trust policy below with the actual account ID.
-3. Attach the permission policy below. Keep its resources scoped to this function
-   and API. AWS permission boundaries/SCPs/lab guardrails must also allow these calls.
-4. Send the role ARN to the repository administrator and confirm the function's
-   deployed configuration is Python 3.12, `x86_64`, ZIP, `site_handler.handler`.
-   Confirm the HTTP API has a `$default` stage and route targeting this unqualified
-   Lambda with `AWS_PROXY` and payload `1.0`. This workflow refuses an alias/version
-   target, another route integration, Lambda layers or a changed handler until
-   those differences are reviewed; it does not change them automatically.
+| Repository secret | Value from the active session |
+| --- | --- |
+| `AWS_ACCESS_KEY_ID` | Temporary access key ID |
+| `AWS_SECRET_ACCESS_KEY` | Matching secret access key |
+| `AWS_SESSION_TOKEN` | Matching session token |
 
-Trust policy for the standard GitHub branch subject:
+1. Start the lab and obtain a current credential set through its approved access
+   process. Do not print the values in logs or place them in source files.
+2. In GitHub, open **B10 -> Settings -> Secrets and variables -> Actions ->
+   Secrets**. Create each name with **New repository secret**, or update its
+   existing value. Save the complete set from one session before starting a run.
+3. Have the instructor/account administrator confirm the session identity can read
+   the existing function/API configuration and update only this Lambda's code.
+   The function stays Python 3.12, `x86_64`, ZIP, `site_handler.handler`, in
+   `us-east-1`. Its HTTP API must retain a `$default` stage and route targeting
+   this unqualified Lambda with `AWS_PROXY` and payload `1.0`. Alias/version
+   targets, alternate route integrations, layers or a changed handler stop
+   deployment until reviewed.
+4. When credentials expire, restart or renew the lab session, refresh **all three**
+   secrets, and rerun failed jobs on the latest `dev` run with passing checks and
+   package validation. The workflow cannot refresh a Learner Lab session itself.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": {
-      "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
-    },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-        "token.actions.githubusercontent.com:sub": "repo:isaacH888/B10:ref:refs/heads/dev"
-      }
-    }
-  }]
-}
-```
+GitHub documents [repository secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets);
+Boto3 documents the [credential environment variables](https://docs.aws.amazon.com/boto3/latest/guide/credentials.html#environment-variables).
+`B10_DEPLOY_ROLE_ARN` is not read by this workflow. It has no OIDC authentication
+step or `id-token: write` permission; configuring a role ARN alone will not supply
+its required session secrets. Any future move to federation requires a separate
+workflow/account change and review.
 
-Match the repository's **actual** OIDC subject settings. GitHub documents immutable
-subjects for newer/opted-in repositories; if enabled here, the exact subject is
-`repo:isaacH888@179164131/B10@1361851799:ref:refs/heads/dev` instead. Confirm the IDs
-and configured subject, rather than broadening trust with wildcards. This job does
-not use a GitHub environment; adding one changes the subject to an environment
-subject and requires updating trust and protecting that environment's allowed refs.
-See [GitHub AWS OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws)
-and the [OIDC subject reference](https://docs.github.com/en/actions/reference/security/oidc).
-
-Permission policy:
+Required permission policy for the existing session identity, subject to the
+account's boundaries and lab guardrails:
 
 ```json
 {
@@ -125,17 +104,11 @@ Permission policy:
 ```
 
 `UpdateFunctionConfiguration`, `iam:PassRole`, CloudFormation, database, Secrets
-Manager and API write permissions are not needed. Public verification uses HTTPS.
-The job's GitHub token has `id-token: write`, `contents: read` and `actions: read`;
-other jobs retain read-only repository permission and no OIDC permission.
-See [Lambda permissions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html)
+Manager and API write permissions are not needed by this deployment. The job's
+GitHub token has `contents: read` and `actions: read`; the other jobs retain
+read-only repository access and receive no AWS credentials. Public verification
+uses HTTPS. See [Lambda permissions](https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html)
 and [API Gateway payload formats](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).
-
-In the GitHub repository, open **Settings → Secrets and variables → Actions →
-Variables → New repository variable**. Set `B10_DEPLOY_ROLE_ARN` to
-`arn:aws:iam::ACCOUNT_ID:role/B10GitHubDevDeploy`. The ARN is configuration, not a
-secret; use the **Variables** tab. The workflow reads `vars.B10_DEPLOY_ROLE_ARN`.
-See [GitHub configuration variables](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables).
 
 ## Database and dependency review
 
@@ -206,9 +179,11 @@ your own approved release/backup retention if recovery beyond 30 days is require
 ## Lab unavailable: CI, reruns and manual fallback
 
 The four original checks and package build use no AWS credentials. The separate
-deployment job fails visibly when the role variable is absent, OIDC is denied, the
-lab is unavailable or a public/database probe fails. It does not mark an AWS failure
-as a passed deployment. OIDC has a bounded timeout/retry count.
+deployment job fails visibly when a required session secret is missing, the
+credentials expire, the lab is unavailable, permissions are denied or a
+public/database probe fails. It does not mark an AWS failure as a passed
+deployment. Renew the lab session and update all three secrets before retrying an
+expired-credential failure.
 
 When the lab is available, choose the latest `dev` run whose original four checks
 and package job passed, even if the run is overall failed because of deployment:
@@ -233,9 +208,8 @@ Manual dispatch reruns all checks; it does not deploy an arbitrary untested SHA.
 An expired old release requires a reviewed change restoring its source on `dev`.
 See [GitHub rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 
-If the instructor confirms OIDC is prohibited, unattended deployment remains
-unavailable. An authorized operator can download a passing run's artifact and run
-the same script with a current private Learner Lab profile, outside GitHub:
+An authorized operator can also download a passing run's artifact and run the
+same script with a current private Learner Lab profile, outside GitHub:
 
 ```sh
 gh run download RUN_ID --repo isaacH888/B10 --name b10-lambda-FULL_SHA --dir /tmp/b10-release
@@ -248,8 +222,8 @@ AWS_PROFILE=learner-lab python scripts/deploy_site_lambda.py \
 Install the pinned tooling first, check out the reviewed script version in an
 isolated checkout, and pass `B10_MIGRATIONS_REVIEWED_SHA=FULL_SHA` only after the
 same database review if required. This manual path needs the same scoped AWS
-permissions. Do not put temporary access keys/session tokens into commits or the
-role ARN variable.
+permissions. Do not put temporary access keys/session tokens into commits or
+Actions variables.
 
 ## Verify behavior when the lab session ends
 
@@ -277,9 +251,9 @@ Lambda/API Gateway state; do not infer a permanent deletion from a failed reques
 Setup observations, November 14, 2026: live `/`, its referenced JavaScript,
 `/api/v1/live` and `/api/v1/health` returned HTTP 200; health reported database `ok`
 and authentication `ready`. `/release.json` returned 404 before this implementation.
-No AWS credentials or lab session control were available, so actual Lambda/API
-configuration, OIDC authorization, live schema and post-session uptime remain
-unverified. No AWS mutation or deployment was performed during setup.
+Those initial setup checks did not exercise AWS credentials, actual Lambda/API
+configuration or post-session uptime. Later deployment evidence is recorded below;
+actual applied schema details and lab-off uptime still need their own checks.
 
 ## Review and publication
 
@@ -298,16 +272,15 @@ Local validation on November 14, 2026:
   share `/tmp`, so the local test streamed the same package into the container;
   the GitHub runner uses ordinary read-only bind mounts.
 
-These local packaging tests used the checkout's base SHA as a synthetic release
-marker because changes remain uncommitted. GitHub Actions will use the actual
-checked commit SHA after review/publication. No browser suite, live deployment or
-AWS account/schema verification was performed during this change.
+The initial local packaging tests used a synthetic release marker. The published
+workflow now uses the actual checked commit SHA. The CI/CD implementation was
+merged into `dev` through PR #10 and the credential setup was subsequently changed
+to the three Learner Lab Actions secrets documented above.
 
-Changes remain uncommitted on local branch `chore/dev-lambda-auto-deploy`.
-The [README](../readme.md#automatic-dev-website-deployment) contains exact staging,
-commit, push and `gh pr create --base dev` commands. Review the complete diff first.
-The prior connection's branch-creation 403 was not retested with a remote mutation;
-repository metadata reports push access, which does not prove workflow/branch write
-permission. Use your own account with repository Contents and Actions/Workflows write
-access as applicable. `gh auth login`, then the README commands, keeps publication
-under your control. No PR exists until the changes are committed and pushed.
+Review on November 14, 2026: all 25 package/deployment tests passed again, together
+with Ruff checks. The [run for `63383a9`](https://github.com/isaacH888/B10/actions/runs/43658474172)
+completed every check, the package/container smoke test, and the actual deployment
+and public verification successfully. This confirms one release through the
+pipeline; it does not establish uptime after the lab session ends or separately
+prove every applied business migration. The README and this guide describe the
+current published workflow rather than the initial uncommitted setup branch.

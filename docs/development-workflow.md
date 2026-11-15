@@ -62,9 +62,13 @@ before changing teammate-owned features, with reason, owner and minimal impact.
 
 The [foundation workflow](../.github/workflows/foundation-checks.yml) runs on PR/push:
 contract/examples/links/config checks, backend tests with disposable MySQL, and frontend
-build. It uses read-only repository permissions and has no deployment job. Remote
-execution is recorded in GitHub Actions after publication. Once actual runs exist, configure its successful
-job names as required checks; do not claim settings are enforced already.
+build. Those checks use no AWS credentials. After all four checks pass, a separate
+job builds and smoke-tests the exact commit's Lambda package. Only `dev` pushes
+and manual runs can deploy that package; the deployment step uses temporary
+Learner Lab Actions secrets, verifies the public build/API, and attempts code
+rollback on failure. See the [deployment guide](lambda-auto-deploy.md).
+Remote execution is recorded in GitHub Actions. Required branch-check settings
+must be verified separately; successful runs do not prove they are enforced.
 The [DEV publication review](dev-review.md) records the initial combined change;
 the [release workflow](release-workflow.md) describes later environment promotions.
 
