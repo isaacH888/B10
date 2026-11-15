@@ -420,9 +420,8 @@ test("owner imports a customer order without retyping its selections or price", 
   await expect(
     intake.getByText("75 heart popsicles · delivery", { exact: true }),
   ).toBeVisible();
-  await page
-    .getByLabel("Confirmed event end (ISO date, time and UTC offset)")
-    .fill("2027-06-12T16:00:00-05:00");
+  await page.getByLabel("Confirmed end date").fill("2027-06-12");
+  await page.getByLabel("Confirmed end time").fill("16:00");
   await page
     .getByLabel("Order contract link (HTTPS)")
     .fill("https://example.invalid/contract");

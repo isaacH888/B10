@@ -11,12 +11,13 @@ import {
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
 import { AdminDashboardPage } from "./admin/AdminDashboardPage.jsx";
+import { AdminAccountPage } from "./admin/AdminAccountPage.jsx";
 import { CalendarPage } from "./admin/CalendarPage.jsx";
 import { InventoryPage } from "./admin/InventoryPage.jsx";
 import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
 import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
-import { AutomationDashboard } from "./automation/AutomationDashboard.jsx";
+import { AutomationDashboard } from "./admin/BookingsPage.jsx";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
@@ -28,10 +29,7 @@ import {
 
 function Layout({ children }) {
   const { pathname } = useLocation();
-  if (
-    pathname === "/order" ||
-    /^\/admin\/(dashboard|orders|calendar|inventory)(\/|$)/.test(pathname)
-  ) {
+  if (pathname === "/order" || /^\/admin(\/|$)/.test(pathname)) {
     return children;
   }
   if (pathname === "/login") {
@@ -334,53 +332,40 @@ function ProtectedPage({
       </div>
     );
   }
+  if (
+    admin &&
+    (location.pathname.startsWith("/admin/automation") ||
+      location.pathname.startsWith("/admin/bookings/"))
+  ) {
+    return (
+      <AutomationDashboard
+        identity={identity}
+        csrfToken={session.data.csrf_token}
+      />
+    );
+  }
+
+  if (admin && location.pathname === "/admin") {
+    return (
+      <AdminAccountPage
+        identity={identity}
+        session={session.data}
+        deadline={deadline}
+        remaining={remaining}
+        onLogout={() => logout(area, session.data.csrf_token)}
+      />
+    );
+  }
+
   return (
     <section>
-      <h1>
-        {admin
-          ? "Team account"
-          : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}
-      </h1>
-      <p>
-        {admin
-          ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.`
-          : "Customer session is authenticated."}
-      </p>
-      {admin &&
-      (location.pathname.startsWith("/admin/automation") ||
-        location.pathname.startsWith("/admin/bookings/")) ? (
-        <AutomationDashboard
-          identity={identity}
-          csrfToken={session.data.csrf_token}
-        />
-      ) : (
-        admin && (
-          <>
-            {identity.role === "owner" &&
-              identity.permissions.includes("bookings:read") && (
-                <p>
-                  <Link to="/admin/automation">
-                    Manage catering bookings and Calendar
-                  </Link>
-                  {" · "}
-                  <Link to="/admin/dashboard">Open admin dashboard</Link>
-                  {" · "}
-                  <Link to="/admin/orders">View customer orders</Link>
-                </p>
-              )}
-            {!identity.permissions.includes("bookings:read") && (
-              <p>Booking access is not assigned to this account.</p>
-            )}
-          </>
-        )
-      )}
-      {!admin && (
-        <CustomerTestEmail
-          key={identity.id}
-          csrfToken={session.data.csrf_token}
-          email={identity.email}
-        />
-      )}
+      <h1>Welcome{identity.name ? `, ${identity.name}` : ""}.</h1>
+      <p>Customer session is authenticated.</p>
+      <CustomerTestEmail
+        key={identity.id}
+        csrfToken={session.data.csrf_token}
+        email={identity.email}
+      />
       {remaining <= 5 && (
         <Notice>
           Your session expires in{" "}

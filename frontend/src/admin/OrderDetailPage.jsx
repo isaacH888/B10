@@ -2,69 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./order-detail.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
+import "./automation.css";
+import { AdminNav } from "./AdminNav.jsx";
 import { downloadOrders } from "./adminApi.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { fetchOrder } from "./orderApi.js";
-
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
-
-function AdminNav() {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => (
-            <li key={item.label}>
-              <Link to={item.href} className="adm-nav__link">
-                <img
-                  src={item.icon}
-                  alt=""
-                  aria-hidden="true"
-                  className="adm-nav__icon"
-                  width={24}
-                  height={24}
-                />
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <div className="adm-nav__note">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
-  );
-}
+import { apiRequest, navigateToProvider } from "../auth/api.js";
+import { BookingInventory, OwnerActions } from "./BookingsPage.jsx";
 
 // ---------------------------------------------------------------------------
 // Record Payment modal
@@ -99,6 +43,59 @@ export function OrderDetailPage() {
   const [exportError, setExportError] = useState(null);
   const [exportBusy, setExportBusy] = useState(false);
   const latestRequest = useRef(0);
+
+  const isOwner = sessions.admin?.data?.administrator?.role === "owner";
+  const csrfToken = sessions.admin?.data?.csrf_token;
+  const [bookingDetail, setBookingDetail] = useState(null);
+  const [bookingBusy, setBookingBusy] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+
+  const refreshBooking = useCallback(async () => {
+    if (!order?.bookingId || !isOwner) {
+      setBookingDetail(null);
+      return;
+    }
+    try {
+      const res = await apiRequest(
+        `/admin/automation/bookings/${encodeURIComponent(order.bookingId)}`,
+      );
+      setBookingDetail(res);
+    } catch {
+      // In mock tests or unlinked bookings, fail gracefully
+      setBookingDetail(null);
+    }
+  }, [order?.bookingId, isOwner]);
+
+  useEffect(() => {
+    refreshBooking();
+  }, [refreshBooking]);
+
+  const mutateBooking = async (path, body = {}) => {
+    setBookingBusy(true);
+    setBookingError("");
+    try {
+      const result = await apiRequest(`/admin/automation${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify(body),
+      });
+      if (result.authorization_url) {
+        navigateToProvider(result.authorization_url);
+      } else {
+        await refreshBooking();
+        await load();
+      }
+      return true;
+    } catch (failure) {
+      setBookingError(failure.serverMessage || "Action failed.");
+      return false;
+    } finally {
+      setBookingBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     const version = ++latestRequest.current;
@@ -137,7 +134,7 @@ export function OrderDetailPage() {
   if (loadState === "loading") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p
@@ -155,7 +152,7 @@ export function OrderDetailPage() {
   if (loadState === "notfound") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -173,7 +170,7 @@ export function OrderDetailPage() {
   if (loadState === "error") {
     return (
       <div className="adm-shell">
-        <AdminNav />
+        <AdminNav activeRoute="/admin/orders" />
         <div className="adm-main">
           <div className="adm-content">
             <p role="alert" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -190,7 +187,7 @@ export function OrderDetailPage() {
 
   return (
     <div className="adm-shell">
-      <AdminNav />
+      <AdminNav activeRoute="/admin/orders" />
 
       <div className="adm-main">
         {/* Page header */}
@@ -459,8 +456,42 @@ export function OrderDetailPage() {
                   it does not charge.
                 </p>
               </section>
+
+              {isOwner && bookingDetail && (
+                <div style={{ marginTop: 24 }}>
+                  <BookingInventory
+                    booking={bookingDetail.booking}
+                    refresh={refreshBooking}
+                  />
+                </div>
+              )}
             </div>
           </div>
+
+          {bookingError && (
+            <div
+              className="ord-alert"
+              style={{
+                background: "#fee2e2",
+                color: "#991b1b",
+                margin: "20px 0",
+              }}
+              role="alert"
+            >
+              <p className="ord-alert__main">{bookingError}</p>
+            </div>
+          )}
+
+          {isOwner && bookingDetail && (
+            <div style={{ marginTop: 24, marginBottom: 24 }}>
+              <OwnerActions
+                booking={bookingDetail.booking}
+                busy={bookingBusy}
+                mutate={mutateBooking}
+                revision={bookingDetail.booking.revision}
+              />
+            </div>
+          )}
 
           {order.live && (
             <section className="od-action-bar" aria-label="Order actions">

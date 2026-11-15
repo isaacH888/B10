@@ -31,6 +31,7 @@
   font-size: 38px;
   font-weight: 400;
   line-height: 44px;
+  letter-spacing: 0.015em;
   color: #4b004b;
 }
 .od-created {
@@ -149,6 +150,7 @@
   font-size: 24px;
   font-weight: 400;
   line-height: 31px;
+  letter-spacing: 0.02em;
   color: #3b003d;
 }
 .od-section__two-col {

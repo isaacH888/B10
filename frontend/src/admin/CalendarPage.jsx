@@ -2,19 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
 import "./calendar.css";
-import logoSrc from "../assets/logo.png";
-import iconDashboard from "../assets/admin/icon-dashboard.svg";
-import iconOrders from "../assets/admin/icon-orders.svg";
-import iconCalendar from "../assets/admin/icon-calendar.svg";
-import iconInventory from "../assets/admin/icon-inventory.svg";
+import { AdminNav } from "./AdminNav.jsx";
 import { fetchCalendar } from "./adminApi.js";
 
-const NAV_ITEMS = [
-  { label: "Dashboard", icon: iconDashboard, href: "/admin/dashboard" },
-  { label: "Orders", icon: iconOrders, href: "/admin/orders" },
-  { label: "Calendar", icon: iconCalendar, href: "/admin/calendar" },
-  { label: "Inventory", icon: iconInventory, href: "/admin/inventory" },
-];
 const DOW_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTH_NAMES = [
   "January",
@@ -30,65 +20,6 @@ const MONTH_NAMES = [
   "November",
   "December",
 ];
-
-function AdminNav() {
-  return (
-    <aside className="adm-nav" aria-label="Admin navigation">
-      <div className="adm-nav__brand">
-        <img
-          src={logoSrc}
-          alt="Popssibilities logo"
-          className="adm-nav__logo"
-          width={64}
-          height={58}
-        />
-        <p className="adm-nav__site-name">POPSSIBILITIES</p>
-        <p className="adm-nav__area">BUSINESS ADMIN</p>
-      </div>
-      <nav aria-label="Admin pages">
-        <ul className="adm-nav__list" role="list">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.href === "/admin/calendar";
-            return (
-              <li key={item.label}>
-                <Link
-                  to={item.href}
-                  className={
-                    isActive
-                      ? "adm-nav__link adm-nav__link--active"
-                      : "adm-nav__link"
-                  }
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <img
-                    src={item.icon}
-                    alt=""
-                    aria-hidden="true"
-                    className="adm-nav__icon"
-                    width={24}
-                    height={24}
-                  />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <div className="adm-nav__note">
-        <p className="adm-nav__note-heading">
-          A LITTLE ORDER.
-          <br />A LOT OF JOY.
-        </p>
-        <p className="adm-nav__note-sub">
-          Houston, TX
-          <br />
-          Owner workspace
-        </p>
-      </div>
-    </aside>
-  );
-}
 
 // Build a calendar grid for a given year/month
 function buildGrid(year, month) {
@@ -393,7 +324,7 @@ export function CalendarPage() {
 
   return (
     <div className="adm-shell">
-      <AdminNav />
+      <AdminNav activeRoute="/admin/calendar" />
 
       <div className="adm-main">
         <header className="adm-page-header">
