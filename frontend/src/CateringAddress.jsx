@@ -35,60 +35,6 @@ export function serviceAreaKey(location) {
   ]);
 }
 
-function safeAttributions(items) {
-  return Array.isArray(items)
-    ? items.filter((item) => {
-        if (typeof item?.name !== "string" || typeof item?.url !== "string")
-          return false;
-        try {
-          const url = new URL(item.url);
-          return url.protocol === "https:" && !url.username && !url.password;
-        } catch {
-          return false;
-        }
-      })
-    : [];
-}
-
-export function AddressAttribution({ sources = [] }) {
-  const extraSources = safeAttributions(sources).filter(
-    (item, index, all) =>
-      ![
-        "https://www.geoapify.com/",
-        "https://www.openstreetmap.org/copyright",
-      ].includes(item.url) &&
-      all.findIndex((source) => source.url === item.url) === index,
-  );
-  return (
-    <small className="address-attribution" translate="no">
-      Powered by{" "}
-      <a
-        href="https://www.geoapify.com/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Geoapify
-      </a>
-      {" · "}
-      <a
-        href="https://www.openstreetmap.org/copyright"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        © OpenStreetMap contributors
-      </a>
-      {extraSources.map((item) => (
-        <span key={item.url}>
-          {" · "}
-          <a href={item.url} target="_blank" rel="noopener noreferrer">
-            {item.name}
-          </a>
-        </span>
-      ))}
-    </small>
-  );
-}
-
 export function ServiceAreaNotice({ config, result, checking }) {
   const radius = config.radius_miles;
   const within = !checking && result?.status === "within_area";
@@ -160,7 +106,6 @@ export function AddressField({
   const [active, setActive] = useState(-1);
   const [message, setMessage] = useState("");
   const [searching, setSearching] = useState(false);
-  const [attributions, setAttributions] = useState([]);
   const token = useRef(null);
   const latestKey = useRef(addressKey);
   const selection = useRef(null);
@@ -208,9 +153,6 @@ export function AddressField({
               .slice(0, 5)
           : [];
         setItems(suggestions);
-        setAttributions(
-          suggestions.flatMap((item) => safeAttributions(item.attributions)),
-        );
         setMessage(
           suggestions.length
             ? ""
@@ -263,7 +205,6 @@ export function AddressField({
       )
         throw new Error("invalid address");
       onResolved(data);
-      setAttributions(safeAttributions(data.attributions));
       setMessage("Address filled in. Please check the details below.");
     } catch {
       if (current === generation.current && requestKey === latestKey.current)
@@ -308,7 +249,6 @@ export function AddressField({
         onChange={(event) => {
           setFocused(true);
           setMessage("");
-          setAttributions([]);
           generation.current++;
           if (selection.current) {
             selection.current.abort();
@@ -362,18 +302,12 @@ export function AddressField({
               </li>
             ))}
           </ul>
-          <AddressAttribution sources={attributions} />
         </div>
       )}
       {(searching || message) && (
         <p className="field-hint" role="status">
           {searching ? "Searching addresses…" : message}
         </p>
-      )}
-      {!open && attributions.length > 0 && (
-        <div className="address-search__attributions">
-          <AddressAttribution sources={attributions} />
-        </div>
       )}
     </div>
   );

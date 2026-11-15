@@ -160,9 +160,6 @@ test("suggested addresses fill city, state and ZIP using a bound address selecti
   await stepTwo(page);
   const address = page.getByRole("combobox", { name: "Event address" });
   await address.fill("100 Exam");
-  await expect(
-    page.getByRole("link", { name: "Synthetic address source" }),
-  ).toHaveAttribute("href", "https://example.invalid/source");
   await page
     .getByRole("option", { name: "100 Example Street, Houston, TX, USA" })
     .click();
@@ -171,15 +168,7 @@ test("suggested addresses fill city, state and ZIP using a bound address selecti
   await expect(page.locator("#cf-region")).toHaveValue("TX");
   await expect(page.locator("#cf-postal")).toHaveValue("77000");
   await expect(
-    page.getByRole("link", { name: "Synthetic address source" }),
-  ).toBeVisible();
-  await expect(
     page.getByText("Within our service area", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page
-      .locator(".address-search")
-      .getByRole("link", { name: "Geoapify", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Google Maps", { exact: true })).toHaveCount(0);
   expect(calls.searches).toHaveLength(1);
