@@ -12,7 +12,11 @@ import {
 } from "./CateringAddress.jsx";
 import "./catering.css";
 import heroImage from "./assets/Hero.webp";
-import paletasImage from "./assets/paletas-flavor-preview.png";
+import paletasImage from "./assets/paletas-flavors-640.webp";
+import eventCartImage from "./assets/story/audrey-event-cart.jpg";
+import paletaIllustration from "./assets/illustrations/paleta.svg";
+import fruitIllustration from "./assets/illustrations/fruit.svg";
+import cartIllustration from "./assets/illustrations/cart.svg";
 import { apiRequest } from "./auth/api.js";
 import {
   centralTimeToIso,
@@ -1888,6 +1892,11 @@ export function CateringPage() {
           >
             Request a quote
           </button>
+          <ul className="cat-hero__facts" aria-label="Catering at a glance">
+            <li>Minimum 50 paletas</li>
+            <li>Delivery or full service</li>
+            <li>Flavors confirmed for your event</li>
+          </ul>
         </div>
       </section>
 
@@ -1902,14 +1911,14 @@ export function CateringPage() {
         <div className="cat-features__grid">
           <div className="cat-feature-card">
             <div className="cat-feature-card__icon" aria-hidden="true">
-              &bull;
+              <img src={paletaIllustration} alt="" width="88" height="88" />
             </div>
             <h3>Premium Paletas</h3>
             <p>Hand-crafted with organic ingredients and fresh fruit.</p>
           </div>
           <div className="cat-feature-card">
             <div className="cat-feature-card__icon" aria-hidden="true">
-              &bull;
+              <img src={fruitIllustration} alt="" width="88" height="88" />
             </div>
             <h3>Rotating Flavors</h3>
             <p>
@@ -1919,7 +1928,7 @@ export function CateringPage() {
           </div>
           <div className="cat-feature-card">
             <div className="cat-feature-card__icon" aria-hidden="true">
-              &bull;
+              <img src={cartIllustration} alt="" width="88" height="88" />
             </div>
             <h3>Full Event Service</h3>
             <p>
@@ -2009,20 +2018,38 @@ export function CateringPage() {
 
       {/* ---- CTA: red background, white text ---- */}
       <section className="cat-cta" aria-labelledby="cat-cta-heading">
-        <h2 id="cat-cta-heading" className="cat-cta__heading">
-          Planning an event?
-        </h2>
-        <p className="cat-cta__sub">
-          Share your event details to request a quote. Availability is reviewed
-          before your booking is confirmed.
-        </p>
-        <button
-          type="button"
-          className="cat-btn cat-btn--outline-white"
-          onClick={openForm}
-        >
-          Request a quote
-        </button>
+        <div className="cat-cta__inner">
+          <div className="cat-cta__copy">
+            <p className="cat-cta__eyebrow">
+              A little more joy for your guests
+            </p>
+            <h2 id="cat-cta-heading" className="cat-cta__heading">
+              Planning an event?
+            </h2>
+            <p className="cat-cta__sub">
+              Share your event details to request a quote. Availability is
+              reviewed before your booking is confirmed.
+            </p>
+            <button
+              type="button"
+              className="cat-btn cat-btn--outline-white"
+              onClick={openForm}
+            >
+              Request a quote
+            </button>
+          </div>
+          <div className="cat-cta__photo">
+            <img
+              src={eventCartImage}
+              alt="Audrey ready to serve paletas from the Popssibilities event cart"
+              width="1079"
+              height="1400"
+              loading="lazy"
+              decoding="async"
+            />
+            <span>Good company. Great pops.</span>
+          </div>
+        </div>
       </section>
       {modalOpen && (
         <CateringModal

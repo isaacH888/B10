@@ -33,7 +33,7 @@ export function PublicHeader() {
       </div>
       <header className="site-header">
         <Link className="site-brand" to="/" aria-label="Popssibilities home">
-          <img src={logo} alt="Popssibilities" width="64" height="64" />
+          <img src={logo} alt="Popssibilities" width="88" height="88" />
         </Link>
         <nav className="site-nav" aria-label="Main navigation">
           <SectionLinks />

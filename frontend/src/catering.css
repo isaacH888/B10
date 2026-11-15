@@ -19,7 +19,10 @@
 
 /* ----- Button variants — pill shape ----- */
 .cat-btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
   padding: 0.65rem 1.75rem;
   border: none;
   border-radius: 999px;
@@ -58,7 +61,7 @@
 .cat-hero {
   position: relative;
   width: 100%;
-  min-height: max(600px, calc(100svh - 124px));
+  min-height: clamp(560px, calc(100svh - var(--site-header-height)), 720px);
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -87,7 +90,7 @@
   position: relative;
   z-index: 1;
   padding: 5rem 0;
-  max-width: 660px;
+  max-width: 740px;
   margin-left: var(--site-gutter);
 }
 .cat-hero__heading {
@@ -100,11 +103,41 @@
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 .cat-hero__sub {
-  font-size: 1.1rem;
+  font-size: clamp(1.1rem, 1.4vw, 1.25rem);
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.65;
   margin: 0 0 2.25rem;
-  max-width: 440px;
+  max-width: 500px;
+}
+
+.cat-hero__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  max-width: 660px;
+  margin: 28px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid rgb(255 255 255 / 35%);
+  list-style: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.cat-hero__facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-hero__facts li::before {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--yellow);
+  content: "";
 }
 
 /* ----- Section shared ----- */
@@ -118,7 +151,7 @@
 
 .cat-section-title {
   font-family: "Anton", sans-serif;
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-size: clamp(2rem, 3.2vw, 2.8rem);
   letter-spacing: 0.03em;
   text-align: center;
   margin: 0 0 0.5rem;
@@ -126,21 +159,21 @@
 }
 .cat-section-sub {
   text-align: center;
-  color: #666;
-  font-size: 0.95rem;
+  color: #665466;
+  font-size: 1rem;
   margin: 0 0 2.5rem;
 }
 
 /* ----- Features: yellow band ----- */
 .cat-features {
-  padding: 5rem 3rem;
+  padding: clamp(48px, 4.5vw, 72px) var(--site-gutter);
   background: var(--yellow);
 }
 .cat-features__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.5rem;
-  max-width: 920px;
+  max-width: 1180px;
   margin: 0 auto;
 }
 .cat-feature-card {
@@ -151,26 +184,48 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 .cat-feature-card__icon {
-  font-size: 2.4rem;
-  margin-bottom: 0.85rem;
-  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 20px;
+  border-radius: 28px;
+  background: #fff3d9;
+  transform: rotate(-4deg);
+}
+.cat-feature-card:nth-child(2) .cat-feature-card__icon {
+  background: #fce2e9;
+  transform: rotate(4deg);
+}
+.cat-feature-card:nth-child(3) .cat-feature-card__icon {
+  background: #edeafd;
+}
+.cat-feature-card__icon img {
+  display: block;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  transform: rotate(4deg);
+}
+.cat-feature-card:nth-child(2) .cat-feature-card__icon img {
+  transform: rotate(-4deg);
 }
 .cat-feature-card h3 {
   font-family: "Anton", sans-serif;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
   color: var(--blue);
   letter-spacing: 0.03em;
   margin: 0 0 0.5rem;
 }
 .cat-feature-card p {
-  font-size: 0.88rem;
-  color: #666;
+  font-size: 1rem;
+  color: #665466;
   line-height: 1.6;
   margin: 0;
 }
 
 .cat-features__note {
-  max-width: 920px;
+  max-width: 1180px;
   margin: 2rem auto 0;
   font-size: 0.88rem;
   color: #4b004b;
@@ -188,40 +243,62 @@
 
 /* ----- How it works: white background ----- */
 .cat-how {
-  padding: 5.5rem 3rem;
+  padding: clamp(48px, 4.5vw, 72px) var(--site-gutter);
   background: #fff;
 }
 .cat-how__steps {
   list-style: none;
   margin: 0 auto;
   padding: 0;
-  max-width: 900px;
+  max-width: 1180px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2.5rem;
 }
 .cat-how__step {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.6rem;
 }
+.cat-how__step:not(:last-child)::after {
+  position: absolute;
+  top: 28px;
+  right: -20px;
+  left: 72px;
+  border-top: 2px dashed #ecc0cd;
+  content: "";
+}
+.cat-how__step > div {
+  min-width: 0;
+}
 .cat-how__step-num {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: #fff3d9;
   font-family: "Anton", sans-serif;
-  font-size: 3rem;
+  font-size: 2.3rem;
   color: var(--red);
   line-height: 1;
 }
 .cat-how__step h3 {
   font-family: "Anton", sans-serif;
-  font-size: 1rem;
+  font-size: 1.15rem;
   color: var(--blue);
   margin: 0 0 0.25rem;
   letter-spacing: 0.03em;
 }
 .cat-how__step p {
-  font-size: 0.88rem;
-  color: #666;
+  font-size: 1rem;
+  color: #665466;
   line-height: 1.65;
   margin: 0;
 }
@@ -232,7 +309,7 @@
   align-items: center;
   gap: 0.5rem 1.25rem;
   font-size: 0.82rem;
-  color: #888;
+  color: #665466;
   max-width: 760px;
   margin: 3rem auto 0;
   padding-top: 2rem;
@@ -241,9 +318,27 @@
 
 /* ----- CTA: red background ----- */
 .cat-cta {
-  padding: 5.5rem 3rem;
+  padding: clamp(48px, 5vw, 72px) var(--site-gutter);
   background: var(--red);
-  text-align: center;
+}
+.cat-cta__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.cat-cta__copy {
+  min-width: 0;
+}
+.cat-cta__eyebrow {
+  margin: 0 0 16px;
+  color: #fff3d9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .cat-cta__heading {
   font-family: "Anton", sans-serif;
@@ -255,9 +350,41 @@
 .cat-cta__sub {
   font-size: 1rem;
   color: rgba(255, 255, 255, 0.88);
-  margin: 0 auto 2.5rem;
+  margin: 0 0 28px;
   max-width: 400px;
   line-height: 1.65;
+}
+.cat-cta__photo {
+  position: relative;
+  padding: 10px;
+  border-radius: 28px;
+  background: #f8bfcb;
+  transform: rotate(2deg);
+}
+.cat-cta__photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 20px;
+  object-fit: cover;
+  object-position: center top;
+}
+.cat-cta__photo span {
+  display: block;
+  padding: 12px 6px 3px;
+  color: #4b004b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 1000px) {
+  .cat-how__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cat-how__step:nth-child(2)::after {
+    display: none;
+  }
 }
 
 /* ===========================================================================
@@ -1050,5 +1177,34 @@
   }
   .cat-features__grid {
     grid-template-columns: 1fr;
+  }
+  .cat-hero__facts {
+    display: grid;
+    gap: 10px;
+  }
+  .cat-how__steps,
+  .cat-cta__inner {
+    grid-template-columns: 1fr;
+  }
+  .cat-how__steps {
+    gap: 24px;
+  }
+  .cat-how__step {
+    flex-direction: row;
+    gap: 20px;
+    padding-bottom: 8px;
+  }
+  .cat-how__step:not(:last-child)::after {
+    display: block;
+    top: 65px;
+    right: auto;
+    bottom: -16px;
+    left: 27px;
+    border-top: 0;
+    border-left: 2px dashed #ecc0cd;
+  }
+  .cat-cta__photo {
+    max-width: 480px;
+    transform: none;
   }
 }

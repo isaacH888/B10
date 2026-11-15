@@ -26,7 +26,7 @@
   --blue-hover: #1e2e82;
   --nav-pink: #ff59a5;
   --site-gutter: clamp(1.25rem, 4.5vw, 5rem);
-  --site-header-height: 124px;
+  --site-header-height: 148px;
   font-family: "DM Sans", Arial, sans-serif;
   color: var(--ink);
   background: var(--cream);
@@ -103,7 +103,7 @@
   padding: 8px 1rem;
   background: var(--purple);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-align: center;
@@ -134,7 +134,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(1rem, 2.5vw, 2.25rem);
+  gap: clamp(1rem, 3vw, 3rem);
   flex: 1;
 }
 
@@ -143,7 +143,7 @@
   align-items: center;
   min-height: 44px;
   color: var(--purple);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
   text-underline-offset: 6px;
@@ -264,7 +264,11 @@
 
 @media (max-width: 760px) {
   .public-site {
-    --site-header-height: 162px;
+    --site-header-height: 180px;
+  }
+
+  .public-chrome .announcement {
+    font-size: 10px;
   }
 
   .public-chrome .site-header {
@@ -274,8 +278,8 @@
   }
 
   .public-chrome .site-brand img {
-    width: 54px;
-    height: 54px;
+    width: 72px;
+    height: 72px;
   }
 
   .public-chrome .site-nav {

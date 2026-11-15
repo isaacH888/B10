@@ -1,28 +1,43 @@
 .public-home .flavor-menu {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   align-items: center;
-  gap: clamp(24px, 6vw, 90px);
-  margin-top: 100px;
-  padding: clamp(24px, 4vw, 60px);
+  gap: clamp(24px, 4vw, 56px);
+  margin-top: clamp(48px, 5vw, 72px);
+  padding: clamp(24px, 3.4vw, 48px);
   border-radius: 28px;
   background: var(--pink);
 }
 .flavor-menu__photo {
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   min-width: 0;
 }
-.flavor-menu__photo img {
-  width: min(100%, 360px);
+.flavor-menu__paletas {
+  width: min(100%, 540px);
   height: auto;
   display: block;
+}
+.public-home .flavor-menu__accent {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  width: clamp(64px, 7vw, 92px);
+  height: auto;
+  padding: 8px;
+  border-radius: 50%;
+  background: var(--cream);
+  transform: rotate(12deg);
+  pointer-events: none;
 }
 .flavor-menu__copy {
   min-width: 0;
 }
 .flavor-menu__copy > p {
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.6;
 }
 .flavor-menu__list {
@@ -30,23 +45,25 @@
   padding: 0;
   margin: 24px 0;
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 .flavor-menu__list li {
   display: flex;
   gap: 12px;
   align-items: baseline;
-  font-size: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgb(53 22 47 / 14%);
+  font-size: 19px;
   font-weight: 700;
 }
 .flavor-menu__list span {
-  color: var(--red);
-  font-size: 11px;
+  color: var(--red-ink);
+  font-size: 12px;
   flex-shrink: 0;
 }
 .flavor-menu__copy .flavor-menu__availability {
-  font-size: 13px;
-  max-width: 440px;
+  font-size: 14px;
+  max-width: 480px;
   margin-bottom: 24px;
 }
 .flavor-picker {
@@ -159,8 +176,8 @@
     grid-template-columns: 1fr;
     margin-top: 60px;
   }
-  .flavor-menu__photo img {
-    max-width: 240px;
+  .flavor-menu__paletas {
+    max-width: 360px;
   }
 }
 @media (max-width: 600px) {

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { DEMO_FLAVORS } from "./flavors.js";
-import paletas from "./assets/paletas-flavor-preview.png";
+import paletas from "./assets/paletas-flavors.webp";
+import paletasSmall from "./assets/paletas-flavors-640.webp";
+import paletaIllustration from "./assets/illustrations/paleta.svg";
 import "./flavors.css";
 
 export default function FlavorMenu() {
@@ -12,11 +14,23 @@ export default function FlavorMenu() {
     >
       <div className="flavor-menu__photo">
         <img
+          className="flavor-menu__paletas"
           src={paletas}
+          srcSet={`${paletasSmall} 640w, ${paletas} 1086w`}
+          sizes="(max-width: 800px) 360px, (min-width: 1280px) 520px, 40vw"
           alt="Three colorful Popssibilities paletas"
           loading="lazy"
-          width="429"
-          height="581"
+          width="1086"
+          height="1448"
+        />
+        <img
+          className="flavor-menu__accent"
+          src={paletaIllustration}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          width="128"
+          height="128"
         />
       </div>
       <div className="flavor-menu__copy">

@@ -11,6 +11,39 @@
   color: var(--ink);
 }
 
+.public-home {
+  --red-ink: #a11f32;
+}
+
+.public-home ::selection,
+.cat-shell ::selection {
+  background: var(--purple);
+  color: var(--cream);
+}
+
+.public-home .red-text,
+.public-home .outline {
+  color: var(--red-ink);
+}
+
+.public-home a:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 5px;
+}
+
+.public-home .pill.red:hover {
+  background: #be2030;
+}
+
+.public-home .pill.outline:hover {
+  background: #fbe2dd;
+}
+
+.public-home .text-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 :where(.public-home, .customer-signin) a {
   color: inherit;
   text-decoration: none;
@@ -31,8 +64,9 @@
   justify-content: center;
   border: 0;
   border-radius: 100px;
-  padding: 15px 24px;
-  font-size: 13px;
+  min-height: 54px;
+  padding: 16px 26px;
+  font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -44,15 +78,15 @@
 
 :where(.public-home, .customer-signin) .hero {
   background: var(--pink);
-  min-height: 690px;
   display: grid;
-  grid-template-columns: 47% 53%;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   align-items: center;
-  padding: 35px 4.5% 80px;
+  gap: clamp(24px, 3vw, 48px);
+  padding: clamp(28px, 3vw, 48px) var(--site-gutter);
 }
 
 :where(.public-home, .customer-signin) .eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -67,41 +101,84 @@
 }
 
 :where(.public-home, .customer-signin) .hero h1 {
-  font-size: clamp(65px, 8vw, 132px);
+  font-size: clamp(68px, 8.4vw, 144px);
   line-height: 1.04;
   color: var(--red);
-  margin: 22px 0;
+  margin: 20px 0;
 }
 
 :where(.public-home, .customer-signin) .hero p {
-  font-size: 19px;
+  font-size: clamp(18px, 1.5vw, 22px);
   line-height: 1.5;
 }
 
 :where(.public-home, .customer-signin) .hero-actions {
   display: flex;
   align-items: center;
-  gap: 24px;
-  margin: 22px 0;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  margin: 26px 0 22px;
 }
 
 :where(.public-home, .customer-signin) .text-link {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 :where(.public-home, .customer-signin) .hero small {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 :where(.public-home, .customer-signin) .hero-art {
   position: relative;
+  isolation: isolate;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 600px;
 }
 
-:where(.public-home, .customer-signin) .hero-art img {
+.public-home .hero-art::before {
+  position: absolute;
+  inset: 8% 2% 3%;
+  z-index: -1;
+  border-radius: 50%;
+  background: #ffdae3;
+  content: "";
+}
+
+.public-home .hero-art__badge {
+  position: absolute;
+  top: 2%;
+  right: 0;
+  display: grid;
+  place-content: center;
+  width: clamp(96px, 9vw, 132px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: clamp(11px, 1vw, 14px);
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.public-home .hero-art__paletas {
   width: 100%;
+  height: 100%;
   display: block;
-  mix-blend-mode: multiply;
+  object-fit: contain;
+}
+
+.public-home .hero-art__accent {
+  position: absolute;
+  top: 4%;
+  left: 0;
+  z-index: -1;
+  width: clamp(64px, 8vw, 112px);
+  height: auto;
+  transform: rotate(-14deg);
+  pointer-events: none;
 }
 
 :where(.public-home, .customer-signin) .ticker {
@@ -111,14 +188,14 @@
   gap: 18px;
   background: var(--red);
   color: var(--cream);
-  padding: 21px 15px;
+  padding: 18px 15px;
   white-space: nowrap;
   overflow: hidden;
 }
 
 :where(.public-home, .customer-signin) .ticker span {
   font-family: Anton, Impact, sans-serif;
-  font-size: 25px;
+  font-size: clamp(24px, 2.2vw, 32px);
 }
 
 :where(.public-home, .customer-signin) .ticker b {
@@ -131,7 +208,7 @@
 }
 
 :where(.public-home, .customer-signin) .life {
-  padding: 85px 4.5% 100px;
+  padding: clamp(48px, 5vw, 72px) var(--site-gutter) clamp(56px, 6vw, 88px);
 }
 
 :where(.public-home, .customer-signin) .section-heading {
@@ -139,7 +216,7 @@
   justify-content: space-between;
   align-items: end;
   gap: 25px;
-  margin-bottom: 45px;
+  margin-bottom: 32px;
 }
 
 :where(.public-home, .customer-signin) .red-text {
@@ -147,31 +224,56 @@
 }
 
 :where(.public-home, .customer-signin) h2 {
-  font-size: clamp(40px, 4.8vw, 75px);
+  font-size: clamp(42px, 5.2vw, 80px);
   line-height: 1.06;
   color: var(--red);
   margin: 18px 0;
 }
 
 :where(.public-home, .customer-signin) .section-heading p {
-  font-size: 18px;
+  font-size: clamp(18px, 1.4vw, 21px);
   line-height: 1.5;
   margin: 0 0 8px;
 }
 
 :where(.public-home, .customer-signin) .features {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
 }
 
 :where(.public-home, .customer-signin) .feature {
   border-radius: 24px;
-  min-height: 345px;
-  padding: 30px;
+  padding: 18px 18px 26px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+}
+
+.public-home .feature__photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 11;
+  max-height: 320px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--cream);
+}
+
+.public-home .feature__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-home .feature__photo--outdoor img {
+  object-position: 50% 24%;
+}
+
+.public-home .feature__photo--sharing img,
+.public-home .feature__photo--serving img {
+  object-position: 50% 28%;
 }
 
 :where(.public-home, .customer-signin) .yellow {
@@ -188,27 +290,40 @@
 }
 
 :where(.public-home, .customer-signin) .burst {
-  font-size: 60px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 34px;
   line-height: 1;
 }
 
 :where(.public-home, .customer-signin) .feature h3 {
-  font-size: 36px;
-  line-height: 1.1;
-  margin: auto 0 30px;
+  font-size: clamp(30px, 2.7vw, 42px);
+  line-height: 1.08;
+  margin: 22px 6px 14px;
 }
 
 :where(.public-home, .customer-signin) .feature small {
-  font-size: 12px;
+  margin-top: auto;
+  padding-inline: 6px;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 :where(.public-home, .customer-signin) .story {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 7%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: clamp(28px, 4vw, 64px);
   row-gap: 40px;
   align-items: center;
-  margin-top: 130px;
+  margin-top: clamp(48px, 5vw, 76px);
 }
 
 .public-home .story-gallery {
@@ -341,9 +456,8 @@
 }
 
 :where(.public-home, .customer-signin) .story-copy p {
-  font-size: 18px;
+  font-size: clamp(17px, 1.3vw, 20px);
   line-height: 1.6;
-  max-width: 520px;
 }
 
 :where(.public-home, .customer-signin) .outline {
@@ -464,7 +578,6 @@
   max-width: 100%;
   max-height: 470px;
   object-fit: contain;
-  mix-blend-mode: multiply;
 }
 
 :where(.public-home, .customer-signin) .auth-panel {
@@ -518,8 +631,13 @@
   }
 
   :where(.public-home, .customer-signin) .hero-art {
-    max-width: 550px;
-    margin: auto;
+    max-width: 480px;
+    max-height: none;
+    margin: 0 auto;
+  }
+
+  .public-home .feature h3 {
+    font-size: 38px;
   }
 
   :where(.public-home, .customer-signin) .features,
@@ -564,7 +682,16 @@
 
 @media (max-width: 520px) {
   :where(.public-home, .customer-signin) .hero h1 {
-    font-size: 60px;
+    font-size: clamp(60px, 15vw, 76px);
+  }
+
+  .public-home .hero {
+    gap: 24px;
+  }
+
+  .public-home .hero-art__badge {
+    width: 92px;
+    font-size: 10px;
   }
 
   :where(.public-home, .customer-signin) .hero-actions {

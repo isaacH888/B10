@@ -2,7 +2,12 @@ import { Link, useLocation } from "react-router-dom";
 import StoryGallery from "./StoryGallery.jsx";
 import { PublicHeader, PublicFooter } from "./PublicChrome.jsx";
 import FlavorMenu from "./FlavorMenu.jsx";
-import paletas from "./assets/aneena-paletas-hero.png";
+import paletas from "./assets/paletas-hero.webp";
+import paletasSmall from "./assets/paletas-hero-768.webp";
+import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
+import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
+import servingPaletas from "./assets/story/audrey-serving-paletas.jpg";
+import fruitIllustration from "./assets/illustrations/fruit.svg";
 import "./public-site.css";
 
 const burstPoints = Array.from({ length: 24 }, (_, index) => {
@@ -70,10 +75,28 @@ export function PublicHome() {
         </div>
         <div className="hero-art">
           <img
+            className="hero-art__accent"
+            src={fruitIllustration}
+            alt=""
+            aria-hidden="true"
+            width="128"
+            height="128"
+          />
+          <img
+            className="hero-art__paletas"
             src={paletas}
+            srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
+            sizes="(min-width: 1440px) 600px, (min-width: 801px) 48vw, (min-width: 521px) 480px, calc(100vw - 40px)"
             alt="Three colorful paletas"
+            width="1254"
+            height="1254"
             fetchPriority="high"
           />
+          <span className="hero-art__badge" aria-hidden="true">
+            ENDLESS
+            <br />
+            POSSIBILITIES
+          </span>
         </div>
       </section>
       <div className="ticker" aria-hidden="true">
@@ -113,9 +136,19 @@ export function PublicHome() {
         </div>
         <div className="features">
           <article className="feature yellow">
-            <span className="burst" aria-hidden="true">
-              <Sunburst />
-            </span>
+            <div className="feature__photo feature__photo--outdoor">
+              <img
+                src={outdoorCart}
+                alt="Audrey with her paleta cart at an outdoor event"
+                loading="lazy"
+                decoding="async"
+                width="864"
+                height="1300"
+              />
+              <span className="burst" aria-hidden="true">
+                <Sunburst />
+              </span>
+            </div>
             <h3>
               SUN OUT.
               <br />
@@ -124,9 +157,19 @@ export function PublicHome() {
             <small>A little cool for those big Texas days.</small>
           </article>
           <article className="feature pink">
-            <span className="burst" aria-hidden="true">
-              <Sunburst />
-            </span>
+            <div className="feature__photo feature__photo--sharing">
+              <img
+                src={sharingPaletas}
+                alt="Audrey sharing a fruit paleta with a guest"
+                loading="lazy"
+                decoding="async"
+                width="1050"
+                height="1400"
+              />
+              <span className="burst" aria-hidden="true">
+                <Sunburst />
+              </span>
+            </div>
             <h3>
               GOOD COMPANY.
               <br />
@@ -135,9 +178,19 @@ export function PublicHome() {
             <small>The sweetest part? Sharing the moment.</small>
           </article>
           <article className="feature blue">
-            <span className="burst" aria-hidden="true">
-              <Sunburst />
-            </span>
+            <div className="feature__photo feature__photo--serving">
+              <img
+                src={servingPaletas}
+                alt="Audrey serving paletas from her cart"
+                loading="lazy"
+                decoding="async"
+                width="1050"
+                height="1400"
+              />
+              <span className="burst" aria-hidden="true">
+                <Sunburst />
+              </span>
+            </div>
             <h3>
               JUST BECAUSE
               <br />
@@ -209,7 +262,14 @@ export function CustomerSignInLayout({ children }) {
                 ← Back to homepage
               </Link>
               <div className="auth-image">
-                <img src={paletas} alt="Popssibilities paletas" />
+                <img
+                  src={paletas}
+                  srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
+                  sizes="(max-width: 800px) 300px, (max-width: 1280px) 40vw, 520px"
+                  alt="Popssibilities paletas"
+                  width="1254"
+                  height="1254"
+                />
               </div>
             </div>
             <div className="auth-panel">
