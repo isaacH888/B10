@@ -1,5 +1,10 @@
 # Catering booking and Google Calendar automation
 
+Owners can also enable [submitted-request notifications](request-notifications.md)
+to email a chosen inbox and show tentative, non-blocking Pending entries before
+booking approval. Quote previews are excluded. A verified deposit still controls
+booking confirmation; owner intake updates the same Google event.
+
 This implementation extends the existing React/Vite, Flask, PyMySQL and Cognito application. The authoritative record is MySQL. The owner opens `/admin/automation` from the authenticated dashboard at `/admin`; private booking links are `/admin/bookings/<id>`. Every automation endpoint requires an active administrator session with the **owner** role; changes also require CSRF and recent authentication. Staff and customer accounts cannot operate this workflow.
 
 The charter's **50% deposit** confirms a booking after the owner approves availability and reserves capacity. Full payment is not needed for a calendar event. The minimum quantity is 50. Booking status, verified-payment status and Calendar integration status are independent. Money is an integer count of minor currency units; the deposit is `(total_minor + 1) // 2`. A verified payment reference is globally unique. Repeated references cannot increase the balance twice. Payment history is preserved when bookings are cancelled; refunds are an external owner decision.

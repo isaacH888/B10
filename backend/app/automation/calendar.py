@@ -42,6 +42,19 @@ class CalendarWorker:
         self.google = google or oauth.google
         self.clock = clock or time.time
 
+    def _get_record(self, tx, identifier):
+        return tx.get_booking(identifier)
+
+    def _save_record(self, tx, record):
+        tx.save_booking(record)
+
+    @staticmethod
+    def _visible(booking):
+        return booking["status"] == "confirmed" or (
+            booking.get("request_calendar")
+            and booking["status"] in {"requested", "awaiting_deposit", "owner_review"}
+        )
+
     def _body(self, booking):
         try:
             zone = ZoneInfo(booking["timezone"])
@@ -63,12 +76,24 @@ class CalendarWorker:
             + "/"
             + quote(booking["id"], safe="")
         )
-        return {
+        link = booking.get("request_dashboard_url") or link
+        pending = booking["status"] != "confirmed"
+        title = f"{booking['reference']} · {booking['service_type']}"
+        description = f"Booking: {booking['reference']}\nService: {booking['service_type']}\nPrivate owner dashboard: {link}"
+        if pending:
+            title = f"Pending request · {booking.get('event_type', booking['service_type'])} · {booking['reference']}"
+            description = (
+                "Pending catering request. Availability and deposit are not confirmed.\n"
+                + description
+            )
+        if booking.get("end_unspecified"):
+            description += "\nThe customer has not supplied an end time."
+        body = {
             "id": event_id(booking),
-            "status": "confirmed",
-            "summary": f"{booking['reference']} · {booking['service_type']}",
+            "status": "tentative" if pending else "confirmed",
+            "summary": title,
             "location": booking["venue"],
-            "description": f"Booking: {booking['reference']}\nService: {booking['service_type']}\nPrivate owner dashboard: {link}",
+            "description": description,
             "start": {
                 "dateTime": start.astimezone(zone).isoformat(),
                 "timeZone": booking["timezone"],
@@ -76,10 +101,13 @@ class CalendarWorker:
             "end": {"dateTime": end.astimezone(zone).isoformat(), "timeZone": booking["timezone"]},
             "extendedProperties": {"private": ownership(booking)},
             "visibility": "private",
-            "transparency": "opaque",
+            "transparency": "transparent" if pending else "opaque",
             "guestsCanInviteOthers": False,
             "reminders": {"useDefault": False},
         }
+        if booking.get("end_unspecified"):
+            body["endTimeUnspecified"] = True
+        return body
 
     def _get(self, token, calendar_id, identifier):
         try:
@@ -116,7 +144,7 @@ class CalendarWorker:
             if booking.get("calendar_repair_pending")
             else booking.get("google_event_id") or event_id(booking)
         )
-        if booking["status"] != "confirmed":
+        if not self._visible(booking):
             # Use the historical calendar even if the configured target changed.
             self._delete(token, mapped_calendar or calendar_id, identifier, booking)
             return mapped_calendar or calendar_id, identifier
@@ -169,11 +197,11 @@ class CalendarWorker:
             booking["calendar_repair_pending"] = True
             identifier = event_id(booking)
             with self.store.transaction() as tx:
-                current = tx.get_booking(booking["id"])
+                current = self._get_record(tx, booking["id"])
                 if current and current["revision"] == booking["revision"]:
                     current["event_generation"] = booking["event_generation"]
                     current["calendar_repair_pending"] = True
-                    tx.save_booking(current)
+                    self._save_record(tx, current)
                 else:
                     raise GoogleFailure(
                         "transient", "The booking changed during repair. Retry synchronization."
@@ -186,7 +214,7 @@ class CalendarWorker:
         # connection change during Google's response must still know where a
         # successfully inserted event needs to be removed.
         with self.store.transaction() as tx:
-            current = tx.get_booking(booking["id"])
+            current = self._get_record(tx, booking["id"])
             if not current or current["revision"] != booking["revision"]:
                 raise GoogleFailure(
                     "transient", "The booking changed before event creation. Retry synchronization."
@@ -196,7 +224,7 @@ class CalendarWorker:
                 google_event_id=identifier,
                 calendar_create_pending=True,
             )
-            tx.save_booking(current)
+            self._save_record(tx, current)
         try:
             self.google.insert_event(token, calendar_id, body)
         except GoogleFailure as error:
@@ -229,10 +257,10 @@ class CalendarWorker:
                 # An old grant's response cannot change a newly reconnected or
                 # explicitly disconnected integration, even on the same calendar.
                 return False
-            current = tx.get_booking(booking["id"])
+            current = self._get_record(tx, booking["id"])
             if current and current["revision"] == booking["revision"]:
                 current.update(calendar_status=status, calendar_error=error.message)
-                tx.save_booking(current)
+                self._save_record(tx, current)
             if category == "reconnect_required":
                 if connection and connection.get("status") != "disconnected":
                     connection.update(
@@ -250,10 +278,11 @@ class CalendarWorker:
         with self.store.booking_lock(booking_id):
             for _ in range(8):
                 with self.store.transaction() as tx:
-                    booking = tx.get_booking(booking_id)
+                    booking = self._get_record(tx, booking_id)
                     connection = tx.get_connection(booking["owner_id"]) if booking else None
                 if not booking or (
-                    booking["status"] not in {"confirmed", "cancelled"}
+                    not self._visible(booking)
+                    and booking["status"] != "cancelled"
                     and not booking.get("google_event_id")
                 ):
                     return {"status": "obsolete"}
@@ -271,7 +300,7 @@ class CalendarWorker:
                         continue
                     raise
                 with self.store.transaction() as tx:
-                    current = tx.get_booking(booking_id)
+                    current = self._get_record(tx, booking_id)
                     active_connection = tx.get_connection(booking["owner_id"]) or {}
                     same_connection = (
                         active_connection.get("status") == "connected"
@@ -292,7 +321,7 @@ class CalendarWorker:
                             calendar_create_pending=False,
                             calendar_repair_requested=False,
                         )
-                        tx.save_booking(current)
+                        self._save_record(tx, current)
                         return {"status": "synced", "revision": booking["revision"]}
                     if not same_connection:
                         continue

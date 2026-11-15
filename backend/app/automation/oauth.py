@@ -244,10 +244,10 @@ class OAuthService:
                 # Reconnecting resumes durable work; explicit repair is still
                 # required when the previously mapped calendar has changed.
                 for booking in tx.list_bookings():
-                    if booking.get("owner_id") == owner_id and booking["status"] in {
-                        "confirmed",
-                        "cancelled",
-                    }:
+                    if booking.get("owner_id") == owner_id and (
+                        booking["status"] in {"confirmed", "cancelled"}
+                        or booking.get("request_calendar")
+                    ):
                         booking["calendar_status"] = "pending"
                         booking["calendar_error"] = None
                         tx.save_booking(booking)
@@ -257,6 +257,23 @@ class OAuthService:
                             booking["id"],
                             booking["revision"],
                         )
+                if tx.get_connection("company-request-calendar"):
+                    for record in tx.list_requests():
+                        if record["owner_id"] == owner_id and not tx.get_order_link(
+                            record["source_order_id"]
+                        ):
+                            record.update(
+                                revision=record["revision"] + 1,
+                                calendar_status="pending",
+                                calendar_error=None,
+                            )
+                            tx.save_request(record)
+                            tx.enqueue(
+                                f"request_calendar:{record['id']}:{record['revision']}",
+                                "request_calendar",
+                                record["id"],
+                                record["revision"],
+                            )
         return self.status(owner_id)
 
     def _connection_error(self, owner_id, error, *, calendar_creation_rejected=False):

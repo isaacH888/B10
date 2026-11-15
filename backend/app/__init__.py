@@ -14,7 +14,7 @@ from .auth.errors import AuthError, unavailable
 from .auth.settings import authentication_enabled, validate_settings
 from .auth.store import Store, StoreUnavailable
 from .config import read_settings
-from .health import health
+from .health import database_configured, health
 from .orders import orders_bp
 from .quotes import quotes_bp
 from .reports import reports_bp
@@ -83,6 +83,7 @@ def create_app(test_config=None):
     from .email.provider import SESMailer
 
     app.register_blueprint(automation, url_prefix="/api/v1/admin/automation")
+    app.register_blueprint(orders_bp, url_prefix="/api/v1")
     if app.config.get("AUTOMATION_ENABLED"):
         automation_store = app.config.get("AUTOMATION_STORE") or AutomationStore(app.config)
         app.extensions["automation_store"] = automation_store
@@ -97,7 +98,11 @@ def create_app(test_config=None):
         else:
             from .automation.runtime import build_services
 
-            services = build_services(app.config, automation_store)
+            services = build_services(
+                app.config,
+                automation_store,
+                orders=None if database_configured(app.config) else app.extensions["orders_memory"],
+            )
         app.extensions.update(services)
         app.extensions["automation_services"] = services
     from .email.routes import email
@@ -116,7 +121,6 @@ def create_app(test_config=None):
     from .addresses import register_addresses
 
     register_addresses(app)
-    app.register_blueprint(orders_bp, url_prefix="/api/v1")
     app.register_blueprint(reports_bp, url_prefix="/api/v1")
     from .admin_orders import admin_orders
 

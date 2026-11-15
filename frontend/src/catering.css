@@ -796,20 +796,6 @@
 .address-search__results [aria-selected="true"] {
   background: #f6edf8;
 }
-.address-attribution {
-  display: block;
-  padding: 8px 14px;
-  color: var(--form-muted);
-  font:
-    normal 400 12px/1.5 Arial,
-    sans-serif;
-  letter-spacing: normal;
-  overflow-wrap: anywhere;
-}
-.address-attribution a {
-  color: inherit;
-  text-decoration: underline;
-}
 .service-area-notice {
   margin: 0 0 1rem;
   padding: 1rem;

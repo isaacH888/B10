@@ -504,3 +504,91 @@ def test_verification_time_budget_leaves_time_for_rollback(deployment_modules, m
     with pytest.raises(verifier.VerificationError, match="time budget exceeded"):
         verifier.verify(URL, frontend_manifest(verifier), COMMIT, timeout=0)
     fetch.assert_not_called()
+
+
+def test_deployment_credentials_trim_pasted_secret_whitespace(deployment_modules, monkeypatch):
+    deploy, _ = deployment_modules
+    for name, value in {
+        "AWS_ACCESS_KEY_ID": "ASIA" + "A" * 16,
+        "AWS_SECRET_ACCESS_KEY": "s" * 40,
+        "AWS_SESSION_TOKEN": "synthetic/session+token=",
+    }.items():
+        monkeypatch.setenv(name, " \r\n" + value + "\n")
+    assert deploy.deployment_credentials() == {
+        "aws_access_key_id": "ASIA" + "A" * 16,
+        "aws_secret_access_key": "s" * 40,
+        "aws_session_token": "synthetic/session+token=",
+    }
+
+
+@pytest.mark.parametrize(
+    "value", ["token\nprivate", '"private-token"', "export AWS_SESSION_TOKEN=x"]
+)
+def test_invalid_credential_format_fails_without_exposing_value(
+    deployment_modules, monkeypatch, value
+):
+    deploy, _ = deployment_modules
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "A" * 20)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "s" * 40)
+    monkeypatch.setenv("AWS_SESSION_TOKEN", value)
+    with pytest.raises(
+        RuntimeError, match="AWS_SESSION_TOKEN contains invalid characters"
+    ) as error:
+        deploy.deployment_credentials()
+    assert value not in str(error.value)
+
+
+def test_local_deployment_keeps_profile_credential_support(deployment_modules, monkeypatch):
+    deploy, _ = deployment_modules
+    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    assert deploy.deployment_credentials() == {}
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "A" * 20)
+    with pytest.raises(RuntimeError, match="Set the AWS_SECRET_ACCESS_KEY Actions secret"):
+        deploy.deployment_credentials()
+
+
+def test_http_header_failure_is_actionable_without_leaking_credentials(deployment_modules):
+    from botocore.exceptions import HTTPClientError
+
+    deploy, _ = deployment_modules
+    error = HTTPClientError(error=ValueError("Invalid header value b'synthetic-private-token\\n'"))
+    message = deploy.failure_message(error)
+    assert "invalid HTTP header" in message
+    assert "Actions credentials" in message
+    assert "synthetic-private-token" not in message
+
+
+def test_transport_failure_does_not_expose_signed_urls(deployment_modules):
+    from botocore.exceptions import HTTPClientError
+
+    deploy, _ = deployment_modules
+    message = deploy.failure_message(
+        HTTPClientError(error=ValueError("https://private.example/?signed-credential=secret"))
+    )
+    assert "AWS transport failed" in message
+    assert "private.example" not in message
+    assert "signed-credential" not in message
+
+
+def test_expired_session_is_reported_before_any_deployment(deployment_modules, monkeypatch, capsys):
+    import boto3
+    from botocore.exceptions import ClientError
+
+    deploy, _ = deployment_modules
+    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("sys.argv", ["deploy", "--package", "unused.zip", "--commit", COMMIT])
+    session = Mock()
+    session.client.return_value.get_caller_identity.side_effect = ClientError(
+        {"Error": {"Code": "ExpiredToken", "Message": "synthetic-private-response"}},
+        "GetCallerIdentity",
+    )
+    monkeypatch.setattr(boto3, "Session", Mock(return_value=session))
+    mutation = Mock()
+    monkeypatch.setattr(deploy, "deploy", mutation)
+    assert deploy.main() == 1
+    mutation.assert_not_called()
+    output = capsys.readouterr().out
+    assert "AWS session expired" in output
+    assert "synthetic-private-response" not in output

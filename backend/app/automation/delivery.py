@@ -127,6 +127,8 @@ class OutboxDispatcher:
 
     def dispatch(self, limit=100):
         """Lease committed rows, send outside the transaction, then mark published."""
+        if getattr(self, "requests", None):
+            self.requests.reconcile(limit)
         now = instant(self.clock())
         claims = []
         with self.store.transaction() as tx:
@@ -152,9 +154,12 @@ class OutboxDispatcher:
         for claim in claims:
             try:
                 generation = claim.get("replay_generation", 0)
+                group_id = claim["booking_id"]
+                if claim["kind"] in {"request_email", "request_calendar"}:
+                    group_id = f"{claim['kind']}:{group_id}"
                 message_id = self.queue.send(
                     {"job_key": claim["key"], "delivery_generation": generation},
-                    claim["booking_id"],
+                    group_id,
                     sha256(f"{claim['key']}:{generation}".encode()).hexdigest(),
                 )
             except Exception:
@@ -299,8 +304,11 @@ class JobProcessor:
                         updated_at=stamp(self.clock()),
                     )
                     tx.save_delivery(current)
-                    if exhausted and job["kind"] == "calendar":
-                        booking = tx.get_booking(job["booking_id"])
+                    if exhausted and job["kind"] in {"calendar", "request_calendar"}:
+                        request_calendar = job["kind"] == "request_calendar"
+                        booking = (tx.get_request if request_calendar else tx.get_booking)(
+                            job["booking_id"]
+                        )
                         if (
                             booking
                             and booking["revision"] == job["revision"]
@@ -310,7 +318,7 @@ class JobProcessor:
                                 calendar_status="failed",
                                 calendar_error="Retries exhausted; inspect dead-letter job and retry.",
                             )
-                            tx.save_booking(booking)
+                            (tx.save_request if request_calendar else tx.save_booking)(booking)
             if permanent or exhausted:
                 return
             raise RetryLater(delay) from None
@@ -328,6 +336,8 @@ class JobProcessor:
                 tx.save_delivery(current)
 
     def _execute(self, job):
+        if job["kind"] in {"request_email", "request_calendar"}:
+            return self.requests.execute(job)
         if job["kind"] == "calendar":
             return self.calendar_worker.run(
                 job["booking_id"],
@@ -379,7 +389,9 @@ class JobProcessor:
                         raise ValueError("Contract URL is required for confirmation")
                     body += f"Review your contract: {contract}\n"
                 else:
-                    recipient = self.settings["AUTOMATION_OWNER_EMAIL"]
+                    recipient = (
+                        booking.get("request_recipient") or self.settings["AUTOMATION_OWNER_EMAIL"]
+                    )
                     body += f"Private dashboard: {self.settings['AUTOMATION_DASHBOARD_URL'].rstrip('/')}/{booking['id']}\n"
             elif kind == "deposit_request":
                 if (

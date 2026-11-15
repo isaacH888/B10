@@ -106,6 +106,7 @@ def sql_settings():
     apply_migrations(settings)
     with database.connect(settings) as connection, connection.cursor() as cursor:
         for table in (
+            "automation_requests",
             "automation_order_links",
             "automation_payments",
             "automation_bookings",
