@@ -33,7 +33,8 @@ export async function apiRequest(path, options = {}) {
       : (path === "/customer/test-email" ||
             path.startsWith("/catering/address/") ||
             path === "/quotes" ||
-            path === "/orders") &&
+            path === "/orders" ||
+            /^\/admin\/automation\/bookings\/[^/]+\/checkout$/.test(path)) &&
           options.method === "POST"
         ? 20000
         : 10000;

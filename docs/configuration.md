@@ -43,8 +43,13 @@ backend private files. The MySQL root password belongs only to Compose.
 | `CALENDAR_ENABLED`, `GOOGLE_CALENDAR_ID` | Google adapter; Shourya | Reserved; disabled; Week 5 integration |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Google; Shourya | Reserved private file path if service-account design is approved |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | Google; Shourya | Reserved OAuth alternative; choose account model/scopes rather than requiring both mechanisms |
-| `PAYMENT_PROVIDER` | Payment workflow; Anh with Shourya/client | Reserved Square-first priority from S04; not a payment adapter or verification method |
-| `SQUARE_PAYMENT_LINK`, `VENMO_PAYMENT_LINK`, `PAYPAL_PAYMENT_LINK` | Payment links; client supplies, Anh consumes | Reserved external destinations; Square first, others later; links do not verify payment |
+| `SQUARE_ENABLED` | Hosted Checkout; backend | Explicit true/false, disabled by default. Requires booking automation. See [Square setup](square-checkout.md). |
+| `SQUARE_ENVIRONMENT` | Hosted Checkout; backend | `sandbox` by default; use `production` with the production merchant credentials and webhook subscription. |
+| `SQUARE_ACCESS_TOKEN`, `SQUARE_WEBHOOK_SIGNATURE_KEY` | Private backend/worker settings | Square access token and webhook subscription signature key. Keep both server-side; never commit or paste into chat. |
+| `SQUARE_LOCATION_ID`, `SQUARE_MERCHANT_ID` | Private backend/worker settings | The intended merchant and USD location for the selected environment. Payment and notification identities are checked against these values. |
+| `SQUARE_WEBHOOK_NOTIFICATION_URL` | Signature authentication | Exact public HTTPS URL registered in Square, including any API Gateway stage prefix, ending in `/api/v1/payments/square/webhook`. Required because Square signs the URL and untouched request bytes. |
+| `PAYMENT_PROVIDER` | Legacy payment inventory | `square` records the user's selected provider; runtime activation uses `SQUARE_ENABLED`. |
+| `SQUARE_PAYMENT_LINK`, `VENMO_PAYMENT_LINK`, `PAYPAL_PAYMENT_LINK` | Legacy reserved external destinations | Unused by Square Checkout; these links do not verify payment. |
 | `CONTRACT_URL` | Contract delivery; Shourya/client | Reserved approved HTTPS document URL/access policy; Week 6 |
 | `REMINDERS_ENABLED` | Scheduler; Shourya | Reserved disabled gate; timing/eligibility still open; Week 6 |
 | `DELIVERY_ORIGIN_ADDRESS` | Catering address/routing; Anh/client | Recorded kitchen address only; the service-area check is fixed to ZIP 77477 and does not use this setting |
@@ -54,10 +59,9 @@ backend private files. The MySQL root password belongs only to Compose.
 
 Cognito configuration is implemented for the user-approved authentication design.
 Customer sample email configuration is separate from private operator access.
-Business email automation, payments, and Calendar remain pending. See
+Business email automation and Calendar use the booking automation module; Square Checkout is opt-in. See
 [customer test email](customer-test-email.md) for setup and delivery limitations.
-A full-service rate is not encoded here: the $150 question still needs explicit
-confirmation. See [source alignment](reference-alignment.md).
+Full service includes the agreed $150 base and one employee at $15/hour for the event duration. See the current pricing configuration for rates.
 
 ## Startup and health
 

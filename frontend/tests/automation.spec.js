@@ -424,7 +424,7 @@ test("owner imports a customer order without retyping its selections or price", 
     .getByLabel("Confirmed event end (Houston/Central time)")
     .fill("2027-06-12T16:00");
   await page
-    .getByLabel("Order contract link (HTTPS)")
+    .getByLabel("Order contract link (optional, HTTPS)")
     .fill("https://example.invalid/contract");
   await page
     .getByRole("button", { name: "Create booking from order", exact: true })
@@ -438,7 +438,7 @@ test("owner imports a customer order without retyping its selections or price", 
   });
 });
 
-test("reopening a denied request collects missing contract and end through a picker", async ({
+test("reopening a denied request collects the missing end without requiring a contract", async ({
   page,
 }) => {
   const mutations = await mock(page, "owner", {
@@ -450,9 +450,11 @@ test("reopening a denied request collects missing contract and end through a pic
   await page
     .getByLabel("Reason for reopening")
     .fill("Customer agreed to revised event details");
-  await page
-    .getByLabel("Customer contract link before reopening (HTTPS)")
-    .fill("https://example.invalid/revised-contract");
+  await expect(
+    page.getByLabel(
+      "Customer contract link before reopening (optional, HTTPS)",
+    ),
+  ).not.toHaveAttribute("required");
   const end = page.getByLabel(
     "Event end before reopening (Houston/Central time)",
   );
@@ -468,7 +470,6 @@ test("reopening a denied request collects missing contract and end through a pic
       body: {
         expected_revision: booking.revision,
         reason: "Customer agreed to revised event details",
-        contract_url: "https://example.invalid/revised-contract",
         end: "2027-06-12T21:00:00.000Z",
       },
     });

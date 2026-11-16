@@ -14,6 +14,7 @@ import {
   EVENT_TIME_ZONE,
 } from "../eventTime.js";
 import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
+import { SquareCheckoutControls } from "../payments/SquareCheckoutControls.jsx";
 
 const base = "/admin/automation";
 const money = (value, currency) =>
@@ -362,9 +363,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
       <section aria-labelledby="customer-intake-heading">
         <h3 id="customer-intake-heading">Customer order intake</h3>
         <p>
-          Review submitted orders, add the contract link and confirm the event
-          end time. Creating a booking keeps the customer's saved selections and
-          price. Approve availability separately.
+          Review submitted orders and confirm the event end time. You can
+          include a contract link if available. Creating a booking keeps the
+          customer's saved selections and price. Approve availability
+          separately.
         </p>
         {ordersError && (
           <p role="alert">Could not load customer orders. {ordersError}</p>
@@ -466,8 +468,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
             />
             <Input
               name="contract_url"
-              label="Customer contract link (HTTPS)"
+              label="Customer contract link (optional, HTTPS)"
               type="url"
+              required={false}
+              pattern="https://.*"
               placeholder="https://example.com/contract"
             />
             <button>Create booking request</button>
@@ -643,6 +647,12 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
           {money(booking.paid_minor, booking.currency)} /{" "}
           {money(booking.remaining_minor, booking.currency)}
         </dd>
+        {booking.overpaid_minor > 0 && (
+          <>
+            <dt>Overpayment to review</dt>
+            <dd>{money(booking.overpaid_minor, booking.currency)}</dd>
+          </>
+        )}
         <dt>Capacity reservation expires</dt>
         <dd>{time(booking.reservation_expires_at)}</dd>
         <dt>Last successful calendar sync</dt>
@@ -654,6 +664,7 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
       </dl>
       {booking.source_order && <OrderSelections order={booking.source_order} />}
       <OrderDecisionControls booking={booking} onSaved={refresh} />
+      <SquareCheckoutControls booking={booking} />
       <fieldset disabled={busy}>
         <legend>Owner actions</legend>
         <div className="actions">
@@ -761,8 +772,9 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
             {!booking.contract_url && (
               <Input
                 name="contract_url"
-                label="Customer contract link before reopening (HTTPS)"
+                label="Customer contract link before reopening (optional, HTTPS)"
                 type="url"
+                required={false}
                 pattern="https://.*"
               />
             )}
@@ -782,7 +794,9 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
       <ul>
         {detail.payments.map((payment) => (
           <li key={payment.reference}>
-            {payment.provider}: {payment.reference} ·{" "}
+            {payment.provider}
+            {payment.square_environment === "sandbox" ? " (test)" : ""}:{" "}
+            {payment.reference} ·{" "}
             {money(payment.amount_minor, payment.currency)}
           </li>
         ))}
@@ -884,8 +898,9 @@ function CustomerOrder({ order, busy, mutate }) {
           />
           <Input
             name="contract_url"
-            label="Order contract link (HTTPS)"
+            label="Order contract link (optional, HTTPS)"
             type="url"
+            required={false}
             pattern="https://.*"
           />
           <button>Create booking from order</button>

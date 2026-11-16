@@ -40,15 +40,17 @@ Conditionally confirm, and Deny request actions. An unlinked order is imported
 and reviewed atomically. Every review requires the current source version or
 booking revision, preventing an outdated screen from overwriting another action.
 
-Confirmation requires the contract link and a known event end, checks capacity,
+Confirmation requires a known event end, checks capacity,
 and queues the existing deposit-request email. A verified deposit still confirms
 the booking. Conditional confirmation requires an owner-written message, queues
 an email asking the customer to discuss the conditions, and neither requests a
 deposit nor reserves capacity. Recording money does not clear those conditions.
 Denial queues a customer email, cancels the request, and retains payment history.
 The owner can use the existing reopen workflow when a denied request changes.
-Reopening requires the contract link and a real event end before capacity is
-reserved. A stale request can still be denied after its event date. Updating the
+Reopening requires a real event end before capacity is reserved. Contract links
+are optional for creation, confirmation and reopening; customer confirmations
+include a supplied link or configured fallback when available and still send
+without one. A stale request can still be denied after its event date. Updating the
 final quantity raises its required dry-ice count without silently repricing the
 accepted total.
 

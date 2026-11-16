@@ -1105,12 +1105,24 @@
   }
 }
 
+.error-view,
+.error-view *,
+.session-loading-view,
+.session-loading-view * {
+  box-sizing: border-box;
+}
+
 .error-view {
   min-height: 70vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 48px var(--site-gutter);
+}
+
+#root > .session-error-view,
+#root > .session-loading-view {
+  min-height: 100vh;
 }
 
 .error-card {

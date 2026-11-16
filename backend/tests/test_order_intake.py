@@ -94,15 +94,17 @@ def test_quoted_text_whitespace_does_not_block_submission(intake_app):
     }
 
 
-def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app):
+@pytest.mark.parametrize("supplement", [CONTRACT, {}, {"contract_url": ""}])
+def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app, supplement):
     client, headers = signed_owner(intake_app)
     order, body = submit(client, flavor_requests="Mango and strawberry", dry_ice_blocks=2)
     source = stored_order(intake_app, order)
     assert client.get(BASE + "/orders").json["data"] == [source]
     path = BASE + f"/orders/{order['id']}/booking"
-    result = client.post(path, json=CONTRACT, headers=headers)
+    result = client.post(path, json=supplement, headers=headers)
     assert result.status_code == 201
     booking = result.json["data"]
+    assert booking["contract_url"] == supplement.get("contract_url", "")
     assert booking["source_order"] == source
     assert booking["source_order_id"] == order["id"]
     assert booking["owner_id"] == next(iter(intake_app.test_store.identities.values()))["id"]
@@ -117,7 +119,7 @@ def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app):
     assert legacy_update.status_code == 409
     assert legacy_update.json["error"]["code"] == "booking_managed"
     assert client.get(BASE + "/orders").json["data"] == []
-    retry = client.post(path, json=CONTRACT, headers=headers)
+    retry = client.post(path, json=supplement, headers=headers)
     assert retry.status_code == 200 and retry.json["data"] == booking
     assert (
         client.post(
@@ -157,7 +159,7 @@ def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app):
 @pytest.mark.parametrize(
     "supplement",
     [
-        {},
+        {"contract_url": 42},
         {"end": "invalid", **CONTRACT},
         {"contract_url": "http://example.invalid/contract"},
         {"total_minor": 1, **CONTRACT},

@@ -21,6 +21,8 @@ import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerAccount } from "./CustomerAccount.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
+import { PaymentReturn } from "./payments/PaymentReturn.jsx";
+import { PaymentPage } from "./payments/PaymentPage.jsx";
 import { RouteScroll } from "./RouteScroll.jsx";
 import {
   AdminSignInLayout,
@@ -54,7 +56,9 @@ function Layout({ children }) {
     pathname === "/order" ||
     pathname === "/account" ||
     pathname === "/order/confirm" ||
-    pathname === "/error-preview"
+    pathname === "/error-preview" ||
+    pathname === "/payment/return" ||
+    pathname === "/payment/pay"
   ) {
     return <PublicLayout>{children}</PublicLayout>;
   }
@@ -377,7 +381,7 @@ function ProtectedPage({
                 </Notice>
               )}
               <div className="actions error-actions">
-                <Link to="/admin/login" className="pill red">
+                <Link to="/admin/login?reauth=1" className="pill red">
                   Back to owner sign-in
                 </Link>
                 <Link to="/admin/login?reauth=1" className="pill outline">
@@ -576,7 +580,7 @@ function ErrorPreviewPage() {
                   Your session expires in less than a minute.
                 </Notice>
                 <div className="actions error-actions">
-                  <Link to="/admin/login" className="pill red">
+                  <Link to="/admin/login?reauth=1" className="pill red">
                     Back to owner sign-in
                   </Link>
                   <Link to="/admin/login?reauth=1" className="pill outline">
@@ -663,6 +667,8 @@ export default function App() {
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/order" element={<CateringPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
+            <Route path="/payment/return" element={<PaymentReturn />} />
+            <Route path="/payment/pay" element={<PaymentPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/account"

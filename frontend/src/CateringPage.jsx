@@ -1980,7 +1980,7 @@ const CATERING_HERO_SLIDES = [
   {
     image: eventCartImage,
     alt: "Popssibilities branded event cart setup",
-    badge: "PLACEHOLDER: CART SETUP",
+    badge: "CART SETUP",
     title: "The Popssibilities Cart",
     objectPosition: "55% 10%",
     description:
@@ -1989,7 +1989,7 @@ const CATERING_HERO_SLIDES = [
   {
     image: servingPaletasImage,
     alt: "Popssibilities staff serving paletas to event guests",
-    badge: "PLACEHOLDER: FULL SERVICE",
+    badge: "FULL SERVICE",
     title: "Full-Service Attendants",
     objectPosition: "50% 22%",
     description:
@@ -1998,7 +1998,7 @@ const CATERING_HERO_SLIDES = [
   {
     image: venueImage,
     alt: "Celebration venue setup for paleta catering",
-    badge: "PLACEHOLDER: VENUE SETUP",
+    badge: "VENUE SETUP",
     title: "Weddings & Private Celebrations",
     objectPosition: "center 42%",
     description:
@@ -2007,7 +2007,7 @@ const CATERING_HERO_SLIDES = [
   {
     image: paletasImage,
     alt: "Handcrafted artisan paletas arranged by flavor",
-    badge: "PLACEHOLDER: ROTATING FLAVORS",
+    badge: "ROTATING FLAVORS",
     title: "Artisan Paleta Menus",
     objectPosition: "center 28%",
     description:
@@ -2016,42 +2016,60 @@ const CATERING_HERO_SLIDES = [
 ];
 
 function CateringHeroSlideshow({ onOpenForm }) {
+  const slideshowRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  const [hovered, setHovered] = useState(false);
+  const [inView, setInView] = useState(false);
   const [pageVisible, setPageVisible] = useState(() =>
     typeof document !== "undefined" ? !document.hidden : true,
   );
 
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.intersectionRatio >= 0.25),
+      { threshold: 0.25 },
+    );
+    observer.observe(slideshowRef.current);
+
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleMotionChange = () => {
+      if (motion.matches) setPaused(true);
+    };
     const handleVisibility = () => setPageVisible(!document.hidden);
+    motion.addEventListener("change", handleMotionChange);
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
+      observer.disconnect();
+      motion.removeEventListener("change", handleMotionChange);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
-  // Autoplay immediately upon arrival, resetting countdown whenever slide changes
+  // Rotate only while visible; manual navigation waits for an explicit restart.
   useEffect(() => {
-    if (paused || !pageVisible) return;
+    if (paused || hovered || !inView || !pageVisible) return;
     const timer = window.setTimeout(() => {
       setActiveSlide((curr) => (curr + 1) % CATERING_HERO_SLIDES.length);
     }, 4500);
     return () => window.clearTimeout(timer);
-  }, [activeSlide, paused, pageVisible]);
+  }, [activeSlide, paused, hovered, inView, pageVisible]);
 
-  function prevSlide() {
+  function goToSlide(index) {
+    setPaused(true);
     setActiveSlide(
-      (curr) =>
-        (curr - 1 + CATERING_HERO_SLIDES.length) % CATERING_HERO_SLIDES.length,
+      (index + CATERING_HERO_SLIDES.length) % CATERING_HERO_SLIDES.length,
     );
   }
 
-  function nextSlide() {
-    setActiveSlide((curr) => (curr + 1) % CATERING_HERO_SLIDES.length);
+  function prevSlide() {
+    goToSlide(activeSlide - 1);
   }
 
-  function goToSlide(index) {
-    setActiveSlide(index);
+  function nextSlide() {
+    goToSlide(activeSlide + 1);
   }
 
   function handleKeyDown(e) {
@@ -2069,12 +2087,22 @@ function CateringHeroSlideshow({ onOpenForm }) {
   return (
     <section
       className="cat-hero cat-hero--slideshow"
+      ref={slideshowRef}
       aria-labelledby="cat-hero-heading"
       role="region"
       aria-roledescription="carousel"
       aria-label="Catering event highlights slideshow"
       onKeyDown={handleKeyDown}
       tabIndex={0}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse") setHovered(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse") setHovered(false);
+      }}
+      onFocusCapture={(event) => {
+        if (!event.target.closest("[data-rotation-control]")) setPaused(true);
+      }}
     >
       {/* Full-bleed background slides with crossfade */}
       <div className="cat-hero__slides" aria-live={paused ? "polite" : "off"}>
@@ -2106,11 +2134,9 @@ function CateringHeroSlideshow({ onOpenForm }) {
       {/* Scrim overlay to ensure comfortable text contrast */}
       <div className="cat-hero__scrim" aria-hidden="true" />
 
-      {/* Top placeholder badge bar */}
+      {/* Current slide label and position */}
       <div className="cat-hero__badge-bar">
-        <span className="cat-hero__placeholder-badge">
-          {currentSlide.badge}
-        </span>
+        <span className="cat-hero__slide-badge">{currentSlide.badge}</span>
         <span className="cat-hero__slide-counter" aria-hidden="true">
           {activeSlide + 1} / {CATERING_HERO_SLIDES.length}
         </span>

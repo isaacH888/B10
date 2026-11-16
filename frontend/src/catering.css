@@ -131,15 +131,15 @@
     linear-gradient(
       90deg,
       rgba(24, 4, 26, 0.88) 0%,
-      rgba(24, 4, 26, 0.72) 35%,
-      rgba(24, 4, 26, 0.18) 65%,
-      transparent 88%
+      rgba(24, 4, 26, 0.74) 55%,
+      rgba(24, 4, 26, 0.18) 78%,
+      transparent 95%
     ),
     linear-gradient(0deg, rgba(24, 4, 26, 0.5) 0%, transparent 30%);
   pointer-events: none;
 }
 
-/* Top placeholder badge bar */
+/* Slide label and position */
 .cat-hero__badge-bar {
   position: absolute;
   top: 1.5rem;
@@ -150,7 +150,7 @@
   gap: 10px;
 }
 
-.cat-hero__placeholder-badge {
+.cat-hero__slide-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1033,18 +1033,14 @@
 
 /* Fields keep their native input behavior and existing accessible labels. */
 .cat-shell fieldset,
-.modal fieldset,
-.modal-body fieldset,
-fieldset {
+.modal fieldset {
   min-width: 0;
   border: 0;
   padding: 0;
   margin: 0;
 }
 .cat-shell legend,
-.modal legend,
-.modal-body legend,
-legend {
+.modal legend {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1607,6 +1603,13 @@ legend {
 }
 
 @media (max-width: 900px) {
+  .cat-hero__scrim {
+    background: linear-gradient(
+      90deg,
+      rgba(24, 4, 26, 0.82),
+      rgba(24, 4, 26, 0.68)
+    );
+  }
   .cat-hero__container {
     padding: 3rem var(--site-gutter) 5rem;
   }
@@ -1620,7 +1623,7 @@ legend {
     top: 1rem;
     right: 1.25rem;
   }
-  .cat-hero__placeholder-badge {
+  .cat-hero__slide-badge {
     font-size: 0.68rem;
     padding: 6px 12px;
   }

@@ -22,6 +22,7 @@ WRITES = [
         for action in (
             "approve",
             "payments",
+            "checkout",
             "reschedule",
             "cancel",
             "reopen",

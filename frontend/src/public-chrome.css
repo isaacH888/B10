@@ -15,7 +15,9 @@
 }
 
 .public-site,
-.customer-signin {
+.customer-signin,
+.error-view,
+.session-loading-view {
   --red: #da2935;
   --pink: #f7c2ce;
   --cream: #fff3d8;

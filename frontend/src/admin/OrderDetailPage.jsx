@@ -399,7 +399,8 @@ export function OrderDetailPage() {
                     </p>
                     <p className="od-field-value" style={{ marginTop: "8px" }}>
                       Required to confirm: {order.deposit}.<br />
-                      Record a payment below after external verification.
+                      Send a Square payment link or verify an external payment
+                      in the booking workspace.
                     </p>
                   </>
                 ) : (
@@ -421,8 +422,8 @@ export function OrderDetailPage() {
                   </ul>
                 )}
                 <p className="od-payments-note">
-                  Payments happen externally. This workspace records payments;
-                  it does not charge.
+                  Use the booking workspace to send Square payment links or
+                  verify external payments.
                 </p>
               </section>
             </div>

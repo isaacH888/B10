@@ -84,6 +84,25 @@ def test_duplicate_delivery_sends_one_customer_summary_and_contract():
         assert tx.get_delivery("job1")["status"] == "sent"
 
 
+@pytest.mark.parametrize("contract", ["", None])
+@pytest.mark.parametrize("fallback", ["", "https://example.test/standard-contract"])
+def test_confirmation_without_booking_contract_sends_with_optional_fallback(contract, fallback):
+    store, _, mail, _, _, worker, _ = setup(contract_url=contract)
+    worker.settings["AUTOMATION_CONTRACT_URL"] = fallback
+    worker.process({"job_key": "job1"})
+    worker.process({"job_key": "job1"})
+    assert len(mail.messages) == 1
+    body = mail.messages[0]["body"]
+    assert "Your verified deposit confirms your catering booking." in body
+    assert "USD 50.00" in body
+    if fallback:
+        assert f"Review your contract: {fallback}" in body
+    else:
+        assert "Review your contract:" not in body
+    with store.transaction() as tx:
+        assert tx.get_delivery("job1")["status"] == "sent"
+
+
 def test_fully_paid_booking_still_gets_count_only_email():
     _, _, mail, _, _, worker, _ = setup("reminder", remaining_minor=0)
     worker.process({"job_key": "job1"})

@@ -65,4 +65,7 @@ def read_settings():
     from .email.settings import environment_settings as email_settings
 
     settings.update(email_settings())
+    from .payments.settings import environment_settings as payment_settings
+
+    settings.update(payment_settings())
     return settings
