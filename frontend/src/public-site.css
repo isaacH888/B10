@@ -161,6 +161,57 @@
   max-height: 600px;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  :where(.public-home, .customer-signin) .hero-copy {
+    animation: hero-fade-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  :where(.public-home, .customer-signin) .hero-art {
+    animation: hero-art-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both 0.1s;
+  }
+}
+
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hero-art-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes float-accent {
+  0%,
+  100% {
+    transform: rotate(-14deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-9deg) translateY(-8px);
+  }
+}
+
+@keyframes float-fruit {
+  0%,
+  100% {
+    transform: rotate(10deg) translateY(0);
+  }
+  50% {
+    transform: rotate(15deg) translateY(-7px);
+  }
+}
+
 .public-home .hero-art::before {
   position: absolute;
   inset: 8% 2% 3%;
@@ -177,6 +228,19 @@
   font-size: clamp(36px, 5vw, 68px);
   line-height: 1.2;
   transform: rotate(10deg);
+  animation: float-fruit 4.8s ease-in-out infinite 0.6s;
+}
+
+@keyframes float-paletas {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+    filter: drop-shadow(0 8px 18px rgba(218, 41, 53, 0.1));
+  }
+  50% {
+    transform: rotate(-1.5deg) translateY(-6px);
+    filter: drop-shadow(0 14px 26px rgba(218, 41, 53, 0.16));
+  }
 }
 
 .public-home .hero-art__paletas {
@@ -184,6 +248,8 @@
   height: 100%;
   display: block;
   object-fit: contain;
+  transform-origin: 50% 85%;
+  animation: float-paletas 6.5s ease-in-out infinite;
 }
 
 .public-home .hero-art__accent {
@@ -195,28 +261,56 @@
   height: auto;
   transform: rotate(-14deg);
   pointer-events: none;
+  animation: float-accent 5s ease-in-out infinite;
 }
 
 :where(.public-home, .customer-signin) .ticker {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  gap: 18px;
   background: var(--red);
   color: var(--cream);
-  padding: 18px 15px;
+  padding: 18px 0;
   white-space: nowrap;
   overflow: hidden;
+  position: relative;
+  display: flex;
+  user-select: none;
+}
+
+:where(.public-home, .customer-signin) .ticker-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  will-change: transform;
+  animation: ticker-slide 60s linear infinite;
+}
+
+:where(.public-home, .customer-signin) .ticker-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 28px;
+  padding-right: 28px;
+  flex-shrink: 0;
 }
 
 :where(.public-home, .customer-signin) .ticker span {
   font-family: Anton, Impact, sans-serif;
   font-size: clamp(24px, 2.2vw, 32px);
+  letter-spacing: 0.04em;
 }
 
 :where(.public-home, .customer-signin) .ticker b {
   color: var(--yellow);
   font-size: 26px;
+  display: inline-flex;
+  align-items: center;
+}
+
+@keyframes ticker-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 :where(.public-home, .customer-signin) .cream {
@@ -264,6 +358,14 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.35s ease;
+}
+
+:where(.public-home, .customer-signin) .feature:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 32px rgba(53, 22, 47, 0.12);
 }
 
 .public-home .feature__photo {
@@ -281,6 +383,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.public-home .feature:hover .feature__photo img {
+  transform: scale(1.05);
 }
 
 .public-home .feature__photo--outdoor img {
@@ -318,6 +425,11 @@
   color: var(--ink);
   font-size: 34px;
   line-height: 1;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:where(.public-home, .customer-signin) .feature:hover .burst {
+  transform: rotate(25deg) scale(1.12);
 }
 
 :where(.public-home, .customer-signin) .feature h3 {
@@ -1075,7 +1187,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .error-card__art {
+  .error-card__art,
+  :where(.public-home, .customer-signin) .ticker-track,
+  .public-home .hero-art__fruit,
+  .public-home .hero-art__accent,
+  .public-home .hero-art__paletas,
+  .public-home .flavor-menu__accent,
+  :where(.public-home, .customer-signin) .hero-copy,
+  :where(.public-home, .customer-signin) .hero-art {
     animation: none !important;
+  }
+
+  :where(.public-home, .customer-signin) .feature,
+  .public-home .feature__photo img,
+  :where(.public-home, .customer-signin) .burst,
+  .public-home .hero-art__paletas,
+  .flavor-menu__paletas {
+    transition: none !important;
+    transform: none !important;
   }
 }

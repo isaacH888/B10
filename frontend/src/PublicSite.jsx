@@ -99,19 +99,52 @@ export function PublicHome() {
         </div>
       </section>
       <div className="ticker" aria-hidden="true">
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>ENDLESS JOY</span>
+        <div className="ticker-track">
+          <div className="ticker-group">
+            <span>MEXICAN PALETAS</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>BIG JOY ON A STICK</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>HAND-CRAFTED IN HOUSTON</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>ENDLESS POPSSIBILITIES</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>FRESH ALL-NATURAL FRUIT</span>
+            <b>
+              <Sunburst />
+            </b>
+          </div>
+          <div className="ticker-group" aria-hidden="true">
+            <span>MEXICAN PALETAS</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>BIG JOY ON A STICK</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>HAND-CRAFTED IN HOUSTON</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>ENDLESS POPSSIBILITIES</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>FRESH ALL-NATURAL FRUIT</span>
+            <b>
+              <Sunburst />
+            </b>
+          </div>
+        </div>
       </div>
       <section
         id="paleta-life"

@@ -14,11 +14,20 @@
   display: grid;
   place-items: center;
   min-width: 0;
+  cursor: pointer;
 }
 .flavor-menu__paletas {
   width: min(100%, 540px);
   height: auto;
   display: block;
+  transform-origin: 50% 80%;
+  transition:
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 0.4s ease;
+}
+.flavor-menu__photo:hover .flavor-menu__paletas {
+  transform: translateY(-8px) rotate(-2.5deg) scale(1.035);
+  filter: drop-shadow(0 18px 32px rgba(53, 22, 47, 0.2));
 }
 .public-home .flavor-menu__accent {
   position: absolute;
@@ -32,6 +41,22 @@
   background: var(--cream);
   transform: rotate(12deg);
   pointer-events: none;
+  animation: float-paleta-accent 4.5s ease-in-out infinite;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.flavor-menu__photo:hover .flavor-menu__accent {
+  animation-play-state: paused;
+  transform: rotate(28deg) scale(1.15) translateY(-4px);
+}
+
+@keyframes float-paleta-accent {
+  0%,
+  100% {
+    transform: rotate(12deg) translateY(0);
+  }
+  50% {
+    transform: rotate(17deg) translateY(-8px);
+  }
 }
 .flavor-menu__copy {
   min-width: 0;
@@ -216,5 +241,18 @@
   }
   .flavor-picker__row .form-field:first-child {
     grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-home .flavor-menu__accent {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  .flavor-menu__paletas {
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
   }
 }
