@@ -74,6 +74,8 @@ jobs:
           DB_USER: foundation_ci
           DB_PASSWORD: foundation_ci_only
           RUN_DATABASE_INTEGRATION: "1"
+          # Disposable service credentials only, for restricted-ledger grant tests.
+          DB_TEST_ADMIN_PASSWORD: foundation_ci_root_only
 
   frontend:
     name: Frontend formatting, build and browser tests

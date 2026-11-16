@@ -377,15 +377,18 @@ class SQLTransaction:
             raise
 
     def payments(self, booking_id):
+        # The ledger is append-only. Shared locking reads see committed rows
+        # without requiring UPDATE privileges; the transaction mutex serializes
+        # payment insertion and booking decisions.
         return self._read(
-            "SELECT data FROM automation_payments WHERE booking_id=%s ORDER BY reference FOR UPDATE",
+            "SELECT data FROM automation_payments WHERE booking_id=%s ORDER BY reference FOR SHARE",
             (booking_id,),
             many=True,
         )
 
     def get_payment(self, reference):
         return self._read(
-            "SELECT data FROM automation_payments WHERE reference=%s FOR UPDATE", (reference,)
+            "SELECT data FROM automation_payments WHERE reference=%s FOR SHARE", (reference,)
         )
 
     def get_checkout(self, checkout_id):
@@ -440,7 +443,7 @@ class SQLTransaction:
         )
 
     def get_square_event(self, event_id):
-        return self._read("SELECT data FROM square_events WHERE id=%s FOR UPDATE", (event_id,))
+        return self._read("SELECT data FROM square_events WHERE id=%s FOR SHARE", (event_id,))
 
     def save_square_event(self, event):
         self._execute(

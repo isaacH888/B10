@@ -5,7 +5,9 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from uuid import uuid4
 
+import pymysql
 import pytest
 from app import database
 from app.automation.store import MemoryStore, Store, StoreUnavailable
@@ -123,13 +125,46 @@ def sql_settings():
     return settings
 
 
+@pytest.fixture(params=[False, True], ids=["normal-grants", "append-only-ledgers"])
+def ledger_settings(sql_settings, request):
+    if not request.param:
+        yield sql_settings
+        return
+    password = os.getenv("DB_TEST_ADMIN_PASSWORD")
+    if not password:
+        pytest.skip("No disposable MySQL administrator configured for privilege tests")
+    admin = {**sql_settings, "DB_USER": "root", "DB_PASSWORD": password}
+    user, credential = "b10_ledger_" + uuid4().hex[:16], uuid4().hex
+    database_name = sql_settings["DB_NAME"]
+    assert database_name.replace("_", "").isalnum()
+    with database.connect(admin, autocommit=True) as connection, connection.cursor() as cursor:
+        cursor.execute("CREATE USER %s IDENTIFIED BY %s", (user, credential))
+        try:
+            for table in (
+                "automation_mutex",
+                "automation_bookings",
+                "automation_outbox",
+                "inventory_reservations",
+            ):
+                cursor.execute(
+                    f"GRANT SELECT, INSERT, UPDATE ON `{database_name}`.`{table}` TO %s", (user,)
+                )
+            for table in ("automation_payments", "square_events", "automation_audit"):
+                cursor.execute(
+                    f"GRANT SELECT, INSERT ON `{database_name}`.`{table}` TO %s", (user,)
+                )
+            yield {**sql_settings, "DB_USER": user, "DB_PASSWORD": credential}
+        finally:
+            cursor.execute("DROP USER %s", (user,))
+
+
 @pytest.mark.database
-def test_sql_capacity_and_payment_identity_are_cross_process_atomic(sql_settings):
+def test_sql_capacity_and_payment_identity_are_cross_process_atomic(ledger_settings):
     from app.automation.domain import BookingService, DomainError
 
     now = datetime(2030, 1, 1, tzinfo=timezone.utc).timestamp()
     services = [
-        BookingService(Store(sql_settings), capacity=50, clock=lambda: now) for _ in range(2)
+        BookingService(Store(ledger_settings), capacity=50, clock=lambda: now) for _ in range(2)
     ]
     base = {
         "start": "2030-02-20T14:00:00-06:00",
@@ -173,6 +208,22 @@ def test_sql_capacity_and_payment_identity_are_cross_process_atomic(sql_settings
     assert results[0] == results[1]
     with services[0].store.transaction() as tx:
         assert len(tx.payments(approved[0]["id"])) == 1
+        event = {"id": "square-event-regression"}
+        assert tx.get_square_event(event["id"]) is None
+        tx.save_square_event(event)
+        assert tx.get_square_event(event["id"]) == event
+    if ledger_settings["DB_USER"].startswith("b10_ledger_"):
+        # Successful approval and duplicate payment verification must never
+        # require permission to edit or remove the immutable ledger records.
+        with database.connect(ledger_settings) as connection, connection.cursor() as cursor:
+            for table in ("automation_payments", "square_events"):
+                for statement in (
+                    f"UPDATE {table} SET data=data WHERE 1=0",
+                    f"DELETE FROM {table} WHERE 1=0",
+                ):
+                    with pytest.raises(pymysql.MySQLError) as failure:
+                        cursor.execute(statement)
+                    assert failure.value.args[0] == 1142
 
 
 @pytest.mark.database
