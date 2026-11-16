@@ -422,7 +422,7 @@ test("owner imports a customer order without retyping its selections or price", 
   ).toBeVisible();
   await page
     .getByLabel("Confirmed event end (Houston/Central time)")
-    .fill("2027-06-12T16:00");
+    .selectOption("2027-06-12T21:00:00.000Z");
   await page
     .getByLabel("Order contract link (optional, HTTPS)")
     .fill("https://example.invalid/contract");
@@ -433,7 +433,7 @@ test("owner imports a customer order without retyping its selections or price", 
     intake.getByText("No customer orders awaiting intake.", { exact: true }),
   ).toBeVisible();
   expect(submitted).toEqual({
-    end: "2027-06-12T16:00:00-05:00",
+    end: "2027-06-12T21:00:00.000Z",
     contract_url: "https://example.invalid/contract",
   });
 });
@@ -458,8 +458,7 @@ test("reopening a denied request collects the missing end without requiring a co
   const end = page.getByLabel(
     "Event end before reopening (Houston/Central time)",
   );
-  await expect(end).toHaveAttribute("type", "datetime-local");
-  await end.fill("2027-06-12T16:00");
+  await end.selectOption("2027-06-12T21:00:00.000Z");
   await page
     .getByRole("button", { name: "Reopen and check capacity", exact: true })
     .click();
@@ -473,4 +472,72 @@ test("reopening a denied request collects the missing end without requiring a co
         end: "2027-06-12T21:00:00.000Z",
       },
     });
+});
+
+test("booking workspace uses start-based end choices and confirms before accepting", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  const mutations = await mock(page, "owner", {
+    status: "requested",
+    contract_url: "",
+    end_unspecified: true,
+  });
+  await page.goto(`/admin/bookings/${booking.id}`);
+  const review = page.getByRole("region", { name: "Review customer request" });
+  await review
+    .getByRole("combobox", { name: /^Event end/ })
+    .selectOption("2027-06-12T21:00:00.000Z");
+  await review
+    .getByRole("button", { name: "Confirm availability", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Confirm availability?" });
+  await expect(dialog).toContainText("Ends Jun 12, 2027, 4:00 PM CDT");
+  expect(mutations).toHaveLength(0);
+  const backContrast = await dialog
+    .getByRole("button", { name: "Go back" })
+    .evaluate((button) => {
+      const style = getComputedStyle(button);
+      const luminance = (color) =>
+        color
+          .match(/[\d.]+/g)
+          .slice(0, 3)
+          .map(Number)
+          .reduce((sum, channel, index) => {
+            const value = channel / 255;
+            const linear =
+              value <= 0.04045
+                ? value / 12.92
+                : ((value + 0.055) / 1.055) ** 2.4;
+            return sum + linear * [0.2126, 0.7152, 0.0722][index];
+          }, 0);
+      const values = [
+        luminance(style.color),
+        luminance(style.backgroundColor),
+      ].sort((a, b) => b - a);
+      return (values[0] + 0.05) / (values[1] + 0.05);
+    });
+  expect(backContrast).toBeGreaterThanOrEqual(4.5);
+  const bounds = await dialog.boundingBox();
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
+  await page.screenshot({ path: info.outputPath("booking-accept-mobile.png") });
+  await dialog.getByRole("button", { name: "Go back" }).click();
+  expect(mutations).toHaveLength(0);
+  await review
+    .getByRole("button", { name: "Confirm availability", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Yes, confirm availability" })
+    .click();
+  await expect.poll(() => mutations.length).toBe(1);
+  expect(mutations[0]).toEqual({
+    path: `${prefix}/bookings/${booking.id}/decision`,
+    body: {
+      decision: "confirm",
+      message: "",
+      expected_revision: booking.revision,
+      end: "2027-06-12T21:00:00.000Z",
+    },
+  });
 });

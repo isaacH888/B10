@@ -94,3 +94,21 @@ backend tests total). Review also checked stale deposit-email suppression,
 reopening requirements, historical-request denial, date-boundary validation and
 required dry ice after final quantity changes. Formatting, lint, build, contract
 and whitespace checks passed; there are no migration or dependency changes.
+
+## Owner request review controls (November 16)
+
+Owner review, customer-order intake and missing-end reopening use an end-time
+dropdown based on the saved event start in Houston/Central time. A supplied end
+is preselected; requests without an end require an explicit choice. Standard
+options run from 30 minutes to 12 hours and show the duration and end time,
+including the date when the event crosses midnight. A custom date/time option
+supports other schedules. Stored timestamps and Central daylight saving offsets
+are retained when sending the existing API payloads.
+
+Confirm availability, conditional confirmation and denial now open a confirmation
+dialog before saving. The dialog shows the customer, event time and decision
+effects. Go back, Escape or the backdrop cancel without submitting; duplicate
+confirmation clicks send one request. The existing version, CSRF and owner-access
+checks remain in use. Browser checks cover the request payloads, cancellation,
+keyboard focus and responsive layouts. The dashboard's empty Upcoming Events
+message also aligns with its card heading and populated event rows.

@@ -1,0 +1,109 @@
+.od-review {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--adm-border, #e5d9e5);
+  border-radius: 16px;
+  background: #fff;
+}
+.od-review h2 {
+  margin-top: 0;
+}
+.od-review fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.od-review label {
+  display: grid;
+  gap: 6px;
+}
+.od-review input,
+.od-review textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #aa91aa;
+  border-radius: 8px;
+  font: inherit;
+}
+.od-review .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.od-decision-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.od-decision-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(26 26 46 / 45%);
+}
+.od-decision-dialog {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid var(--adm-border, #e6e2e6);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--adm-ink, #1a1a2e);
+  box-shadow: 0 16px 64px rgb(26 26 46 / 20%);
+  overflow-wrap: anywhere;
+}
+.od-decision-dialog h2 {
+  margin: 8px 0 12px;
+  color: var(--adm-purple, #4b004b);
+  font-size: 26px;
+  line-height: 1.2;
+}
+.od-decision-dialog p {
+  line-height: 1.6;
+}
+.od-decision-dialog__eyebrow {
+  margin: 0;
+  color: var(--adm-muted, #69616b);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.od-decision-dialog__summary {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--adm-soft, #f3eef6);
+}
+.od-decision-dialog__summary p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+.od-decision-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.adm-shell .od-decision-dialog .od-decision-dialog__actions .adm-btn--outline {
+  color: var(--adm-purple, #4b004b);
+  background: #fff;
+}
+@media (max-width: 480px) {
+  .od-review,
+  .od-decision-dialog {
+    padding: 20px;
+  }
+  .od-decision-dialog__actions {
+    display: grid;
+  }
+}

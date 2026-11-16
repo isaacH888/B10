@@ -419,6 +419,13 @@
   padding: 0;
 }
 
+.adm-event-empty {
+  padding: 12px 24px;
+  color: var(--adm-muted, #69616b);
+  font-size: 14px;
+  line-height: 20px;
+}
+
 .adm-event-row {
   position: relative;
 }

@@ -5,9 +5,16 @@ async function reviewWorkspace(page, options = {}) {
   const order = savedOrder();
   order.event.starts_at = "2099-01-15T15:00:00-06:00";
   order.event.ends_at = "2099-01-15T17:00:00-06:00";
+  Object.assign(order.event, options.event);
+  if (options.missingEnd) order.event.ends_at = null;
   let booking = options.linked
     ? {
         ...linkedBooking(order),
+        start: order.event.starts_at,
+        end:
+          order.event.ends_at ||
+          new Date(Date.parse(order.event.starts_at) + 3600000).toISOString(),
+        end_unspecified: !order.event.ends_at,
         status: "conditionally_confirmed",
         revision: 4,
         paid_minor: 0,
@@ -51,6 +58,8 @@ async function reviewWorkspace(page, options = {}) {
         });
       booking = {
         ...linkedBooking(order),
+        start: order.event.starts_at,
+        end: body.end || order.event.ends_at,
         status: {
           confirm: "awaiting_deposit",
           conditionally_confirm: "conditionally_confirmed",
@@ -74,6 +83,10 @@ async function reviewWorkspace(page, options = {}) {
   return { order, decisions };
 }
 
+async function confirmDecision(page, name) {
+  await page.getByRole("dialog").getByRole("button", { name }).click();
+}
+
 test("conditional confirmation requires an explanation and updates the saved order status", async ({
   page,
 }) => {
@@ -91,6 +104,7 @@ test("conditional confirmation requires an explanation and updates the saved ord
   await page
     .getByRole("button", { name: "Conditionally confirm", exact: true })
     .click();
+  await confirmDecision(page, "Yes, send conditions");
   await expect(page.locator(".od-review").getByRole("status")).toContainText(
     "customer email has been queued",
   );
@@ -114,6 +128,11 @@ test("owner can deny an unlinked request without preparing a contract", async ({
 }) => {
   const { decisions } = await reviewWorkspace(page);
   await page.getByRole("button", { name: "Deny request", exact: true }).click();
+  expect(decisions).toHaveLength(0);
+  await expect(page.getByRole("dialog")).toContainText(
+    "Are you sure you want to deny this request?",
+  );
+  await confirmDecision(page, "Yes, deny request");
   await expect(page.getByLabel("Order status overview")).toContainText(
     "Cancelled",
   );
@@ -123,7 +142,7 @@ test("owner can deny an unlinked request without preparing a contract", async ({
   ).toHaveCount(0);
 });
 
-test("confirming an existing conditional booking uses a Central date picker and current revision", async ({
+test("confirming an existing conditional booking retains a custom Central end and current revision", async ({
   page,
 }) => {
   const { decisions } = await reviewWorkspace(page, { linked: true });
@@ -133,11 +152,15 @@ test("confirming an existing conditional booking uses a Central date picker and 
   const end = page.getByLabel(
     "Event end (Houston/Central time, required to confirm)",
   );
-  await expect(end).toHaveAttribute("type", "datetime-local");
-  await end.fill("2099-01-16T20:30");
+  await end.selectOption("custom");
+  await page
+    .getByLabel("Custom event end (Houston/Central time)")
+    .fill("2099-01-16T20:30");
   await page
     .getByRole("button", { name: "Confirm availability", exact: true })
     .click();
+  expect(decisions).toHaveLength(0);
+  await confirmDecision(page, "Yes, confirm availability");
   await expect(page.locator(".od-review").getByRole("status")).toContainText(
     "customer email has been queued",
   );
@@ -164,7 +187,8 @@ for (const linked of [false, true]) {
     const end = page.getByLabel(
       "Event end (Houston/Central time, required to confirm)",
     );
-    await end.fill("");
+    const suppliedEnd = await end.inputValue();
+    await end.selectOption("");
     await page
       .getByRole("button", { name: "Confirm availability", exact: true })
       .click();
@@ -172,10 +196,11 @@ for (const linked of [false, true]) {
       "Add the event end time",
     );
     expect(decisions).toHaveLength(0);
-    await end.fill("2099-01-15T17:00");
+    await end.selectOption(suppliedEnd);
     await page
       .getByRole("button", { name: "Confirm availability", exact: true })
       .click();
+    await confirmDecision(page, "Yes, confirm availability");
     await expect(page.getByLabel("Order status overview")).toContainText(
       "Awaiting deposit",
     );
@@ -193,6 +218,7 @@ test("failed decisions explain the conflict without claiming an email was queued
 }) => {
   await reviewWorkspace(page, { fail: true });
   await page.getByRole("button", { name: "Deny request", exact: true }).click();
+  await confirmDecision(page, "Yes, deny request");
   await expect(page.locator(".od-review").getByRole("alert")).toContainText(
     "Booking changed",
   );
@@ -201,16 +227,178 @@ test("failed decisions explain the conflict without claiming an email was queued
   ).toHaveCount(0);
 });
 
-test("owner decision controls fit a narrow screen", async ({ page }, info) => {
-  await page.setViewportSize({ width: 375, height: 844 });
-  await reviewWorkspace(page);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-  await page.screenshot({
-    path: info.outputPath("owner-review-mobile.png"),
-    fullPage: true,
-  });
+test("acceptance uses the customer's supplied end and waits for confirmation", async ({
+  page,
+}) => {
+  const { order, decisions } = await reviewWorkspace(page);
+  const end = page.getByRole("combobox", { name: /^Event end/ });
+  await expect(end).toHaveValue("2099-01-15T23:00:00.000Z");
+  await expect(end.locator("option:checked")).toHaveText(
+    "5:00 PM CST (2 hours)",
+  );
+  await page
+    .getByRole("button", { name: "Confirm availability", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Confirm availability?" });
+  await expect(dialog).toContainText(order.customer.name);
+  await expect(dialog).toContainText("Ends Jan 15, 2099, 5:00 PM CST");
+  expect(decisions).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Go back" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Confirm availability", exact: true }),
+  ).toBeFocused();
+  expect(decisions).toHaveLength(0);
+  await page
+    .getByRole("button", { name: "Confirm availability", exact: true })
+    .click();
+  await confirmDecision(page, "Yes, confirm availability");
+  await expect.poll(() => decisions.length).toBe(1);
+  expect(decisions[0].body.end).toBe("2099-01-15T23:00:00.000Z");
 });
+
+for (const linked of [false, true]) {
+  test(`missing end uses a dropdown from the actual start for ${linked ? "a booking" : "an order"}`, async ({
+    page,
+  }) => {
+    const { decisions } = await reviewWorkspace(page, {
+      linked,
+      missingEnd: true,
+    });
+    const end = page.getByRole("combobox", { name: /^Event end/ });
+    await expect(end).toHaveValue("");
+    await expect(
+      page.getByLabel("Custom event end (Houston/Central time)"),
+    ).toHaveCount(0);
+    await end.selectOption({ label: "6:00 PM CST (3 hours)" });
+    await page
+      .getByRole("button", { name: "Confirm availability", exact: true })
+      .click();
+    await confirmDecision(page, "Yes, confirm availability");
+    await expect.poll(() => decisions.length).toBe(1);
+    expect(decisions[0].body.end).toBe("2099-01-16T00:00:00.000Z");
+  });
+}
+
+test("denial can be cancelled with Escape and traps keyboard focus", async ({
+  page,
+}) => {
+  const { decisions } = await reviewWorkspace(page, { missingEnd: true });
+  const deny = page.getByRole("button", { name: "Deny request", exact: true });
+  await deny.click();
+  const dialog = page.getByRole("dialog", { name: "Deny this request?" });
+  const back = dialog.getByRole("button", { name: "Go back" });
+  const confirm = dialog.getByRole("button", { name: "Yes, deny request" });
+  await expect(back).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(confirm).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(back).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(deny).toBeFocused();
+  expect(decisions).toHaveLength(0);
+  await deny.click();
+  await confirm.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await expect.poll(() => decisions.length).toBe(1);
+  expect(decisions[0].body).not.toHaveProperty("end");
+});
+
+test("custom ends before the start cannot open an acceptance prompt", async ({
+  page,
+}) => {
+  const { decisions } = await reviewWorkspace(page);
+  await page
+    .getByRole("combobox", { name: /^Event end/ })
+    .selectOption("custom");
+  await page
+    .getByLabel("Custom event end (Houston/Central time)")
+    .fill("2099-01-15T14:00");
+  await expect(
+    page.locator(".event-end-select").getByRole("alert"),
+  ).toContainText("Event end must be after");
+  await page
+    .getByRole("button", { name: "Confirm availability", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(decisions).toHaveLength(0);
+});
+
+test.describe("event end choices use Central time independently of the owner's browser", () => {
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  for (const example of [
+    {
+      name: "an event ending the following day",
+      start: "2027-06-12T23:15:00-05:00",
+      label: "Jun 13, 2027, 12:15 AM CDT (1 hour)",
+      end: "2027-06-13T05:15:00.000Z",
+    },
+    {
+      name: "a daylight saving transition",
+      start: "2027-03-14T01:30:00-06:00",
+      label: "3:30 AM CDT (1 hour)",
+      end: "2027-03-14T08:30:00.000Z",
+    },
+  ]) {
+    test(example.name, async ({ page }) => {
+      const { decisions } = await reviewWorkspace(page, {
+        missingEnd: true,
+        event: { starts_at: example.start },
+      });
+      await page
+        .getByRole("combobox", { name: /^Event end/ })
+        .selectOption({ label: example.label });
+      await page
+        .getByRole("button", { name: "Confirm availability", exact: true })
+        .click();
+      await confirmDecision(page, "Yes, confirm availability");
+      await expect.poll(() => decisions.length).toBe(1);
+      expect(decisions[0].body.end).toBe(example.end);
+    });
+  }
+});
+
+for (const width of [320, 375, 768, 1440]) {
+  test(`owner decision controls fit at ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await reviewWorkspace(page);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({
+      path: info.outputPath("owner-review-mobile.png"),
+      fullPage: true,
+    });
+    const layout = await page.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll("body *")]
+        .filter(
+          (element) => element.getBoundingClientRect().right > innerWidth + 1,
+        )
+        .slice(0, 12)
+        .map((element) => ({
+          tag: element.tagName,
+          className: element.className,
+        })),
+    }));
+    expect(layout.width, JSON.stringify(layout.overflow)).toBeLessThanOrEqual(
+      width,
+    );
+    await page
+      .getByRole("button", { name: "Deny request", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: "Go back" })).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Yes, deny request" }),
+    ).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: info.outputPath("owner-denial-mobile.png"),
+    });
+  });
+}

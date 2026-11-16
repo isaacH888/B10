@@ -14,6 +14,7 @@ import {
   EVENT_TIME_ZONE,
 } from "../eventTime.js";
 import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
+import { EventEndSelect } from "../admin/EventEndSelect.jsx";
 import { SquareCheckoutControls } from "../payments/SquareCheckoutControls.jsx";
 
 const base = "/admin/automation";
@@ -754,19 +755,19 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
           </details>
         ) : (
           <form
-            onSubmit={submit("reopen", (form) => ({
-              reason: form.get("reason"),
-              ...(form.get("contract_url")
-                ? { contract_url: form.get("contract_url") }
-                : {}),
-              ...(form.get("end")
-                ? {
-                    end: new Date(
-                      centralTimeToIso(form.get("end")),
-                    ).toISOString(),
-                  }
-                : {}),
-            }))}
+            onSubmit={submit("reopen", (form) => {
+              if (booking.end_unspecified && !form.get("end"))
+                throw new Error("Choose the event end time before reopening.");
+              return {
+                reason: form.get("reason"),
+                ...(form.get("contract_url")
+                  ? { contract_url: form.get("contract_url") }
+                  : {}),
+                ...(form.get("end")
+                  ? { end: new Date(form.get("end")).toISOString() }
+                  : {}),
+              };
+            })}
           >
             <Input name="reason" label="Reason for reopening" minLength={10} />
             {!booking.contract_url && (
@@ -779,10 +780,11 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
               />
             )}
             {booking.end_unspecified && (
-              <Input
+              <EventEndSelect
                 name="end"
                 label="Event end before reopening (Houston/Central time)"
-                type="datetime-local"
+                start={booking.start}
+                required
               />
             )}
             <button>Reopen and check capacity</button>
@@ -869,8 +871,10 @@ function CustomerOrder({ order, busy, mutate }) {
     const form = new FormData(event.currentTarget);
     setError("");
     try {
+      if (!form.get("end"))
+        throw new Error("Choose the event end time before creating a booking.");
       await mutate(`/orders/${encodeURIComponent(order.id)}/booking`, {
-        end: centralTimeToIso(form.get("end")),
+        end: form.get("end"),
         contract_url: form.get("contract_url"),
       });
     } catch (failure) {
@@ -890,11 +894,12 @@ function CustomerOrder({ order, busy, mutate }) {
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
           <legend>Prepare customer order for booking</legend>
-          <Input
+          <EventEndSelect
             name="end"
             label="Confirmed event end (Houston/Central time)"
-            type="datetime-local"
-            defaultValue={centralInputValue(order.event.ends_at)}
+            start={order.event.starts_at}
+            defaultValue={order.event.ends_at || ""}
+            required
           />
           <Input
             name="contract_url"

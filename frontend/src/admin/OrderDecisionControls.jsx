@@ -1,18 +1,21 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { apiRequest } from "../auth/api.js";
-import { centralInputValue, centralTimeToIso } from "../eventTime.js";
+import { DecisionConfirmation } from "./DecisionConfirmation.jsx";
+import { EventEndSelect } from "./EventEndSelect.jsx";
+import "./order-decision.css";
 
 export function OrderDecisionControls({ order, booking, onSaved }) {
   const { sessions } = useAuth();
   const [message, setMessage] = useState("");
   const [contract, setContract] = useState(booking?.contract_url || "");
   const [end, setEnd] = useState(
-    centralInputValue(
-      booking?.end_unspecified ? null : booking?.end || order?.event.ends_at,
-    ),
+    (booking?.end_unspecified ? "" : booking?.end || order?.event.ends_at) ||
+      "",
   );
+  const [pending, setPending] = useState(null);
+  const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState("");
@@ -20,9 +23,16 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
   if (["cancelled", "fulfilled"].includes(status)) return null;
   const confirmed = status === "confirmed";
 
-  async function decide(event) {
+  const start = booking?.start || order?.event.starts_at;
+
+  function decide(event) {
     event.preventDefault();
     const decision = event.nativeEvent.submitter?.value;
+    if (
+      submitting.current ||
+      !["confirm", "conditionally_confirm", "deny"].includes(decision)
+    )
+      return;
     setError(null);
     setNotice("");
     if (decision === "conditionally_confirm" && !message.trim()) {
@@ -31,7 +41,6 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
       });
       return;
     }
-    setBusy(true);
     try {
       const body = { decision, message: message.trim() };
       if (booking) body.expected_revision = booking.revision;
@@ -42,24 +51,46 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
             "Add the event end time before confirming availability.",
           );
         if (contract.trim()) body.contract_url = contract.trim();
-        body.end = new Date(centralTimeToIso(end)).toISOString();
+        body.end = new Date(end).toISOString();
+        if (Date.parse(body.end) <= Date.parse(start))
+          throw new Error("Event end must be after the event start.");
       }
-      await apiRequest(
-        `/admin/automation/${booking ? `bookings/${encodeURIComponent(booking.id)}` : `orders/${encodeURIComponent(order.id)}`}/decision`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": sessions.admin.data.csrf_token,
-          },
-          body: JSON.stringify(body),
+      setPending({
+        body,
+        path: `/admin/automation/${booking ? `bookings/${encodeURIComponent(booking.id)}` : `orders/${encodeURIComponent(order.id)}`}/decision`,
+        customer:
+          booking?.source_order?.customer?.name ||
+          order?.customer?.name ||
+          booking?.customer_email ||
+          booking?.reference ||
+          order?.id,
+        start,
+      });
+    } catch (failure) {
+      setError(failure);
+    }
+  }
+
+  async function confirmDecision() {
+    if (!pending || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setPending(null);
+    try {
+      await apiRequest(pending.path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": sessions.admin.data.csrf_token,
         },
-      );
+        body: JSON.stringify(pending.body),
+      });
       setNotice("Decision saved. A customer email has been queued.");
       await onSaved();
     } catch (failure) {
       setError(failure);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -102,14 +133,12 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
                   placeholder="https://"
                 />
               </label>
-              <label>
-                Event end (Houston/Central time, required to confirm)
-                <input
-                  type="datetime-local"
-                  value={end}
-                  onChange={(event) => setEnd(event.target.value)}
-                />
-              </label>
+              <EventEndSelect
+                start={start}
+                value={end}
+                onChange={setEnd}
+                label="Event end (Houston/Central time, required to confirm)"
+              />
             </>
           )}
           <div className="actions">
@@ -143,6 +172,13 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
           </div>
         </fieldset>
       </form>
+      {pending && (
+        <DecisionConfirmation
+          pending={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={confirmDecision}
+        />
+      )}
       {(busy || notice) && (
         <p role="status">{busy ? "Saving decision…" : notice}</p>
       )}

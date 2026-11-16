@@ -38,7 +38,9 @@ function UpcomingEventsCard({ events, total }) {
 
       <ul className="adm-event-list" role="list">
         {events.length === 0 && (
-          <li>No confirmed events in the next 30 days.</li>
+          <li className="adm-event-empty">
+            No confirmed events in the next 30 days.
+          </li>
         )}
         {events.map((event, index) => (
           <li key={event.id} className="adm-event-row">

@@ -1,0 +1,34 @@
+.event-end-select {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.event-end-select label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.event-end-select select,
+.event-end-select input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--adm-border, #aa91aa);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--adm-ink, #1a1a2e);
+  font: inherit;
+}
+.event-end-select__start {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.event-end-select__hint {
+  margin: 0;
+  color: var(--adm-muted, #69616b);
+  font-size: 13px;
+  line-height: 1.5;
+}
