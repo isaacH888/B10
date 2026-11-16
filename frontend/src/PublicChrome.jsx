@@ -142,6 +142,9 @@ export function PublicFooter() {
         </div>
         <nav className="site-footer__links" aria-label="Footer navigation">
           <SectionLinks />
+          <NavLink to="/faq" end>
+            FAQs
+          </NavLink>
           <Link to="/admin/login">Owner Sign-In</Link>
         </nav>
         <SocialLinks />

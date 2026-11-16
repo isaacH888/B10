@@ -19,6 +19,7 @@ import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
 import { BookingWorkspacePage } from "./admin/BookingWorkspacePage.jsx";
 import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
+import { FaqPage } from "./FaqPage.jsx";
 import { CustomerAccount } from "./CustomerAccount.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
 import { PaymentReturn } from "./payments/PaymentReturn.jsx";
@@ -54,6 +55,7 @@ function Layout({ children }) {
   if (
     pathname === "/" ||
     pathname === "/order" ||
+    pathname === "/faq" ||
     pathname === "/account" ||
     pathname === "/order/confirm" ||
     pathname === "/error-preview" ||
@@ -666,6 +668,7 @@ export default function App() {
             />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/order" element={<CateringPage />} />
+            <Route path="/faq" element={<FaqPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
             <Route path="/payment/return" element={<PaymentReturn />} />
             <Route path="/payment/pay" element={<PaymentPage />} />

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import FlavorPicker, { FlavorMixSummary } from "./FlavorPicker.jsx";
 import { flavorMixIssue, validFlavorDraft } from "./flavors.js";
 import {
@@ -15,7 +15,7 @@ import "./catering.css";
 import venueImage from "./assets/Venue.webp";
 import paletasImage from "./assets/paletas-flavors-640.webp";
 import eventCartImage from "./assets/story/audrey-event-cart.jpg";
-import servingPaletasImage from "./assets/story/audrey-serving-paletas.jpg";
+import parkEventImage from "./assets/story/audrey-park-event.jpg";
 import paletaIllustration from "./assets/illustrations/paleta.svg";
 import fruitIllustration from "./assets/illustrations/fruit.svg";
 import cartIllustration from "./assets/illustrations/cart.svg";
@@ -1987,15 +1987,6 @@ const CATERING_HERO_SLIDES = [
       "Charming mobile cart setup with our signature umbrella, perfect for outdoor or indoor celebrations.",
   },
   {
-    image: servingPaletasImage,
-    alt: "Popssibilities staff serving paletas to event guests",
-    badge: "FULL SERVICE",
-    title: "Full-Service Attendants",
-    objectPosition: "50% 22%",
-    description:
-      "Our friendly team handles scoop and hand-off so you can mingle and enjoy your celebration.",
-  },
-  {
     image: venueImage,
     alt: "Celebration venue setup for paleta catering",
     badge: "VENUE SETUP",
@@ -2451,12 +2442,18 @@ export function CateringPage() {
             >
               Request a quote
             </button>
+            <p className="cat-cta__faq">
+              A few questions first?{" "}
+              <Link to="/faq">
+                Read our catering FAQs <span aria-hidden="true">↗</span>
+              </Link>
+            </p>
           </div>
           <div className="cat-cta__photo">
             <img
-              src={eventCartImage}
-              alt="Audrey ready to serve paletas from the Popssibilities event cart"
-              width="1079"
+              src={parkEventImage}
+              alt="Audrey at an outdoor Popssibilities booth beside a colorful paleta sign"
+              width="935"
               height="1400"
               loading="lazy"
               decoding="async"

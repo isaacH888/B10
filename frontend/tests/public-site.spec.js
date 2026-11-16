@@ -128,6 +128,54 @@ test("home and catering retain the same header, footer and customer navigation",
   await expect(page.getByRole("contentinfo")).toHaveCount(1);
 });
 
+test("footer and catering links open the public FAQs and lead back to a quote", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await sessions(page, { unavailable: true });
+  await page.goto("/#our-story");
+  await page
+    .getByRole("navigation", { name: "Footer navigation" })
+    .getByRole("link", { name: "FAQs", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/faq$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "CATERING FAQs.",
+  );
+  const answers = page.getByRole("region", {
+    name: "Catering questions and answers",
+  });
+  await expect(answers.locator("details")).toHaveCount(7);
+  await expect(answers.locator("details").first()).toHaveAttribute("open", "");
+
+  const service = answers.locator("summary").filter({
+    hasText: "What is included with full service catering?",
+  });
+  await service.focus();
+  await page.keyboard.press("Enter");
+  await expect(answers.getByText(/up to two hours of serving/)).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(
+    answers.getByText(/up to two hours of serving/),
+  ).not.toBeVisible();
+
+  await answers
+    .locator("summary")
+    .filter({ hasText: "Do you serve events outside of Houston?" })
+    .click();
+  await expect(
+    answers.getByRole("link", { name: "email", exact: true }),
+  ).toHaveAttribute("href", "mailto:info@popssibilities.com");
+  await page
+    .getByRole("link", { name: "Request a quote", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/order$/);
+  await expect(page.getByLabel("Full name")).toBeVisible();
+  await page.getByRole("button", { name: "Close catering form" }).click();
+  await page.getByRole("link", { name: "Read our catering FAQs" }).click();
+  await expect(page).toHaveURL(/\/faq$/);
+});
+
 test("homepage sign-in opens the branded screen and retains provider authentication", async ({
   page,
 }) => {
@@ -223,6 +271,9 @@ test("Audrey's gallery rotates in view and supports pausing and choosing photos"
   const gallery = page.getByRole("region", { name: "Moments with Audrey" });
   const photo = (number) =>
     gallery.getByRole("button", { name: `Show photo ${number}` });
+  await expect(
+    gallery.getByRole("group", { name: "Choose a photo" }).getByRole("button"),
+  ).toHaveCount(3);
   await expect(gallery).toBeInViewport();
   await page.mouse.move(0, 0);
   await expect(photo(1)).toHaveAttribute("aria-current", "true");
@@ -241,11 +292,9 @@ test("Audrey's gallery rotates in view and supports pausing and choosing photos"
   await page.clock.fastForward(11000);
   await expect(photo(3)).toHaveAttribute("aria-current", "true");
   await gallery.getByRole("button", { name: "Next photo" }).click();
-  await expect(photo(4)).toHaveAttribute("aria-current", "true");
-  await gallery.getByRole("button", { name: "Next photo" }).click();
   await expect(photo(1)).toHaveAttribute("aria-current", "true");
   await gallery.getByRole("button", { name: "Previous photo" }).click();
-  await expect(photo(4)).toHaveAttribute("aria-current", "true");
+  await expect(photo(3)).toHaveAttribute("aria-current", "true");
   await photo(2).click();
   await page.mouse.move(0, 0);
   await page.clock.fastForward(11000);
@@ -283,7 +332,7 @@ test("Audrey's gallery respects reduced motion and works with keyboard controls"
     gallery.getByRole("button", { name: "Show photo 2" }),
   ).toHaveAttribute("aria-current", "true");
   await expect(
-    gallery.getByRole("group", { name: "Photo 2 of 4", exact: true }),
+    gallery.getByRole("group", { name: "Photo 2 of 3", exact: true }),
   ).toHaveCSS("transition-duration", "0s");
   await expect(gallery.getByRole("img")).toHaveCount(1);
 });
@@ -294,7 +343,7 @@ for (const width of [320, 375, 768, 1440]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     await sessions(page);
-    for (const path of ["/", "/login", "/order"]) {
+    for (const path of ["/", "/login", "/order", "/faq"]) {
       await page.goto(path);
       await page.evaluate(() => document.fonts.ready);
       expect(
