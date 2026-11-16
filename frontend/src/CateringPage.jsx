@@ -1365,7 +1365,7 @@ function CateringModal({ onClose, draft, onDraftChange }) {
         )
           setAddressConfig(data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (current) setAddressConfigLoading(false);
       });
@@ -1702,7 +1702,7 @@ function CateringModal({ onClose, draft, onDraftChange }) {
         setQuoteStatus("requires_review");
         setSubmitError(
           error.serverMessage ||
-            "Please contact our team to review the event address.",
+          "Please contact our team to review the event address.",
         );
         return;
       }
@@ -2004,16 +2004,7 @@ const CATERING_HERO_SLIDES = [
     objectPosition: "center 25%",
     description:
       "Audrey brings handcrafted Mexican paletas, artisan toppings, and personalized service right to your event.",
-  },
-  {
-    image: paletasImage,
-    alt: "Handcrafted artisan paletas arranged by flavor",
-    badge: "ROTATING FLAVORS",
-    title: "Artisan Paleta Menus",
-    objectPosition: "center 28%",
-    description:
-      "Real fruit, dairy-free, and creamy selections freshly prepared and customized for your party.",
-  },
+  }
 ];
 
 function CateringHeroSlideshow({ onOpenForm }) {
