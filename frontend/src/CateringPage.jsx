@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import FlavorPicker, { FlavorMixSummary } from "./FlavorPicker.jsx";
 import { flavorMixIssue, validFlavorDraft } from "./flavors.js";
 import {
@@ -11,9 +12,10 @@ import {
   serviceAreaKey,
 } from "./CateringAddress.jsx";
 import "./catering.css";
-import heroImage from "./assets/Hero.webp";
+import venueImage from "./assets/Venue.webp";
 import paletasImage from "./assets/paletas-flavors-640.webp";
 import eventCartImage from "./assets/story/audrey-event-cart.jpg";
+import servingPaletasImage from "./assets/story/audrey-serving-paletas.jpg";
 import paletaIllustration from "./assets/illustrations/paleta.svg";
 import fruitIllustration from "./assets/illustrations/fruit.svg";
 import cartIllustration from "./assets/illustrations/cart.svg";
@@ -1303,6 +1305,7 @@ function buildRequestBody(form, quoteId) {
 function CateringModal({ onClose, draft, onDraftChange }) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(draft.step);
+  const [stepDirection, setStepDirection] = useState("forward");
   const [form, setForm] = useState(draft.form);
   const [errors, setErrors] = useState({});
   const [validationFocus, setValidationFocus] = useState(0);
@@ -1578,21 +1581,25 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       if (!currentAddressResult && !addressChecking) void checkCurrentAddress();
     }
     setErrors({});
+    setStepDirection("forward");
     setCurrentStep((prev) => prev + 1);
   }
 
   function handleBack() {
     setErrors({});
+    setStepDirection("backward");
     setCurrentStep((prev) => prev - 1);
   }
 
   function handleEdit(step) {
     setErrors({});
+    setStepDirection(step < currentStep ? "backward" : "forward");
     setCurrentStep(step);
   }
 
   function showFieldErrors(step, fieldErrors) {
     setErrors(fieldErrors);
+    setStepDirection("backward");
     setCurrentStep(step);
     setValidationFocus((value) => value + 1);
     setQuote(null);
@@ -1753,8 +1760,21 @@ function CateringModal({ onClose, draft, onDraftChange }) {
     }
   }
 
+  function handleBackdropClick(e) {
+    if (
+      e.target === e.currentTarget &&
+      !["loading", "submitting"].includes(quoteStatus)
+    ) {
+      onClose();
+    }
+  }
+
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onClick={handleBackdropClick}
+    >
       <div
         className="modal"
         ref={modalRef}
@@ -1853,51 +1873,56 @@ function CateringModal({ onClose, draft, onDraftChange }) {
               {stepSubtitles[currentStep - 1]}
             </p>
             <div className="modal-body">
-              {currentStep === 1 && (
-                <StepContact
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                />
-              )}
-              {currentStep === 2 && (
-                <StepEvent
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                  addressConfig={addressConfig}
-                  addressResult={currentAddressResult}
-                  addressBusy={addressBusy}
-                  onAddressResolved={handleAddressResolved}
-                  onAddressBusy={setAddressSelecting}
-                  onCheckAddress={checkCurrentAddress}
-                />
-              )}
-              {currentStep === 3 && (
-                <StepEventDetails
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                />
-              )}
-              {currentStep === 4 && (
-                <StepOrderDetails
-                  form={form}
-                  onChange={handleChange}
-                  errors={errors}
-                />
-              )}
-              {currentStep === 5 && (
-                <StepSummary
-                  form={form}
-                  quoteStatus={quoteStatus}
-                  quote={quote}
-                  onGetQuote={handleGetQuote}
-                  onSubmitOrder={handleSubmitOrder}
-                  onEdit={handleEdit}
-                  submitError={submitError}
-                />
-              )}
+              <div
+                key={currentStep}
+                className={`modal-step-pane modal-step-pane--${stepDirection}`}
+              >
+                {currentStep === 1 && (
+                  <StepContact
+                    form={form}
+                    onChange={handleChange}
+                    errors={errors}
+                  />
+                )}
+                {currentStep === 2 && (
+                  <StepEvent
+                    form={form}
+                    onChange={handleChange}
+                    errors={errors}
+                    addressConfig={addressConfig}
+                    addressResult={currentAddressResult}
+                    addressBusy={addressBusy}
+                    onAddressResolved={handleAddressResolved}
+                    onAddressBusy={setAddressSelecting}
+                    onCheckAddress={checkCurrentAddress}
+                  />
+                )}
+                {currentStep === 3 && (
+                  <StepEventDetails
+                    form={form}
+                    onChange={handleChange}
+                    errors={errors}
+                  />
+                )}
+                {currentStep === 4 && (
+                  <StepOrderDetails
+                    form={form}
+                    onChange={handleChange}
+                    errors={errors}
+                  />
+                )}
+                {currentStep === 5 && (
+                  <StepSummary
+                    form={form}
+                    quoteStatus={quoteStatus}
+                    quote={quote}
+                    onGetQuote={handleGetQuote}
+                    onSubmitOrder={handleSubmitOrder}
+                    onEdit={handleEdit}
+                    submitError={submitError}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
@@ -1948,35 +1973,153 @@ function CateringModal({ onClose, draft, onDraftChange }) {
 }
 
 // ---------------------------------------------------------------------------
-// Landing page
+// Hero Slideshow (Option 2: Full-Bleed Background Slideshow with Frosted Glass Card)
 // ---------------------------------------------------------------------------
 
-export function CateringPage() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [draft, setDraft] = useState(readDraft);
-  const triggerRef = useRef(null);
+const CATERING_HERO_SLIDES = [
+  {
+    image: eventCartImage,
+    alt: "Popssibilities branded event cart setup",
+    badge: "PLACEHOLDER: CART SETUP",
+    title: "The Popssibilities Cart",
+    objectPosition: "55% 10%",
+    description:
+      "Charming mobile cart setup with our signature umbrella, perfect for outdoor or indoor celebrations.",
+  },
+  {
+    image: servingPaletasImage,
+    alt: "Popssibilities staff serving paletas to event guests",
+    badge: "PLACEHOLDER: FULL SERVICE",
+    title: "Full-Service Attendants",
+    objectPosition: "50% 22%",
+    description:
+      "Our friendly team handles scoop and hand-off so you can mingle and enjoy your celebration.",
+  },
+  {
+    image: venueImage,
+    alt: "Celebration venue setup for paleta catering",
+    badge: "PLACEHOLDER: VENUE SETUP",
+    title: "Weddings & Private Celebrations",
+    objectPosition: "center 42%",
+    description:
+      "Delight your guests with a colorful artisan dessert bar that makes every photo pop.",
+  },
+  {
+    image: paletasImage,
+    alt: "Handcrafted artisan paletas arranged by flavor",
+    badge: "PLACEHOLDER: ROTATING FLAVORS",
+    title: "Artisan Paleta Menus",
+    objectPosition: "center 28%",
+    description:
+      "Real fruit, dairy-free, and creamy selections freshly prepared and customized for your party.",
+  },
+];
 
-  function openForm(event) {
-    triggerRef.current = event.currentTarget;
-    setModalOpen(true);
+function CateringHeroSlideshow({ onOpenForm }) {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [pageVisible, setPageVisible] = useState(() =>
+    typeof document !== "undefined" ? !document.hidden : true,
+  );
+
+  useEffect(() => {
+    const handleVisibility = () => setPageVisible(!document.hidden);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  // Autoplay immediately upon arrival, resetting countdown whenever slide changes
+  useEffect(() => {
+    if (paused || !pageVisible) return;
+    const timer = window.setTimeout(() => {
+      setActiveSlide((curr) => (curr + 1) % CATERING_HERO_SLIDES.length);
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [activeSlide, paused, pageVisible]);
+
+  function prevSlide() {
+    setActiveSlide(
+      (curr) =>
+        (curr - 1 + CATERING_HERO_SLIDES.length) % CATERING_HERO_SLIDES.length,
+    );
   }
 
-  function closeForm() {
-    setModalOpen(false);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  function nextSlide() {
+    setActiveSlide((curr) => (curr + 1) % CATERING_HERO_SLIDES.length);
   }
+
+  function goToSlide(index) {
+    setActiveSlide(index);
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      prevSlide();
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      nextSlide();
+    }
+  }
+
+  const currentSlide = CATERING_HERO_SLIDES[activeSlide];
 
   return (
-    <div className="cat-shell">
-      {/* ---- Hero: full-bleed image, text overlaid at bottom ---- */}
-      <section className="cat-hero" aria-labelledby="cat-hero-heading">
-        <img
-          src={heroImage}
-          alt="Colorful paletas at a catering event"
-          className="cat-hero__image"
-        />
-        <div className="cat-hero__overlay" aria-hidden="true" />
-        <div className="cat-hero__content">
+    <section
+      className="cat-hero cat-hero--slideshow"
+      aria-labelledby="cat-hero-heading"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Catering event highlights slideshow"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
+      {/* Full-bleed background slides with crossfade */}
+      <div className="cat-hero__slides" aria-live={paused ? "polite" : "off"}>
+        {CATERING_HERO_SLIDES.map((slide, index) => {
+          const isActive = index === activeSlide;
+          return (
+            <div
+              key={slide.badge}
+              className={`cat-hero__slide${isActive ? " is-active" : ""}`}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`Slide ${index + 1} of ${CATERING_HERO_SLIDES.length}: ${slide.title}`}
+              aria-hidden={!isActive}
+            >
+              <img
+                src={slide.image}
+                alt={slide.alt}
+                className="cat-hero__slide-image"
+                style={{ objectPosition: slide.objectPosition || "center 20%" }}
+                loading={index === 0 ? "eager" : "lazy"}
+                fetchPriority={index === 0 ? "high" : "auto"}
+                decoding="async"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Scrim overlay to ensure comfortable text contrast */}
+      <div className="cat-hero__scrim" aria-hidden="true" />
+
+      {/* Top placeholder badge bar */}
+      <div className="cat-hero__badge-bar">
+        <span className="cat-hero__placeholder-badge">
+          {currentSlide.badge}
+        </span>
+        <span className="cat-hero__slide-counter" aria-hidden="true">
+          {activeSlide + 1} / {CATERING_HERO_SLIDES.length}
+        </span>
+      </div>
+
+      {/* Floating luminous frosted glass card */}
+      <div className="cat-hero__container">
+        <div className="cat-hero__card">
+          <span className="cat-hero__eyebrow">Pops for Every Celebration</span>
           <h1 id="cat-hero-heading" className="cat-hero__heading">
             Bring the Chill
             <br />
@@ -1987,20 +2130,118 @@ export function CateringPage() {
             every moment sweeter. Delivery or full service within 30 miles of
             Houston.
           </p>
-          <button
-            type="button"
-            className="cat-btn cat-btn--red"
-            onClick={openForm}
-          >
-            Request a quote
-          </button>
+          <div className="cat-hero__actions">
+            <button
+              type="button"
+              className="cat-btn cat-btn--red"
+              onClick={onOpenForm}
+            >
+              Request a quote
+            </button>
+          </div>
           <ul className="cat-hero__facts" aria-label="Catering at a glance">
             <li>Minimum 50 paletas</li>
             <li>Delivery or full service</li>
             <li>Flavors confirmed for your event</li>
           </ul>
         </div>
-      </section>
+      </div>
+
+      {/* Slide controls at bottom */}
+      <div className="cat-hero__controls">
+        <div
+          className="cat-hero__dots"
+          role="group"
+          aria-label="Choose a slide"
+        >
+          {CATERING_HERO_SLIDES.map((slide, index) => (
+            <button
+              key={slide.badge}
+              type="button"
+              className={`cat-hero__dot${index === activeSlide ? " is-active" : ""}`}
+              aria-label={`Go to slide ${index + 1}: ${slide.title}`}
+              aria-current={index === activeSlide ? "true" : undefined}
+              onClick={() => goToSlide(index)}
+            />
+          ))}
+        </div>
+
+        <div className="cat-hero__nav">
+          <button
+            type="button"
+            className="cat-hero__nav-btn"
+            data-rotation-control
+            aria-label={paused ? "Play slideshow" : "Pause slideshow"}
+            title={paused ? "Play slideshow" : "Pause slideshow"}
+            onClick={() => setPaused((curr) => !curr)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              {paused ? (
+                <path d="M8 5v14l11-7z" />
+              ) : (
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+              )}
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="cat-hero__nav-btn"
+            aria-label="Previous slide"
+            onClick={prevSlide}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="cat-hero__nav-btn"
+            aria-label="Next slide"
+            onClick={nextSlide}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Landing page
+// ---------------------------------------------------------------------------
+
+export function CateringPage() {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draft, setDraft] = useState(readDraft);
+  const triggerRef = useRef(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (
+      location.state?.openQuote ||
+      new URLSearchParams(location.search).has("quote")
+    ) {
+      setModalOpen(true);
+    }
+  }, [location]);
+
+  function openForm(event) {
+    triggerRef.current = event?.currentTarget || null;
+    setModalOpen(true);
+  }
+
+  function closeForm() {
+    setModalOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  return (
+    <div className="cat-shell">
+      {/* ---- Hero: Full-Bleed Background Slideshow (Option 2) ---- */}
+      <CateringHeroSlideshow onOpenForm={openForm} />
 
       {/* ---- Features: yellow background ---- */}
       <section className="cat-features" aria-labelledby="cat-features-heading">
@@ -2102,23 +2343,64 @@ export function CateringPage() {
             </div>
           </li>
         </ol>
-        <div className="cat-how__rules" aria-label="Pricing quick facts">
-          {PALETA_SHAPES.map((shape) => (
-            <span key={shape.value}>
-              {shape.label}: {formatCents(shape.unitCents)} each{" "}
-              <span aria-hidden="true">&middot;</span>
+        <div
+          className="cat-how__pricing-card cat-how__rules"
+          aria-label="Pricing quick facts"
+        >
+          <div className="cat-how__pricing-header">
+            <span className="cat-how__pricing-badge">
+              Pricing & Booking Quick Facts
             </span>
-          ))}
-          <span>Minimum 50 paletas</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>Delivery within 30 miles: $25&ndash;$75</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>
-            Dry ice: $15 per block; orders over 150 paletas pay $10 for each
-            block after the first 3
-          </span>
-          <span aria-hidden="true">&middot;</span>
-          <span>50% deposit to confirm</span>
+            <h3 className="cat-how__pricing-title">
+              Clear, upfront pricing for your event
+            </h3>
+          </div>
+          <div className="cat-how__pricing-grid">
+            {PALETA_SHAPES.map((shape) => (
+              <div key={shape.value} className="cat-how__pricing-item">
+                <div className="cat-how__pricing-value">
+                  {formatCents(shape.unitCents)}
+                  <small> / each</small>
+                </div>
+                <div className="cat-how__pricing-label">{shape.label}</div>
+                <div className="cat-how__pricing-desc">
+                  {shape.value === "standard"
+                    ? "Hand-crafted classic paletas"
+                    : "Signature heart-shaped celebration pops"}
+                </div>
+              </div>
+            ))}
+            <div className="cat-how__pricing-item">
+              <div className="cat-how__pricing-value">50 pops</div>
+              <div className="cat-how__pricing-label">Order Minimum</div>
+              <div className="cat-how__pricing-desc">
+                Mix and match flavors for your celebration
+              </div>
+            </div>
+            <div className="cat-how__pricing-item">
+              <div className="cat-how__pricing-value">$25 – $75</div>
+              <div className="cat-how__pricing-label">Delivery Range</div>
+              <div className="cat-how__pricing-desc">
+                Available within 30 miles of Houston
+              </div>
+            </div>
+            <div className="cat-how__pricing-item">
+              <div className="cat-how__pricing-value">
+                $15 <small>/ block</small>
+              </div>
+              <div className="cat-how__pricing-label">Dry Ice Chilling</div>
+              <div className="cat-how__pricing-desc">
+                Orders over 150 pay $10/block after the first 3
+              </div>
+            </div>
+            <div className="cat-how__pricing-item">
+              <div className="cat-how__pricing-value">50%</div>
+              <div className="cat-how__pricing-label">Deposit to Confirm</div>
+              <div className="cat-how__pricing-desc">
+                Secures your event date once availability is approved
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2157,13 +2439,15 @@ export function CateringPage() {
           </div>
         </div>
       </section>
-      {modalOpen && (
-        <CateringModal
-          onClose={closeForm}
-          draft={draft}
-          onDraftChange={setDraft}
-        />
-      )}
+      {modalOpen &&
+        createPortal(
+          <CateringModal
+            onClose={closeForm}
+            draft={draft}
+            onDraftChange={setDraft}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
