@@ -55,11 +55,37 @@
   border-bottom: 1px solid rgb(53 22 47 / 14%);
   font-size: 19px;
   font-weight: 700;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
+  cursor: default;
+}
+.flavor-menu__list li:hover {
+  transform: translateX(8px);
+  color: var(--red);
+  border-bottom-color: var(--red);
 }
 .flavor-menu__list span {
   color: var(--red-ink);
   font-size: 12px;
   flex-shrink: 0;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
+}
+.flavor-menu__list li:hover span {
+  transform: scale(1.2);
+  color: var(--red);
+  font-weight: 900;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flavor-menu__list li,
+  .flavor-menu__list span {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 .flavor-menu__copy .flavor-menu__availability {
   font-size: 14px;

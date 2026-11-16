@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import StoryGallery from "./StoryGallery.jsx";
-import { PublicHeader, PublicFooter } from "./PublicChrome.jsx";
+import { PublicHeader, PublicFooter, BackToTop } from "./PublicChrome.jsx";
 import FlavorMenu from "./FlavorMenu.jsx";
 import paletas from "./assets/paletas-hero.webp";
 import paletasSmall from "./assets/paletas-hero-768.webp";
@@ -43,6 +43,7 @@ export function PublicLayout({ children }) {
         {children}
       </main>
       <PublicFooter />
+      <BackToTop />
     </div>
   );
 }

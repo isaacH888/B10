@@ -33,10 +33,23 @@
 
 .public-home .pill.red:hover {
   background: #be2030;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(218, 41, 53, 0.3);
+}
+
+.public-home .pill.red:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(218, 41, 53, 0.2);
 }
 
 .public-home .pill.outline:hover {
   background: #fbe2dd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(53, 22, 47, 0.08);
+}
+
+.public-home .pill.outline:active {
+  transform: translateY(0);
 }
 
 .public-home .text-link:hover {
@@ -69,6 +82,17 @@
   font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.public-home, .customer-signin) .pill {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 :where(.public-home, .customer-signin) .red {

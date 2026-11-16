@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import SocialLinks from "./SocialLinks.jsx";
 import logo from "./assets/logo.png";
@@ -161,5 +161,52 @@ export function PublicFooter() {
         </p>
       </div>
     </footer>
+  );
+}
+
+export function BackToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    function handleScroll() {
+      setVisible(window.scrollY > 400);
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  function scrollToTop() {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion ? "instant" : "smooth",
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      className={`back-to-top-btn ${visible ? "is-visible" : ""}`}
+      onClick={scrollToTop}
+      aria-label="Back to top"
+      title="Back to top"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
   );
 }

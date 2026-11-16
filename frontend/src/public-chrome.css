@@ -178,10 +178,21 @@ html {
   background: var(--purple);
   font-size: 16px;
   font-weight: 700;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
 }
 
 .public-chrome .site-signin:hover {
   background: #360036;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(103, 97, 168, 0.35);
+}
+
+.public-chrome .site-signin:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(103, 97, 168, 0.2);
 }
 
 .public-chrome .site-signin svg {
@@ -190,6 +201,68 @@ html {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
+}
+
+/* Floating Back to Top button */
+.back-to-top-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 45;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 14px rgba(41, 62, 170, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease,
+    visibility 0.25s,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.back-to-top-btn.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.back-to-top-btn:hover {
+  background: var(--blue);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(41, 62, 170, 0.35);
+}
+
+.back-to-top-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(41, 62, 170, 0.25);
+}
+
+@media (max-width: 600px) {
+  .back-to-top-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-chrome .site-signin,
+  .back-to-top-btn {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 .public-chrome.site-footer {
