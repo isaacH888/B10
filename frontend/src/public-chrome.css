@@ -61,6 +61,16 @@
   box-shadow: 0 3px 12px rgb(26 26 46 / 12%);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 .public-site #main-content,
 .public-home section[id] {
   scroll-margin-top: calc(var(--site-header-height) + 16px);

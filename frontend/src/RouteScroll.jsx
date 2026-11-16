@@ -19,7 +19,13 @@ export function RouteScroll() {
           decodeURIComponent(hash.slice(1)),
         );
         if (section) {
-          section.scrollIntoView({ behavior: "instant", block: "start" });
+          const prefersReducedMotion =
+            typeof window !== "undefined" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          section.scrollIntoView({
+            behavior: prefersReducedMotion ? "instant" : "smooth",
+            block: "start",
+          });
           return;
         }
       } catch {

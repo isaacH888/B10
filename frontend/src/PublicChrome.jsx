@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useLayoutEffect, useRef } from "react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import SocialLinks from "./SocialLinks.jsx";
@@ -8,12 +8,46 @@ import "./public-chrome.css";
 
 const siteCommit = typeof __SITE_COMMIT__ === "string" ? __SITE_COMMIT__ : null;
 
+function SectionLink({ to, hash, children }) {
+  const { pathname } = useLocation();
+  function handleClick(e) {
+    if (pathname === "/") {
+      const section = document.getElementById(hash);
+      if (section) {
+        e.preventDefault();
+        if (window.location.hash !== `#${hash}`) {
+          window.history.pushState(null, "", `/#${hash}`);
+        }
+        const prefersReducedMotion =
+          typeof window !== "undefined" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        section.scrollIntoView({
+          behavior: prefersReducedMotion ? "instant" : "smooth",
+          block: "start",
+        });
+      }
+    }
+  }
+
+  return (
+    <Link to={to} onClick={handleClick}>
+      {children}
+    </Link>
+  );
+}
+
 function SectionLinks() {
   return (
     <>
-      <Link to="/#paleta-life">The Paleta Life</Link>
-      <Link to="/#flavors">Flavors</Link>
-      <Link to="/#our-story">Our Story</Link>
+      <SectionLink to="/#paleta-life" hash="paleta-life">
+        The Paleta Life
+      </SectionLink>
+      <SectionLink to="/#flavors" hash="flavors">
+        Flavors
+      </SectionLink>
+      <SectionLink to="/#our-story" hash="our-story">
+        Our Story
+      </SectionLink>
       <NavLink to="/order" end aria-label="Catering order">
         Catering
       </NavLink>
