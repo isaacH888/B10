@@ -57,7 +57,26 @@ function SectionLinks() {
 
 export function PublicHeader() {
   const { sessions } = useAuth();
+  const { pathname } = useLocation();
   const header = useRef(null);
+
+  function handleBrandClick(e) {
+    if (pathname === "/") {
+      e.preventDefault();
+      if (window.location.hash) {
+        window.history.pushState(null, "", "/");
+      }
+      const prefersReducedMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: prefersReducedMotion ? "instant" : "smooth",
+      });
+    }
+  }
+
   useLayoutEffect(() => {
     const element = header.current;
     const site = element?.closest(".public-site");
@@ -82,7 +101,12 @@ export function PublicHeader() {
         MEXICAN PALETAS. ENDLESS POPSSIBILITIES.
       </div>
       <header className="site-header">
-        <Link className="site-brand" to="/" aria-label="Popssibilities home">
+        <Link
+          className="site-brand"
+          to="/"
+          aria-label="Popssibilities home"
+          onClick={handleBrandClick}
+        >
           <img src={logo} alt="Popssibilities" width="88" height="88" />
         </Link>
         <nav className="site-nav" aria-label="Main navigation">
