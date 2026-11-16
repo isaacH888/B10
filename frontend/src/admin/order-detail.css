@@ -468,3 +468,39 @@
     flex-direction: column;
   }
 }
+
+.od-review {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--adm-border, #e5d9e5);
+  border-radius: 16px;
+  background: #fff;
+}
+.od-review h2 {
+  margin-top: 0;
+}
+.od-review fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.od-review label {
+  display: grid;
+  gap: 6px;
+}
+.od-review input,
+.od-review textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #aa91aa;
+  border-radius: 8px;
+  font: inherit;
+}
+.od-review .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

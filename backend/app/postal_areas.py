@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 
 CENTER_POSTAL_CODE = "77477"
-CENTER_NAME = "Stafford, TX 77477"
+CENTER_NAME = "Houston area · ZIP 77477"
 DISTANCE_METHOD = "zip_centroid_radius"
 EARTH_RADIUS_METERS = 6371008.8
 POSTAL_CODE = re.compile(r"[0-9]{5}(?:-[0-9]{4})?\Z")

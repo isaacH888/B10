@@ -5,6 +5,7 @@ const STATUS_LABELS = {
   pending: "Pending request",
   awaiting_deposit: "Awaiting deposit",
   confirmed: "Confirmed",
+  conditionally_confirmed: "Conditionally confirmed",
   owner_review: "Owner review required",
   fulfilled: "Fulfilled",
   cancelled: "Cancelled",
@@ -56,6 +57,7 @@ export function adaptOrder({ order, booking }) {
   };
   return {
     live: true,
+    reviewRecord: { order, booking },
     id: order.id,
     bookingId: booking?.id || null,
     managementHref: booking

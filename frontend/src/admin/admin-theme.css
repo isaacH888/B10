@@ -164,7 +164,7 @@
   background: var(--adm-sidebar);
   opacity: 1;
 }
-.adm-shell :is(.od-section, .od-action-bar) a {
+.adm-shell :is(.od-section, .od-action-bar) a:not(.adm-btn) {
   color: var(--adm-purple);
   text-decoration-color: #bdaabd;
   text-underline-offset: 3px;

@@ -5,29 +5,16 @@ import { AdminShell } from "./AdminShell.jsx";
 
 export function BookingWorkspacePage() {
   const { bookingId } = useParams();
-  const { sessions, logout } = useAuth();
+  const { sessions } = useAuth();
   const session = sessions.admin.data;
   const identity = session.administrator;
   const owner =
     identity.role === "owner" && identity.permissions.includes("bookings:read");
-  const preview =
-    import.meta.env.DEV && import.meta.env.MODE === "admin-preview";
 
   return (
     <AdminShell
       activeRoute="/admin/automation"
       title={bookingId ? "Bookings / Booking details" : "Bookings"}
-      actions={
-        !preview && (
-          <button
-            type="button"
-            className="adm-btn adm-btn--outline"
-            onClick={() => logout("admin", session.csrf_token)}
-          >
-            Sign out
-          </button>
-        )
-      }
     >
       <div className="adm-booking-workspace">
         <h1 className="adm-hero-row__heading">MANAGE CATERING BOOKINGS.</h1>

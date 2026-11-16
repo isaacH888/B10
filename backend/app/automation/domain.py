@@ -230,6 +230,10 @@ class BookingService:
             payload = {"schedule_revision": booking["schedule_revision"]}
             if kind in {"confirmation_customer", "confirmation_owner"}:
                 payload["confirmation_generation"] = booking["confirmation_generation"]
+            if kind in {"decision_customer", "deposit_request"}:
+                payload["decision_generation"] = booking.get("decision_generation", 0)
+            if kind == "decision_customer":
+                payload["decision"] = booking["decision"]
             self._enqueue(tx, booking, kind, payload)
         return booking
 
@@ -248,12 +252,22 @@ class BookingService:
             return self.create_in_transaction(tx, payload, actor)
 
     def create_in_transaction(
-        self, tx, payload, actor, *, source_order=None, calendar_projection=None
+        self,
+        tx,
+        payload,
+        actor,
+        *,
+        source_order=None,
+        calendar_projection=None,
+        review_only=False,
+        deny_past_request=False,
     ):
         """Reuse owner validation inside an atomic customer-order handoff."""
         actor, now = self._actor(actor), self._now()
         data = schedule(payload)
-        if instant(data["start"]).timestamp() <= now:
+        if instant(data["start"]).timestamp() <= now and not (
+            deny_past_request and review_only and source_order is not None
+        ):
             raise DomainError("The event must start in the future")
         service_type = payload.get("service_type")
         if service_type not in {"delivery", "full_service"}:
@@ -261,12 +275,18 @@ class BookingService:
         email = text(payload.get("customer_email"), "customer_email", 254)
         if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
             raise DomainError("customer_email must be a valid email address")
-        contract = text(payload.get("contract_url"), "contract_url", 2000)
+        contract = (
+            text(payload.get("contract_url"), "contract_url", 2000)
+            if payload.get("contract_url") or not review_only
+            else ""
+        )
         try:
             parsed = urlsplit(contract)
         except ValueError:
             raise DomainError("contract_url must be an absolute HTTPS link") from None
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        if contract and (
+            parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+        ):
             raise DomainError("contract_url must be an absolute HTTPS link")
         total = integer(payload.get("total_minor"), "total_minor")
         booking_id = calendar_projection["id"] if calendar_projection else uuid4().hex
@@ -302,6 +322,12 @@ class BookingService:
             "owner_review_reason": None,
             "created_at": iso(now),
         }
+        from ..quotes import minimum_dry_ice_blocks
+
+        booking["dry_ice_blocks"] = max(
+            (source_order or {}).get("catering_request", {}).get("dry_ice_blocks") or 0,
+            minimum_dry_ice_blocks(booking["quantity"]),
+        )
         if source_order is not None:
             booking["source_order_id"] = source_order["id"]
             booking["source_order"] = source_order
@@ -330,8 +356,53 @@ class BookingService:
         with self.store.booking_lock(booking_id), self.store.transaction(capacity=True) as tx:
             now = self._now()
             booking = self._get(tx, booking_id, payload)
-            if booking["status"] not in {"requested", "awaiting_deposit", "owner_review"}:
-                raise DomainError("Only requested or review bookings can be approved", 409)
+            return self.decide_in_transaction(
+                tx, booking, {**payload, "decision": "confirm"}, actor, now
+            )
+
+    def decide(self, booking_id, payload, actor):
+        actor = self._actor(actor)
+        with self.store.booking_lock(booking_id), self.store.transaction(capacity=True) as tx:
+            booking = self._get(tx, booking_id, payload)
+            return self.decide_in_transaction(tx, booking, payload, actor, self._now())
+
+    @staticmethod
+    def _approval_details(booking, payload):
+        if payload.get("contract_url"):
+            contract = text(payload["contract_url"], "contract_url", 2000)
+            try:
+                parsed = urlsplit(contract)
+            except ValueError:
+                raise DomainError("contract_url must be an absolute HTTPS link") from None
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+            ):
+                raise DomainError("contract_url must be an absolute HTTPS link")
+            booking["contract_url"] = contract
+        if not booking.get("contract_url"):
+            raise DomainError("Add a customer contract link before confirming availability")
+        if payload.get("end"):
+            booking.update(schedule({**booking, "end": payload["end"]}))
+            booking["end_unspecified"] = False
+        if booking.get("end_unspecified"):
+            raise DomainError("Confirm the event end before approving availability")
+
+    def decide_in_transaction(self, tx, booking, payload, actor, now):
+        decision = payload.get("decision")
+        if decision not in {"confirm", "conditionally_confirm", "deny"}:
+            raise DomainError("Choose confirm, conditionally_confirm or deny")
+        if booking["status"] == "cancelled":
+            raise DomainError("Reopen a denied or cancelled booking before reviewing it", 409)
+        if booking["status"] == "confirmed" and decision != "deny":
+            raise DomainError("This booking is already confirmed", 409)
+        message = text(payload.get("message", ""), "Customer message", 2000, 0)
+        if decision == "conditionally_confirm" and not message:
+            raise DomainError("Explain what needs to be discussed with the customer")
+        if decision == "confirm":
+            self._approval_details(booking, payload)
             self._reserve(tx, booking, payload, now)
             self._money(tx, booking)
             booking["owner_review_reason"] = None
@@ -346,7 +417,21 @@ class BookingService:
                 )
             else:
                 booking["status"] = "awaiting_deposit"
-            return self._save(tx, booking, actor, "approved", now, kinds)
+        else:
+            booking["status"] = (
+                "conditionally_confirmed" if decision == "conditionally_confirm" else "cancelled"
+            )
+            booking["owner_review_reason"] = message or None
+            booking["reservation_expires_at"] = None
+            booking["calendar_status"] = "pending"
+            booking["schedule_revision"] += 1
+            if decision == "deny":
+                booking["cancelled_at"] = iso(now)
+            kinds = ("decision_customer", "calendar", "reminder_schedule")
+        booking["customer_message"] = message
+        booking["decision"] = decision
+        booking["decision_generation"] = booking.get("decision_generation", 0) + 1
+        return self._save(tx, booking, actor, "decision_" + decision, now, kinds)
 
     def verify_payment(self, booking_id, payload, actor):
         actor, now = self._actor(actor), self._now()
@@ -375,6 +460,7 @@ class BookingService:
             if (
                 booking["status"] != "cancelled"
                 and booking["status"] != "confirmed"
+                and booking["status"] != "conditionally_confirmed"
                 and booking["paid_minor"] >= booking["deposit_minor"]
             ):
                 valid = (
@@ -449,6 +535,7 @@ class BookingService:
             if booking["status"] == "cancelled":
                 return booking
             booking["status"] = "cancelled"
+            booking["decision_generation"] = booking.get("decision_generation", 0) + 1
             booking["cancelled_at"] = iso(now)
             booking["reservation_expires_at"] = None
             booking["calendar_status"] = "pending"
@@ -458,6 +545,8 @@ class BookingService:
             )
 
     def finalize_count(self, booking_id, payload, actor):
+        from ..quotes import minimum_dry_ice_blocks
+
         actor, now = self._actor(actor), self._now()
         with self.store.booking_lock(booking_id), self.store.transaction(capacity=True) as tx:
             now = self._now()
@@ -472,6 +561,10 @@ class BookingService:
                     raise DomainError(
                         "Capacity is unavailable for this quantity", 409, "capacity_unavailable"
                     )
+            booking["dry_ice_blocks"] = max(
+                booking.get("dry_ice_blocks") or 0,
+                minimum_dry_ice_blocks(booking["quantity"]),
+            )
             booking["count_finalized"] = True
             booking["calendar_status"] = "pending"
             kinds = ("calendar",) if booking["status"] == "confirmed" else ()
@@ -485,9 +578,11 @@ class BookingService:
             booking = self._get(tx, booking_id, payload)
             if booking["status"] != "cancelled":
                 raise DomainError("Only cancelled bookings can be reopened", 409)
+            self._approval_details(booking, payload)
             self._reserve(tx, booking, payload, now)
             self._money(tx, booking)
             booking["reopened_at"] = iso(now)
+            booking["decision_generation"] = booking.get("decision_generation", 0) + 1
             booking["reopen_reason"] = reason
             if booking["paid_minor"] >= booking["deposit_minor"]:
                 self._confirm(booking, now)

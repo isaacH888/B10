@@ -40,6 +40,7 @@ export function OrdersPage() {
     "awaiting_deposit",
     "confirmed",
     "owner_review",
+    "conditionally_confirmed",
     "fulfilled",
     "cancelled",
   ].includes(params.get("status"))
@@ -334,6 +335,9 @@ export function OrdersPage() {
                     <option value="confirmed">Confirmed</option>
                     <option value="awaiting_deposit">Awaiting deposit</option>
                     <option value="owner_review">Owner review</option>
+                    <option value="conditionally_confirmed">
+                      Conditionally confirmed
+                    </option>
                     <option value="fulfilled">Fulfilled</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -397,8 +401,8 @@ export function OrdersPage() {
                     <table className="adm-orders-table ord-table">
                       <thead>
                         <tr>
-                          <th scope="col">ORDER #</th>
                           <th scope="col">CUSTOMER</th>
+                          <th scope="col">ORDER #</th>
                           <th scope="col">EVENT DATE</th>
                           <th scope="col">SERVICE</th>
                           <th scope="col">QTY</th>
@@ -418,10 +422,10 @@ export function OrdersPage() {
                         )}
                         {orders.map((order) => (
                           <tr key={order.id}>
-                            <td>{order.id}</td>
                             <td className="adm-orders-table__customer">
                               {order.customer}
                             </td>
+                            <td>{order.id}</td>
                             <td>{order.date}</td>
                             <td>{order.service}</td>
                             <td>{order.qty}</td>

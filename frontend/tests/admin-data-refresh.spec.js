@@ -111,7 +111,7 @@ test("order-detail refresh preserves a transient failure but removes an unauthor
   });
   await page.goto("/admin/orders/order_example_001");
   const heading = page.getByRole("heading", {
-    name: /order_example_001.*EXAMPLE CUSTOMER/,
+    name: /EXAMPLE CUSTOMER.*order_example_001/,
   });
   await expect(heading).toBeVisible();
   failureStatus = 503;

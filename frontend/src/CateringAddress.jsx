@@ -79,8 +79,8 @@ export function ServiceAreaNotice({ config, result, checking }) {
                   : "Enter your event ZIP code to check the service area. You can enter the rest of the address manually.")}
       </p>
       <p className="field-hint">
-        Based on ZIP-area centers within {radius} miles of Stafford, TX{" "}
-        {config.origin_postal_code || "77477"}.
+        Based on ZIP-area centers within {radius} miles of our Houston-area
+        service ZIP {config.origin_postal_code || "77477"}.
       </p>
       {outside && (
         <p>

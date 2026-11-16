@@ -91,17 +91,17 @@ def assert_validation_error(response, field):
 
 # id: (payload, expected unit price, total, deposit)  -- TC-B02..B07
 TIER_CASES = {
-    "TC-B02": (base_payload(total_quantity=50), 450, 22500, 11250),  # MOQ
-    "TC-B03": (base_payload(total_quantity=51), 450, 22950, 11475),  # MOQ + 1
-    "TC-B04": (base_payload(total_quantity=99), 450, 44550, 22275),  # former tier boundary
-    "TC-B05": (base_payload(total_quantity=100), 450, 45000, 22500),  # former tier boundary
+    "TC-B02": (base_payload(total_quantity=50), 450, 27000, 13500),  # MOQ
+    "TC-B03": (base_payload(total_quantity=51), 450, 27450, 13725),  # MOQ + 1
+    "TC-B04": (base_payload(total_quantity=99), 450, 49050, 24525),  # former tier boundary
+    "TC-B05": (base_payload(total_quantity=100), 450, 49500, 24750),  # former tier boundary
     "TC-B06": (
         base_payload(total_quantity=199),
         450,
-        89550,
-        44775,
+        97050,
+        48525,
     ),  # former tier boundary
-    "TC-B07": (base_payload(total_quantity=200), 450, 90000, 45000),  # former tier boundary
+    "TC-B07": (base_payload(total_quantity=200), 450, 97500, 48750),  # former tier boundary
 }
 
 # id: (payload, breakdown field, expected cents)  -- TC-B09, B10, B12, B13, B15
@@ -118,7 +118,7 @@ BREAKDOWN_CASES = {
         "delivery_fee_cents",
         7500,
     ),
-    "TC-B15": (base_payload(dry_ice_blocks=0), "dry_ice_cents", 0),
+    "TC-B15": (base_payload(dry_ice_blocks=0), "dry_ice_cents", 4500),
 }
 
 # id: (payload, offending field, legacy reason code)  -- TC-B01, B08, B11, B14, B16, B17
@@ -192,7 +192,7 @@ def test_breakdown_boundaries(post_quote, case_id):
 def test_tc_b10_all_hearts_total(post_quote):
     response = post_quote(base_payload(heart_shaped_quantity=50))
     assert (
-        response.json["data"]["pricing_summary"]["total_cents"] == 15000
+        response.json["data"]["pricing_summary"]["total_cents"] == 19500
     )  # 50 heart-shaped paletas at $3.00
 
 
@@ -203,16 +203,22 @@ def test_heart_unit_price_stays_three_dollars_across_old_tier_boundaries(post_qu
     ]
     assert data["breakdown"]["base_popsicles_cents"] == 0
     assert data["breakdown"]["heart_shaped_popsicles_cents"] == quantity * 300
-    assert data["pricing_summary"]["total_cents"] == quantity * 300
-    assert data["pricing_summary"]["deposit_due_cents"] == quantity * 150
+    assert (
+        data["pricing_summary"]["total_cents"]
+        == quantity * 300 + data["breakdown"]["dry_ice_cents"]
+    )
+    assert (
+        data["pricing_summary"]["deposit_due_cents"]
+        == quantity * 150 + data["breakdown"]["dry_ice_cents"] // 2
+    )
 
 
 def test_mixed_shape_flat_request_prices_each_shape_once(post_quote):
     data = post_quote(base_payload(total_quantity=50, heart_shaped_quantity=20)).json["data"]
     assert data["breakdown"]["base_popsicles_cents"] == 30 * 450
     assert data["breakdown"]["heart_shaped_popsicles_cents"] == 20 * 300
-    assert data["pricing_summary"]["total_cents"] == 19500
-    assert data["pricing_summary"]["deposit_due_cents"] == 9750
+    assert data["pricing_summary"]["total_cents"] == 24000
+    assert data["pricing_summary"]["deposit_due_cents"] == 12000
 
 
 @pytest.mark.parametrize("case_id", ERROR_CASES)
@@ -300,12 +306,13 @@ def test_tc_b18_penny_rounding_and_split_balance(post_quote):
     assert data["breakdown"] == {
         "base_popsicles_cents": 22500,
         "heart_shaped_popsicles_cents": 300,
-        "dry_ice_cents": 1500,
+        "dry_ice_cents": 4500,
         "delivery_fee_cents": 7250,
         "full_service_fee_cents": 0,
+        "employee_service_cents": 0,
     }
     summary = data["pricing_summary"]
-    assert summary["total_cents"] == 31550
+    assert summary["total_cents"] == 34550
     assert summary["deposit_due_cents"] + summary["balance_due_cents"] == summary["total_cents"]
 
 
@@ -384,9 +391,10 @@ def test_defaults_to_pickup_with_no_addons(post_quote):
     assert response.json["data"]["breakdown"] == {
         "base_popsicles_cents": 27000,
         "heart_shaped_popsicles_cents": 0,
-        "dry_ice_cents": 0,
+        "dry_ice_cents": 4500,
         "delivery_fee_cents": 0,
         "full_service_fee_cents": 0,
+        "employee_service_cents": 0,
     }
 
 
@@ -404,7 +412,7 @@ def test_full_service_flat_fee_replaces_delivery(post_quote):
     ]
     assert data["breakdown"]["full_service_fee_cents"] == 15000
     assert data["breakdown"]["delivery_fee_cents"] == 0
-    assert data["pricing_summary"]["total_cents"] == 22500 + 15000
+    assert data["pricing_summary"]["total_cents"] == 22500 + 4500 + 15000 + 3750
 
 
 def test_delivery_distance_is_ignored_for_non_delivery(post_quote):
@@ -464,7 +472,7 @@ def test_whole_number_float_total_quantity_is_accepted(post_quote):
     # JSON 50.0 is an integer in the legacy runtime.
     response = post_quote(base_payload(total_quantity=50.0))
     assert response.status_code == 200
-    assert response.json["data"]["pricing_summary"]["total_cents"] == 22500
+    assert response.json["data"]["pricing_summary"]["total_cents"] == 27000
 
 
 @pytest.mark.parametrize("field", ["heart_shaped_quantity", "dry_ice_blocks"])
@@ -579,6 +587,8 @@ def test_fee_calculators_revalidate_their_inputs(rules):
 def test_fee_calculator_values(rules):
     assert calculate_heart_shape_price(rules, 100, 3) == 900
     assert calculate_dry_ice_fee(rules, 2) == 3000
+    assert calculate_dry_ice_fee(rules, 6, total_quantity=150) == 9000
+    assert calculate_dry_ice_fee(rules, 6, total_quantity=151) == 7500
     assert calculate_logistics_fees(rules, "PICKUP") == (0, 0)
     assert calculate_logistics_fees(rules, "FULL_SERVICE") == (0, 15000)
     assert calculate_logistics_fees(rules, "DELIVERY", 15) == (5000, 0)
@@ -606,6 +616,11 @@ def test_shipped_config_is_loaded_from_json_file(app, rules):
         rules.delivery_max_radius_miles,
     ) == (2500, 7500, 30.0)
     assert rules.deposit_rate == Fraction(1, 2)
+    assert (
+        rules.dry_ice_discount_minimum_quantity,
+        rules.dry_ice_full_price_blocks,
+        rules.dry_ice_additional_block_cents,
+    ) == (151, 3, 1000)
 
 
 def test_editing_config_changes_prices_without_code_changes(monkeypatch, tmp_path):
@@ -630,7 +645,7 @@ def test_editing_config_changes_prices_without_code_changes(monkeypatch, tmp_pat
     response = client.post("/api/v1/quotes", json=base_payload(total_quantity=20))
     assert response.status_code == 200
     summary = response.json["data"]["pricing_summary"]
-    assert (summary["total_cents"], summary["deposit_due_cents"]) == (8000, 2400)
+    assert (summary["total_cents"], summary["deposit_due_cents"]) == (12500, 3750)
     outside = client.post(
         "/api/v1/quotes", json=base_payload(service_type="DELIVERY", delivery_distance_miles=10.5)
     )
@@ -695,8 +710,8 @@ def contract_payload(**catering):
                 "postal_code": "77000",
                 "country_code": "US",
             },
-            "starts_at": "2026-11-07T15:00:00-06:00",
-            "ends_at": "2026-11-07T17:00:00-06:00",
+            "starts_at": "2099-01-15T15:00:00-06:00",
+            "ends_at": "2099-01-15T17:00:00-06:00",
             "timezone": "America/Chicago",
             "notes": "Synthetic fixture - not a real event.",
         },
@@ -730,16 +745,16 @@ def test_openapi_quote_request_returns_priced_quote_with_line_items(post_quote):
     assert response.status_code == 200
     data = response.json["data"]
     assert data["status"] == "priced"
-    assert data["catering_request"] == request["catering_request"]
+    assert data["catering_request"] == {**request["catering_request"], "dry_ice_blocks": 3}
     assert data["event"] == request["event"]
     assert data["unresolved_decisions"] == [] and data["next_action"] is None
-    assert data["pricing_revision"] == "pricing_config_2.1.0"
+    assert data["pricing_revision"] == "pricing_config_2.3.0"
     pricing = data["pricing"]
     assert pricing["currency"] == "USD"
     # 50 regular paletas at $4.50, plus the $25.00 delivery base fee.
-    assert line_item_map(pricing) == {"popsicles": 22500, "delivery_fee": 2500}
-    assert pricing["total_cents"] == 25000
-    assert pricing["deposit_due_cents"] == 12500
+    assert line_item_map(pricing) == {"popsicles": 22500, "dry_ice": 4500, "delivery_fee": 2500}
+    assert pricing["total_cents"] == 29500
+    assert pricing["deposit_due_cents"] == 14750
     assert sum(line_item_map(pricing).values()) == pricing["total_cents"]
     assert all(
         type(item["amount_cents"]) is int and item["description"] for item in pricing["line_items"]
@@ -771,8 +786,10 @@ def test_openapi_heart_shape_maps_every_unit_to_heart_shaped(post_quote):
     assert line_item_map(pricing) == {
         "heart_shaped_popsicles": 30000,
         "full_service_fee": 15000,
+        "dry_ice": 4500,
+        "employee_service": 3000,
     }
-    assert (pricing["total_cents"], pricing["deposit_due_cents"]) == (45000, 22500)
+    assert (pricing["total_cents"], pricing["deposit_due_cents"]) == (52500, 26250)
     assert_matches_openapi_quote_response(response.json)
 
 
@@ -787,13 +804,16 @@ def test_openapi_service_type_is_case_insensitive(post_quote, service_type):
     assert line_item_map(pricing)["delivery_fee"] == 2500
 
 
-def test_openapi_dry_ice_null_defaults_to_zero_and_blocks_are_priced(post_quote):
-    assert "dry_ice" not in line_item_map(
-        post_quote(contract_payload(dry_ice_blocks=None)).json["data"]["pricing"]
+def test_openapi_dry_ice_null_and_low_requests_include_required_minimum(post_quote):
+    assert (
+        line_item_map(post_quote(contract_payload(dry_ice_blocks=None)).json["data"]["pricing"])[
+            "dry_ice"
+        ]
+        == 4500
     )
     pricing = post_quote(contract_payload(dry_ice_blocks=2)).json["data"]["pricing"]
-    assert line_item_map(pricing)["dry_ice"] == 3000
-    assert pricing["total_cents"] == 28000
+    assert line_item_map(pricing)["dry_ice"] == 4500
+    assert pricing["total_cents"] == 29500
 
 
 def test_openapi_ignores_browser_distance_fields(post_quote):
@@ -824,7 +844,7 @@ def test_openapi_distance_beyond_radius_is_requires_review_quote(client):
     assert data["unresolved_decisions"]
     assert data["next_action"]["type"] == "contact_inquiry"
     assert data["next_action"]["reason_code"] == "outside_delivery_radius"
-    assert data["catering_request"] == request["catering_request"]
+    assert data["catering_request"] == {**request["catering_request"], "dry_ice_blocks": 3}
     assert (
         "delivery_distance_miles" not in data["event"]
     )  # input-only; not part of the schema's Event
@@ -877,6 +897,7 @@ def test_normalizer_maps_openapi_fields_to_flat_payload():
         "total_quantity": 120,
         "heart_shaped_quantity": 120,
         "service_type": "FULL_SERVICE",
+        "service_duration_hours": Fraction(2),
         "dry_ice_blocks": 3,
     }
     delivery = normalize_quote_payload(contract_payload(dry_ice_blocks=None))

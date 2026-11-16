@@ -5,6 +5,7 @@ import "./admin-dashboard.css";
 import "./order-detail.css";
 import { downloadOrders } from "./adminApi.js";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { OrderDecisionControls } from "./OrderDecisionControls.jsx";
 import { fetchOrder } from "./orderApi.js";
 import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
 
@@ -172,7 +173,7 @@ export function OrderDetailPage() {
             </Link>
             <div className="od-heading-row">
               <h1 className="od-heading">
-                {order.id} · {order.customer.toUpperCase()}
+                {order.customer.toUpperCase()} · {order.id}
               </h1>
               <button
                 type="button"
@@ -195,6 +196,13 @@ export function OrderDetailPage() {
               </p>
             )}
           </div>
+
+          {order.reviewRecord && (
+            <OrderDecisionControls
+              {...order.reviewRecord}
+              onSaved={refreshState.refresh}
+            />
+          )}
 
           {/* Three status cards */}
           <div className="od-status-row" aria-label="Order status overview">

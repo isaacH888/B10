@@ -120,21 +120,15 @@ for (const path of previewPaths) {
     const requests = await mockSessions(page, { authenticated: true });
     await page.goto(path);
     await expect(page.locator(".adm-shell")).toBeVisible();
-    if (path.startsWith("/admin/orders")) {
-      await expect(page.getByLabel("Order workspace notice")).toContainText(
-        "Saved customer orders",
-      );
-    } else {
-      await expect(page.getByLabel("Admin workspace notice")).toContainText(
-        "use saved data",
-      );
-    }
     await expect(
-      page.getByRole("link", { name: "Manage live bookings and Calendar" }),
+      page.getByRole("link", { name: "Bookings", exact: true }),
     ).toHaveAttribute("href", "/admin/automation");
     await expect(
+      page.getByRole("button", { name: "Sign out", exact: true }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("link", { name: "Owner account", exact: true }),
-    ).toHaveAttribute("href", "/admin");
+    ).toHaveCount(0);
     await expect(
       page.getByRole("navigation", { name: "Admin pages" }),
     ).toBeVisible();

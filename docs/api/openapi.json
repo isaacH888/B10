@@ -6301,7 +6301,8 @@
                 "confirmed",
                 "owner_review",
                 "fulfilled",
-                "cancelled"
+                "cancelled",
+                "conditionally_confirmed"
               ]
             }
           },
@@ -8922,7 +8923,8 @@
                 "confirmed",
                 "owner_review",
                 "fulfilled",
-                "cancelled"
+                "cancelled",
+                "conditionally_confirmed"
               ]
             }
           },
@@ -9744,6 +9746,336 @@
           }
         }
       }
+    },
+    "/admin/automation/orders/{order_id}/decision": {
+      "post": {
+        "operationId": "reviewOrderDecision",
+        "summary": "Save owner decision for an order and queue customer email",
+        "description": "Requires a fresh owner session, CSRF and booking automation. Confirm approves availability and requests a deposit; conditional confirmation requires discussion and does not reserve capacity; deny cancels and retains payment history. Stale versions or revisions return 409. Customer email intent and the decision commit in one transaction.",
+        "tags": ["Admin"],
+        "x-owner": "Isaac Hernandez",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved booking state; email is queued for asynchronous delivery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["id", "status", "revision"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/automation/bookings/{booking_id}/decision": {
+      "post": {
+        "operationId": "reviewBookingDecision",
+        "summary": "Save owner decision for a booking and queue customer email",
+        "description": "Requires a fresh owner session, CSRF and booking automation. Confirm approves availability and requests a deposit; conditional confirmation requires discussion and does not reserve capacity; deny cancels and retains payment history. Stale versions or revisions return 409. Customer email intent and the decision commit in one transaction.",
+        "tags": ["Admin"],
+        "x-owner": "Isaac Hernandez",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "booking_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved booking state; email is queued for asynchronous delivery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["id", "status", "revision"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "revision": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request could not be parsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or credentials were not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The request is not authorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Use application/json for this request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9929,7 +10261,8 @@
           },
           "flavor_requests": {
             "type": "string",
-            "maxLength": 2000
+            "maxLength": 2000,
+            "description": "Custom flavor requests require at least 14 days notice. Short-notice orders use available stock."
           },
           "add_ons": {
             "type": "array",
@@ -9955,7 +10288,9 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 2001,
+            "description": "Optional extra blocks; every order includes at least 3 blocks per started group of 150 paletas. Up to 150 paletas: $15/block. Over 150 paletas: first 3 blocks at $15 each, additional blocks at $10 each."
           },
           "flavor_allocations": {
             "type": "array",
@@ -9964,6 +10299,11 @@
               "$ref": "#/components/schemas/FlavorAllocation"
             },
             "description": "Optional requested flavor mix. Non-empty quantities must total catering_request.quantity. Omitted or empty lets the owner choose; this is not a stock reservation."
+          },
+          "allergy_notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Allergy information, accepted independently of the two-week custom request notice."
           }
         },
         "required": ["quantity", "popsicle_shape", "service_type"],
@@ -11270,6 +11610,18 @@
           "end": {
             "type": "string",
             "format": "date-time"
+          },
+          "contract_url": {
+            "type": ["string", "null"]
+          },
+          "end_unspecified": {
+            "type": ["boolean", "null"]
+          },
+          "customer_message": {
+            "type": ["string", "null"]
+          },
+          "decision": {
+            "type": ["string", "null"]
           }
         },
         "required": [
@@ -11293,7 +11645,7 @@
           "end"
         ],
         "additionalProperties": false,
-        "description": "Current linked booking summary. Provider credentials, contract links, payment references and audit records are excluded."
+        "description": "Current linked booking summary, including the owner review message and customer contract link. Provider credentials, payment references and audit records are excluded."
       },
       "AdminWorkspaceOrder": {
         "type": "object",
@@ -12487,6 +12839,102 @@
             "maxLength": 100
           }
         }
+      },
+      "OrderDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision", "expected_version"],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["confirm", "conditionally_confirm", "deny"]
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Required for conditional confirmation; included in the customer email."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contract_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "HTTPS customer contract link; required before confirming availability."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "decision": {
+                  "const": "conditionally_confirm"
+                }
+              }
+            },
+            "then": {
+              "required": ["message"],
+              "properties": {
+                "message": {
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BookingDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision", "expected_revision"],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["confirm", "conditionally_confirm", "deny"]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Required for conditional confirmation; included in the customer email."
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contract_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "HTTPS customer contract link; required before confirming availability."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "decision": {
+                  "const": "conditionally_confirm"
+                }
+              }
+            },
+            "then": {
+              "required": ["message"],
+              "properties": {
+                "message": {
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {

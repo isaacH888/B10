@@ -225,9 +225,9 @@ class AddressService:
             "distance_miles": math.ceil(miles * 100) / 100,
             "distance_meters": meters,
             "message": (
-                f"This ZIP is outside our {radius}-mile radius from Stafford 77477. You can continue to a quote estimate for owner review."
+                f"This ZIP is outside our {radius}-mile radius from our Houston-area service ZIP 77477. You can continue to a quote estimate for owner review."
                 if outside
-                else f"This ZIP is within our {radius}-mile radius from Stafford 77477."
+                else f"This ZIP is within our {radius}-mile radius from our Houston-area service ZIP 77477."
             ),
         }
 

@@ -82,7 +82,7 @@ test("order list and detail render saved API data without fictional samples", as
   await expect(page.getByText("$1,860")).toHaveCount(0);
   await page.getByRole("link", { name: "View details" }).click();
   await expect(
-    page.getByRole("heading", { name: /order_example_001.*EXAMPLE CUSTOMER/ }),
+    page.getByRole("heading", { name: /EXAMPLE CUSTOMER.*order_example_001/ }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", {

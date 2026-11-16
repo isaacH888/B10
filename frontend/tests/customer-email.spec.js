@@ -365,7 +365,9 @@ for (const scenario of ["signed-out", "administrator"]) {
     await expect(
       page.getByRole("heading", {
         name:
-          scenario === "administrator" ? "Team account" : "Customer Sign-In",
+          scenario === "administrator"
+            ? "Owner access required"
+            : "Customer Sign-In",
         exact: true,
       }),
     ).toBeVisible();

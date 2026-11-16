@@ -1,4 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
+import { useLayoutEffect, useRef } from "react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import SocialLinks from "./SocialLinks.jsx";
 import logo from "./assets/logo.png";
@@ -22,9 +23,24 @@ function SectionLinks() {
 
 export function PublicHeader() {
   const { sessions } = useAuth();
+  const header = useRef(null);
+  useLayoutEffect(() => {
+    const element = header.current;
+    const site = element?.closest(".public-site");
+    if (!site) return;
+    const resize = () =>
+      site.style.setProperty(
+        "--site-header-height",
+        `${element.getBoundingClientRect().height}px`,
+      );
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const signedIn = sessions.customer.status === "authenticated";
   return (
-    <div className="public-chrome site-topbar">
+    <div className="public-chrome site-topbar" ref={header}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -62,13 +78,13 @@ export function PublicFooter() {
           Mexican paletas. Endless Popssibilities.
         </p>
         <div className="site-footer__contact">
-          <span>Stafford, TX · Serving the Houston area</span>
+          <span>Houston, TX · Serving the Houston area</span>
           <a href="mailto:info@popssibilities.com">info@popssibilities.com</a>
           <a href="tel:+12812487514">281-248-7514</a>
         </div>
         <nav className="site-footer__links" aria-label="Footer navigation">
           <SectionLinks />
-          <Link to="/admin/login">Team Sign-In</Link>
+          <Link to="/admin/login">Owner Sign-In</Link>
         </nav>
         <SocialLinks />
         <p className="site-footer__copy">

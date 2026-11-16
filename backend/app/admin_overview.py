@@ -213,7 +213,8 @@ def calendar():
             "stats": {
                 "confirmed": sum(event["status"] == "confirmed" for event in events),
                 "pending": sum(
-                    event["status"] in {"pending", "awaiting_deposit", "owner_review"}
+                    event["status"]
+                    in {"pending", "awaiting_deposit", "owner_review", "conditionally_confirmed"}
                     for event in events
                 ),
                 "confirmed_quantity": sum(

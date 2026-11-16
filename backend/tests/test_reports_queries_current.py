@@ -158,7 +158,7 @@ def test_reporting_leaves_original_submission_and_replay_intact(moved_order):
     app, client, _, order, _, _ = moved_order
     listed = client.get("/api/v1/orders").json["data"]["items"]
     current = next(item for item in listed if item["id"] == order["id"])
-    assert current["deposit"]["amount_confirmed_cents"] == 12500
+    assert current["deposit"]["amount_confirmed_cents"] == 14750
     with (
         pymysql.connect(**connection_options(app.config)) as connection,
         connection.cursor() as cursor,
@@ -172,7 +172,7 @@ def test_reporting_leaves_original_submission_and_replay_intact(moved_order):
     # Replay must match the original submission (quote_id + event schedule) exactly.
     body = {
         "customer": order["customer"],
-        "catering_request": order["catering_request"],
+        "catering_request": {**order["catering_request"], "dry_ice_blocks": None},
         "event": order["event"],
         "quote_id": order["quote_id"],
     }

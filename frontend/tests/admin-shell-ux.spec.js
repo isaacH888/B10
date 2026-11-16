@@ -167,7 +167,7 @@ test("order rows are visible sooner at laptop dimensions", async ({
   await page.setViewportSize({ width: 1280, height: 800 });
   await mock(page);
   await page.goto("/admin/orders");
-  const row = page.getByRole("row", { name: /^order_example_001 / });
+  const row = page.getByRole("row", { name: /order_example_001/ });
   await expect(row).toBeVisible();
   const bounds = await row.boundingBox();
   expect(bounds.y + bounds.height).toBeLessThan(800);

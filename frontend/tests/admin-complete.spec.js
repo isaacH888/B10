@@ -125,7 +125,7 @@ test("dashboard cards and recent links use the saved API records", async ({
     .getByRole("link", { name: "order_example_001", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: /order_example_001.*EXAMPLE CUSTOMER/ }),
+    page.getByRole("heading", { name: /EXAMPLE CUSTOMER.*order_example_001/ }),
   ).toBeVisible();
 });
 

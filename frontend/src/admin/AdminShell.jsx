@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext.jsx";
 import logoSrc from "../assets/logo.png";
 import paletasSrc from "../assets/paletas-flavor-preview.png";
 import iconDashboard from "../assets/admin/icon-dashboard.svg";
@@ -130,6 +131,9 @@ export function AdminNav({ activeRoute }) {
 }
 
 export function AdminPageHeader({ title, children }) {
+  const { sessions, logout } = useAuth();
+  const preview =
+    import.meta.env.DEV && import.meta.env.MODE === "admin-preview";
   return (
     <header className="adm-page-header">
       <p className="adm-page-header__title">{title}</p>
@@ -137,9 +141,20 @@ export function AdminPageHeader({ title, children }) {
         <a href="/" className="adm-page-header__view-site">
           View website ↗
         </a>
-        <Link to="/admin" className="adm-btn adm-btn--outline">
-          Owner account
-        </Link>
+        {!preview && (
+          <Link to="/admin/login?reauth=1" className="adm-btn adm-btn--outline">
+            Verify again
+          </Link>
+        )}
+        {!preview && (
+          <button
+            type="button"
+            className="adm-btn adm-btn--outline"
+            onClick={() => logout("admin", sessions.admin.data.csrf_token)}
+          >
+            Sign out
+          </button>
+        )}
         {children}
       </div>
     </header>

@@ -52,7 +52,8 @@ class CalendarWorker:
     def _visible(booking):
         return booking["status"] == "confirmed" or (
             booking.get("request_calendar")
-            and booking["status"] in {"requested", "awaiting_deposit", "owner_review"}
+            and booking["status"]
+            in {"requested", "awaiting_deposit", "owner_review", "conditionally_confirmed"}
         )
 
     def _body(self, booking):

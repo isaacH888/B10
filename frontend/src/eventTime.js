@@ -96,3 +96,13 @@ export function formatEventTime(value, timeZone = EVENT_TIME_ZONE) {
     return "Not provided";
   }
 }
+
+export function centralInputValue(value) {
+  if (!value) return "";
+  const parts = Object.fromEntries(
+    partsFormatter
+      .formatToParts(new Date(value))
+      .map(({ type, value }) => [type, value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}

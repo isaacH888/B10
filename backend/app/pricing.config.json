@@ -1,7 +1,7 @@
 {
-  "version": "2.1.0",
+  "version": "2.3.0",
   "project": "Popssibilities Catering Order Management System",
-  "last_updated": "2026-11-13",
+  "last_updated": "2026-11-15",
   "status": "CLIENT_UNIT_PRICES_AND_ZIP_RADIUS_PROVIDED",
   "business_rules": {
     "moq": {
@@ -21,7 +21,10 @@
     },
     "logistics": {
       "dry_ice": {
-        "price_per_block": 15.0
+        "price_per_block": 15.0,
+        "discount_minimum_quantity": 151,
+        "full_price_blocks": 3,
+        "additional_block_price": 10.0
       },
       "delivery": {
         "origin_facility_name": "Wingman Kitchens Houston",
@@ -40,7 +43,8 @@
         "serve_duration_hours": 2.5,
         "teardown_duration_hours": 0.5,
         "staff_headcount": "1-2 People",
-        "notes": "Covers 3.5 hours total with 1-2 staff. Terms populated in service contract."
+        "notes": "Full service fee plus one employee at $15/hour for the event duration only.",
+        "employee_hourly_rate": 15.0
       },
       "pickup": {
         "service_fee": 0.0

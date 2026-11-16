@@ -55,6 +55,7 @@ from .quotes import (
     AddressReviewRequired,
     OutsideDeliveryRadius,
     QuoteError,
+    minimum_dry_ice_blocks,
     prepare_quote_payload,
 )
 from .reports_queries import DEPOSIT_SQL, EVENT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
@@ -207,7 +208,7 @@ def _catering_request(errors, value):
         value,
         path,
         ("quantity", "popsicle_shape", "service_type"),
-        ("flavor_requests", "flavor_allocations", "add_ons", "dry_ice_blocks"),
+        ("flavor_requests", "flavor_allocations", "allergy_notes", "add_ons", "dry_ice_blocks"),
     )
     if data is None:
         return None
@@ -220,8 +221,12 @@ def _catering_request(errors, value):
         "service_type": _choice(errors, data, "service_type", path, ("delivery", "full_service")),
         "dry_ice_blocks": None
         if dry_ice is None
-        else _integer(errors, data, "dry_ice_blocks", path, 0, 1000),
+        else _integer(errors, data, "dry_ice_blocks", path, 0, 2001),
     }
+    if "allergy_notes" in data:
+        cleaned["allergy_notes"] = (
+            _string(errors, data, "allergy_notes", path, 2000, blank=True) or ""
+        )
     if "flavor_allocations" in data:
         try:
             cleaned["flavor_allocations"] = clean_flavor_allocations(
@@ -376,8 +381,12 @@ def _norm_catering(catering):
             "quantity": catering.get("quantity"),
             "popsicle_shape": catering.get("popsicle_shape"),
             "service_type": catering.get("service_type"),
-            "dry_ice_blocks": catering.get("dry_ice_blocks"),
+            "dry_ice_blocks": max(
+                catering.get("dry_ice_blocks") or 0,
+                minimum_dry_ice_blocks(catering["quantity"]),
+            ),
             "flavor_requests": catering.get("flavor_requests") or "",
+            "allergy_notes": catering.get("allergy_notes") or "",
             "add_ons": catering.get("add_ons") or [],
             "flavor_allocations": catering.get("flavor_allocations"),
         }
@@ -452,7 +461,13 @@ def _build_order(clean, quote):
         "version": 1,
         "status": "pending_review",
         "customer": clean["customer"],
-        "catering_request": clean["catering_request"],
+        "catering_request": {
+            **clean["catering_request"],
+            "dry_ice_blocks": max(
+                clean["catering_request"].get("dry_ice_blocks") or 0,
+                minimum_dry_ice_blocks(clean["catering_request"]["quantity"]),
+            ),
+        },
         "event": clean["event"],
         "quote_id": clean["quote_id"],
         "pricing_revision": quote["pricing_revision"],

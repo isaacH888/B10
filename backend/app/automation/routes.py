@@ -163,6 +163,26 @@ def read_booking(booking_id):
         return response({"booking": booking, "payments": tx.payments(booking_id), "jobs": jobs})
 
 
+@automation.post("/orders/<order_id>/decision")
+@owner_only(fresh=True)
+def decide_customer_order(order_id):
+    from .intake import import_order
+
+    booking, _ = import_order(order_id, payload(), actor(), decision=True)
+    return response(booking)
+
+
+@automation.post("/bookings/<booking_id>/decision")
+@owner_only(fresh=True)
+def decide_booking(booking_id):
+    body = payload()
+    if type(body.get("expected_revision")) is not int:
+        raise AuthError("validation_error", "Reload the booking before reviewing it.", 422)
+    if set(body) - {"decision", "message", "expected_revision", "contract_url", "end"}:
+        raise AuthError("validation_error", "Use the supported review fields only.", 422)
+    return response(bookings().decide(booking_id, body, actor()))
+
+
 @automation.post("/jobs/<path:job_key>/retry")
 @owner_only(fresh=True)
 def replay_job(job_key):

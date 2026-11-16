@@ -130,8 +130,8 @@ function RecentOrdersTable({ orders }) {
         <table className="adm-orders-table">
           <thead>
             <tr>
-              <th scope="col">ORDER</th>
               <th scope="col">CUSTOMER</th>
+              <th scope="col">ORDER</th>
               <th scope="col">EVENT DATE</th>
               <th scope="col">SERVICE</th>
               <th scope="col">QTY</th>
@@ -146,6 +146,7 @@ function RecentOrdersTable({ orders }) {
             )}
             {orders.map((order) => (
               <tr key={order.id}>
+                <td className="adm-orders-table__customer">{order.customer}</td>
                 <td>
                   <Link
                     to={`/admin/orders/${encodeURIComponent(order.id)}`}
@@ -154,7 +155,6 @@ function RecentOrdersTable({ orders }) {
                     {order.id}
                   </Link>
                 </td>
-                <td className="adm-orders-table__customer">{order.customer}</td>
                 <td>{order.date}</td>
                 <td>{order.service}</td>
                 <td>{order.qty}</td>

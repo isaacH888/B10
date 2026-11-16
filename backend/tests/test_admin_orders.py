@@ -146,7 +146,7 @@ def test_linked_booking_controls_status_and_payment_filters(admin_app):
     assert detail["booking"]["status"] == "confirmed"
     assert detail["booking"]["paid_minor"] == booking["deposit_minor"]
     assert detail["booking"]["remaining_minor"] == booking["total_minor"] - booking["deposit_minor"]
-    assert "contract_url" not in detail["booking"]
+    assert detail["booking"]["contract_url"] == "https://example.invalid/synthetic-contract"
     assert "source_order" not in detail["booking"]
     filtered = client.get(BASE + "?status=confirmed&payment_status=partial").json["data"]
     assert filtered["total"] == 1 and filtered["items"] == [detail]

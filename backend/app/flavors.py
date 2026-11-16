@@ -1,5 +1,13 @@
 """Validate requested flavor quantities independently of pricing and stock allocation."""
 
+SAMPLE_FLAVORS = (
+    "Mango Lime",
+    "Strawberry Lime",
+    "Mango Dragonfruit",
+    "Strawberries and Cream",
+    "Watermelon Strawberry and Kiwi",
+)
+
 
 class FlavorAllocationError(ValueError):
     def __init__(self, message, field="catering_request.flavor_allocations"):

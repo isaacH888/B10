@@ -79,8 +79,12 @@ See [setup, deployment, operations and staging checks](docs/calendar-automation.
 [the AWS SAM configuration](infra/automation.yaml). Automation is opt-in through
 `AUTOMATION_ENABLED`; external payment verification requires an authenticated owner
 to check the actual provider account. No live deployment or Google/SES verification
-is implied by the automated mock tests. `/admin` is the team account page;
-owners land on the saved-data dashboard at `/admin/dashboard`.
+is implied by the automated mock tests. `/admin` redirects to the owner dashboard
+at `/admin/dashboard`; the separate team account page has been removed.
+
+The [November group feedback](docs/group-feedback.md) adds two-week customization
+notice, mandatory dry ice, event-duration employee service, and owner decisions
+with queued customer emails. Aneena retains the homepage palette/photo handoff.
 
 ## Current status
 

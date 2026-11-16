@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 async function orderDetails(
   page,
-  { start = "2099-01-15T15:00", end = "" } = {},
+  { start = "2099-01-15T15:00", end = "", service = "delivery" } = {},
 ) {
   await page.goto("/order");
   await page
@@ -13,6 +13,8 @@ async function orderDetails(
   await page.locator("#cf-email").fill("reviewer@example.invalid");
   await page.locator("#cf-phone").fill("+1-202-555-0100");
   await page.getByRole("button", { name: "Next", exact: true }).click();
+  if (service === "full_service")
+    await page.getByRole("radio", { name: /Full Service/ }).check();
   await page.locator("#cf-line1").fill("100 Example Street");
   await page.locator("#cf-city").fill("Houston");
   await page.locator("#cf-region").fill("TX");
@@ -423,7 +425,7 @@ for (const width of [320, 375, 768, 1440]) {
     });
     await expect(paletas).toContainText("Heart-shaped");
     await expect(paletas).toContainText("Watermelon Strawberry and Kiwi");
-    await expect(paletas).toContainText("2 blocks");
+    await expect(paletas).toContainText("3 blocks");
     await expect(paletas).toContainText(
       "Please confirm ingredients for a coconut allergy.",
     );
@@ -666,7 +668,7 @@ for (const [value, message] of [
   });
 }
 
-for (const value of ["0.5", "-1", "1001"]) {
+for (const value of ["0.5", "-1", "2002"]) {
   test(`rejects invalid dry ice count ${value}`, async ({ page }) => {
     await api(page);
     await orderDetails(page);
@@ -674,7 +676,7 @@ for (const value of ["0.5", "-1", "1001"]) {
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await expect(page.locator("#cf-dry-ice")).toBeVisible();
     await expect(page.getByRole("alert")).toContainText(
-      "whole number of dry ice blocks from 0 to 1,000",
+      "whole number of dry ice blocks from 0 to 2,001",
     );
   });
 }
@@ -693,7 +695,10 @@ for (const [quantity, blocks] of [
     await quote(page);
     expect(calls.quotes[0].catering_request).toMatchObject({
       quantity: Number(quantity),
-      dry_ice_blocks: Number(blocks),
+      dry_ice_blocks: Math.max(
+        Number(blocks),
+        3 * Math.ceil(Number(quantity) / 150),
+      ),
     });
   });
 }
@@ -964,3 +969,80 @@ for (const width of [320, 375, 768]) {
     ).toBe(true);
   });
 }
+
+test("short-notice orders block customization while retaining allergy information", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page, {
+    start: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 16),
+  });
+  await expect(page.locator("#cf-flavors")).toBeDisabled();
+  await expect(page.locator('#cf-shape option[value="heart"]')).toBeDisabled();
+  await expect(
+    page.getByText(/orders use paletas currently available/),
+  ).toBeVisible();
+  await page
+    .locator("#cf-allergies")
+    .fill("Nut allergy; please confirm ingredients.");
+  await quote(page);
+  expect(calls.quotes[0].catering_request).toMatchObject({
+    flavor_requests: "",
+    allergy_notes: "Nut allergy; please confirm ingredients.",
+    dry_ice_blocks: 3,
+  });
+});
+
+for (const [quantity, blocks] of [
+  [150, 3],
+  [151, 6],
+  [300, 6],
+  [301, 9],
+]) {
+  test(`automatically includes ${blocks} dry-ice blocks for ${quantity} paletas`, async ({
+    page,
+  }) => {
+    const calls = await api(page);
+    await orderDetails(page);
+    await page.locator("#cf-quantity").fill(String(quantity));
+    await expect(page.locator("#cf-dry-ice")).toHaveValue(String(blocks));
+    await quote(page);
+    expect(calls.quotes[0].catering_request.dry_ice_blocks).toBe(blocks);
+  });
+}
+
+test("full service requests the event end through a date and time picker", async ({
+  page,
+}) => {
+  const calls = await api(page);
+  await orderDetails(page, { service: "full_service" });
+  await expect(page.getByRole("alert")).toContainText(
+    "Full service requires an end time",
+  );
+  await expect(page.locator("#cf-ends-at")).toHaveAttribute(
+    "type",
+    "datetime-local",
+  );
+  await page.locator("#cf-ends-at").fill("2099-01-15T17:30");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await quote(page);
+  expect(calls.quotes[0].event.ends_at).toBe("2099-01-15T17:30:00-06:00");
+});
+
+test("dry-ice pricing explains the additional-block discount only above 150 paletas", async ({
+  page,
+}) => {
+  await api(page);
+  await orderDetails(page);
+  const hint = page.locator("#cf-dry-ice").locator("..").locator(".field-hint");
+  await page.locator("#cf-quantity").fill("150");
+  await expect(hint).toContainText("$15 per block.");
+  await expect(page.locator("#cf-dry-ice")).toHaveValue("3");
+  await page.locator("#cf-quantity").fill("151");
+  await expect(hint).toContainText(
+    "First 3 blocks: $15 each; additional blocks: $10 each",
+  );
+  await expect(hint).toContainText("At least 6 blocks required");
+  await page.locator("#cf-quantity").fill("301");
+  await expect(hint).toContainText("At least 9 blocks required");
+});

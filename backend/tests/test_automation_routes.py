@@ -14,6 +14,8 @@ WRITES = [
     "/google/disconnect",
     "/bookings",
     "/orders/unknown/booking",
+    "/orders/unknown/decision",
+    "/bookings/unknown/decision",
     "/jobs/unknown/retry",
     *[
         "/bookings/unknown/" + action

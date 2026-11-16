@@ -310,52 +310,30 @@ function ProtectedPage({
         <section className="test-shell">
           <h1>Owner access required</h1>
           <p>Only an owner with booking access can open this workspace.</p>
-          <Link to="/admin">Back to your team session</Link>
+          {remaining <= 5 && (
+            <Notice>
+              Your session expires in{" "}
+              {remaining ? `${remaining} minutes` : "less than a minute"}.
+            </Notice>
+          )}
+          <Link to="/admin/login">Back to owner sign-in</Link>
+          <Link to="/admin/login?reauth=1">Verify again</Link>
+          <button
+            type="button"
+            onClick={() => logout(area, session.data.csrf_token)}
+          >
+            Sign out
+          </button>
         </section>
       );
     }
     return (
       <div className="admin-preview">
-        {!adminPreview && (
-          <aside
-            className="admin-preview-notice"
-            aria-label={
-              liveOrders ? "Order workspace notice" : "Admin workspace notice"
-            }
-          >
-            <p>
-              {liveOrders ? (
-                <>
-                  Saved customer orders and linked booking balances. Manage
-                  approvals, payments and Calendar in the booking workspace.
-                </>
-              ) : (
-                <>
-                  <strong>Owner workspace.</strong> Dashboard, Calendar and
-                  Inventory use saved data. Manage booking actions in the
-                  booking workspace.
-                </>
-              )}
-            </p>
-            <nav aria-label="Workspace controls">
-              <Link to="/admin/automation">
-                Manage live bookings and Calendar
-              </Link>
-              <Link to="/admin">Team session and permissions</Link>
-              <button
-                type="button"
-                onClick={() => logout(area, session.data.csrf_token)}
-              >
-                Sign out
-              </button>
-            </nav>
-            {remaining <= 5 && (
-              <p role="status">
-                Your session expires in {remaining || "less than a minute"}
-                {remaining ? " minutes" : ""}.
-              </p>
-            )}
-          </aside>
+        {remaining <= 5 && (
+          <Notice>
+            Your session expires in{" "}
+            {remaining ? `${remaining} minutes` : "less than a minute"}.
+          </Notice>
         )}
         {children}
       </div>
@@ -373,122 +351,7 @@ function ProtectedPage({
       />
     );
   }
-  return (
-    <section>
-      <h1>
-        {admin
-          ? "Team account"
-          : `Welcome${identity.name ? `, ${identity.name}` : ""}.`}
-      </h1>
-      <p>
-        {admin
-          ? `Welcome${identity.name ? `, ${identity.name}` : ""}. Your administrator session is authenticated.`
-          : "Customer session is authenticated."}
-      </p>
-      {admin && (
-        <>
-          {identity.role === "owner" &&
-            identity.permissions.includes("bookings:read") && (
-              <p>
-                <Link to="/admin/automation">
-                  Manage catering bookings and Calendar
-                </Link>
-                {" · "}
-                <Link to="/admin/dashboard">Open admin dashboard</Link>
-                {" · "}
-                <Link to="/admin/orders">View customer orders</Link>
-              </p>
-            )}
-          {!identity.permissions.includes("bookings:read") && (
-            <p>Booking access is not assigned to this account.</p>
-          )}
-        </>
-      )}
-      {remaining <= 5 && (
-        <Notice>
-          Your session expires in{" "}
-          {remaining
-            ? `${remaining} minute${remaining === 1 ? "" : "s"}`
-            : "less than a minute"}
-          . Sign in again after it expires to continue.
-        </Notice>
-      )}
-      <h2>Session Details</h2>
-      <dl>
-        <dt>Name</dt>
-        <dd>{identity.name || "Not provided"}</dd>
-        <dt>Email</dt>
-        <dd>{identity.email}</dd>
-        {admin && (
-          <>
-            <dt>Role</dt>
-            <dd>{identity.role === "owner" ? "Owner" : "Staff"}</dd>
-          </>
-        )}
-        <dt>Current session ends</dt>
-        <dd>
-          <time dateTime={deadline.toISOString()}>
-            {deadline.toLocaleString()}
-          </time>
-        </dd>
-      </dl>
-      {admin && (
-        <>
-          <p>
-            Administrator sessions end after 15 minutes of inactivity or eight
-            hours.
-          </p>
-          <AdminCapabilities identity={identity} />
-        </>
-      )}
-      <div className="actions">
-        {admin && <Link to="/admin/login?reauth=1">Verify again</Link>}
-        <button
-          type="button"
-          onClick={() => logout(area, session.data.csrf_token)}
-        >
-          Sign out
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function AdminCapabilities({ identity }) {
-  const labels = {
-    "bookings:read": "View bookings",
-    "bookings:contacts": "View contact details",
-    "bookings:notes": "Update booking notes",
-    "bookings:fulfill": "Mark fulfillment",
-    "bookings:confirm": "Confirm bookings",
-    "bookings:cancel": "Cancel bookings",
-    "bookings:price": "Update booking prices",
-    "payments:manage": "Manage payments",
-    "customers:export": "Export customer data",
-  };
-  const capabilities = [
-    ...new Set(
-      identity.permissions
-        .map((permission) =>
-          Object.hasOwn(labels, permission) ? labels[permission] : null,
-        )
-        .filter(Boolean),
-    ),
-  ];
-  return (
-    <section>
-      <h2>Your team permissions</h2>
-      {capabilities.length ? (
-        <ul>
-          {capabilities.map((label) => (
-            <li key={label}>{label}</li>
-          ))}
-        </ul>
-      ) : (
-        <p>No business permissions are assigned to this account.</p>
-      )}
-    </section>
-  );
+  return <Navigate to="/admin/dashboard" replace />;
 }
 
 function NotFound() {
@@ -551,13 +414,7 @@ export default function App() {
             />
             <Route
               path="/admin"
-              element={
-                adminPreview ? (
-                  <Navigate to="/admin/dashboard" replace />
-                ) : (
-                  <ProtectedPage area="admin" />
-                )
-              }
+              element={<Navigate to="/admin/dashboard" replace />}
             />
             <Route
               path="/admin/automation"

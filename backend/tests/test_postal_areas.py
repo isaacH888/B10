@@ -143,7 +143,7 @@ def test_zip_check_does_not_remove_full_address_requirement_from_quotes(local_ap
     )
     assert response.json["data"]["status"] == "requires_review"
     assert response.json["data"]["pricing"] is None
-    assert response.json["data"]["estimate"]["subtotal_cents"] == 22500
+    assert response.json["data"]["estimate"]["subtotal_cents"] == 27000
 
 
 def test_complete_local_quote_no_longer_needs_a_provider_street_match(local_app):
@@ -163,5 +163,5 @@ def test_complete_local_quote_no_longer_needs_a_provider_street_match(local_app)
     )
     assert response.status_code == 200
     assert response.json["data"]["status"] == "priced"
-    assert response.json["data"]["pricing"]["total_cents"] == 25000
-    assert response.json["data"]["pricing_revision"] == "pricing_config_2.1.0"
+    assert response.json["data"]["pricing"]["total_cents"] == 29500
+    assert response.json["data"]["pricing_revision"] == "pricing_config_2.3.0"

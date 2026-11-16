@@ -77,15 +77,19 @@ All paths below begin with `/api/v1/admin/automation`. Browser calls include the
 | `GET /bookings` | Current bookings, balances and Calendar status. |
 | `POST /bookings` | Create an owner-entered catering request; example below. |
 | `GET /bookings/<id>` | Booking, immutable payment history and job/delivery outcomes. |
+| `POST /orders/<id>/decision` | `decision`, `expected_version`, optional `message`, `end`, `contract_url`; atomically links and reviews an unlinked customer order. |
+| `POST /bookings/<id>/decision` | `decision`, `expected_revision`, optional `message`, `end`, `contract_url`; saves the review and queues its customer email. |
 | `POST /bookings/<id>/approve` | Optional `reservation_seconds`; reserves capacity and requests deposit. |
 | `POST /bookings/<id>/payments` | `reference`, positive integer `amount_minor`, `currency`, `verification_details`, optional `provider`. |
 | `POST /bookings/<id>/reschedule` | Required `start`, `end`, `timezone`; optional `venue` and `reservation_seconds`. |
 | `POST /bookings/<id>/cancel` | Cancels booking, releases capacity and removes owned calendar projection. |
-| `POST /bookings/<id>/reopen` | Required `reason`; rechecks availability and preserved verified payments. |
+| `POST /bookings/<id>/reopen` | Required `reason`; supply `contract_url` and `end` if missing before rechecking availability and preserved payments. |
 | `POST /bookings/<id>/final-count` | Optional integer `quantity` (minimum 50); checks capacity for changes and finalizes the current count. |
 | `POST /bookings/<id>/retry` | Reconciles current Calendar and reminder state. |
 | `POST /bookings/<id>/repair` | Explicit Calendar repair after owner investigation. |
 | `POST /jobs/<job-key>/retry` | Audited replay of a failed/dead-letter job; successful/skipped jobs are rejected. |
+
+Decision values are `confirm`, `conditionally_confirm`, and `deny`. Conditional confirmation requires a customer message and does not request payment or reserve capacity. Confirmation requires a contract link and known event end, then uses the existing availability/deposit workflow. Denial retains payment history and cancels the booking. See [group feedback behavior](group-feedback.md).
 
 For booking mutations that accept a JSON body, send `expected_revision` from the latest booking response to detect concurrent dashboard edits; a mismatch returns HTTP 409. Money fields are integers in minor currency units, never decimal floats. Event timestamps require explicit offsets and a valid IANA time zone. Example create body (substitute future dates and owner-approved details):
 

@@ -30,6 +30,28 @@ import {
 // ---------------------------------------------------------------------------
 
 // Formats a cents integer as a USD dollar string, e.g. 20000 -> "$200.00"
+function requiredDryIce(quantity) {
+  return 3 * Math.ceil((Number(quantity) || 50) / 150);
+}
+
+function customNoticeAllowed(form) {
+  try {
+    return (
+      Date.parse(centralTimeToIso(form.event_starts_at)) >=
+      Date.now() + 14 * 86400000
+    );
+  } catch {
+    return false;
+  }
+}
+
+function effectiveDryIce(form) {
+  return Math.max(
+    requiredDryIce(form.quantity),
+    Number(form.dry_ice_blocks) || 0,
+  );
+}
+
 function formatCents(cents) {
   return "$" + (cents / 100).toFixed(2);
 }
@@ -100,6 +122,7 @@ const initialForm = {
   quantity: 50,
   popsicle_shape: "standard",
   flavor_requests: "",
+  allergy_notes: "",
   flavor_allocations: [],
   dry_ice_blocks: "",
 };
@@ -135,6 +158,8 @@ const SERVER_FIELDS = new Map([
   ["event.starts_at", ["event_starts_at", 3]],
   ["event.ends_at", ["event_ends_at", 3]],
   ["catering_request.quantity", ["quantity", 4]],
+  ["catering_request.popsicle_shape", ["popsicle_shape", 4]],
+  ["catering_request.flavor_requests", ["flavor_requests", 4]],
   ["catering_request.flavor_allocations", ["flavor_allocations", 4]],
   ["catering_request.dry_ice_blocks", ["dry_ice_blocks", 4]],
 ]);
@@ -157,7 +182,9 @@ function readDraft() {
         .filter((key) => key !== "flavor_allocations")
         .every(
           (key) =>
-            (typeof saved.form?.[key] === "string" ||
+            (typeof (
+              saved.form?.[key] ?? (key === "allergy_notes" ? "" : undefined)
+            ) === "string" ||
               (["quantity", "dry_ice_blocks"].includes(key) &&
                 typeof saved.form?.[key] === "number" &&
                 Number.isFinite(saved.form[key]))) &&
@@ -168,7 +195,9 @@ function readDraft() {
         form: Object.fromEntries(
           Object.keys(initialForm).map((key) => [
             key,
-            key === "flavor_allocations" ? allocations : saved.form[key],
+            key === "flavor_allocations"
+              ? allocations
+              : (saved.form[key] ?? ""),
           ]),
         ),
         step: saved.step,
@@ -336,7 +365,10 @@ function StepEvent({
             />
             <span className="service-option-text">
               <strong>Full Service</strong>
-              <span>Our team serves at your event.</span>
+              <span>
+                Our team serves at your event. $150 service fee plus one
+                employee at $15/hour for the event duration.
+              </span>
             </span>
           </label>
         </div>
@@ -600,7 +632,12 @@ function StepEventDetails({ form, onChange, errors }) {
         </div>
 
         <div className="form-field">
-          <label htmlFor="cf-ends-at">Event end date and time (optional)</label>
+          <label htmlFor="cf-ends-at">
+            Event end date and time{" "}
+            {form.service_type === "full_service"
+              ? "(required for full service)"
+              : "(optional)"}
+          </label>
           <input
             id="cf-ends-at"
             {...fieldAccessibility(
@@ -639,6 +676,8 @@ function StepEventDetails({ form, onChange, errors }) {
 }
 
 function StepOrderDetails({ form, onChange, errors }) {
+  const customAllowed = customNoticeAllowed(form);
+  const minimumIce = requiredDryIce(form.quantity);
   return (
     <fieldset>
       <legend>{stepTitles[3]}</legend>
@@ -677,16 +716,33 @@ function StepOrderDetails({ form, onChange, errors }) {
             onChange={(e) => onChange("popsicle_shape", e.target.value)}
           >
             {PALETA_SHAPES.map((shape) => (
-              <option key={shape.value} value={shape.value}>
+              <option
+                key={shape.value}
+                value={shape.value}
+                disabled={shape.value === "heart" && !customAllowed}
+              >
                 {shape.label} — {formatCents(shape.unitCents)} each
               </option>
             ))}
           </select>
           <p className="field-hint">
-            Prices are per paleta. Service fees and dry ice are additional.
+            Prices are per paleta. Service fees and required dry ice are
+            additional.
           </p>
         </div>
       </div>
+
+      <p className="field-hint" role="note">
+        Custom flavors and shapes require at least two weeks’ notice.{" "}
+        {customAllowed
+          ? "Custom requests are subject to owner approval."
+          : "Your event is short notice, so orders use paletas currently available. Flavor choices below are preferences and depend on stock."}
+      </p>
+      {errors.popsicle_shape && (
+        <p className="field-error" role="alert">
+          {errors.popsicle_shape}
+        </p>
+      )}
 
       <FlavorPicker
         quantity={form.quantity}
@@ -697,36 +753,69 @@ function StepOrderDetails({ form, onChange, errors }) {
 
       <div className="form-field">
         <label htmlFor="cf-flavors">
-          Custom flavor, add-on, or allergy notes (optional)
+          Custom flavor or add-on requests (two weeks’ notice required)
         </label>
         <textarea
           id="cf-flavors"
-          aria-describedby="cf-flavor-hint cf-allergy-hint"
+          aria-describedby="cf-flavor-hint"
+          disabled={!customAllowed}
+          aria-invalid={errors.flavor_requests ? true : undefined}
           value={form.flavor_requests}
           onChange={(e) => onChange("flavor_requests", e.target.value)}
           rows={2}
           maxLength={2000}
-          placeholder="Share preferred flavors, add-ons, or allergy information"
+          placeholder="Share custom flavor or add-on requests"
         />
         <p id="cf-flavor-hint" className="field-hint">
           Flavors vary by batch. We’ll confirm available options for your event.
         </p>
+        {!customAllowed && form.flavor_requests && (
+          <button type="button" onClick={() => onChange("flavor_requests", "")}>
+            Clear custom requests
+          </button>
+        )}
+        {errors.flavor_requests && (
+          <p className="field-error" role="alert">
+            {errors.flavor_requests}
+          </p>
+        )}
+      </div>
+      <div className="form-field">
+        <label htmlFor="cf-allergies">Allergy notes (optional)</label>
+        <textarea
+          id="cf-allergies"
+          value={form.allergy_notes}
+          onChange={(e) => onChange("allergy_notes", e.target.value)}
+          rows={2}
+          maxLength={2000}
+        />
         <AllergyNotice id="cf-allergy-hint" className="field-hint" />
       </div>
 
       <div className="form-field">
-        <label htmlFor="cf-dry-ice">Dry ice blocks (optional)</label>
+        <label htmlFor="cf-dry-ice">Dry ice blocks (required)</label>
         <input
           id="cf-dry-ice"
           {...fieldAccessibility(errors, "dry_ice_blocks", "cf-dry-ice")}
           type="number"
-          value={form.dry_ice_blocks}
+          value={form.dry_ice_blocks === "" ? minimumIce : form.dry_ice_blocks}
+          onBlur={() => {
+            const value = Number(form.dry_ice_blocks);
+            if (Number.isInteger(value) && value >= 0 && value < minimumIce)
+              onChange("dry_ice_blocks", String(minimumIce));
+          }}
           onChange={(e) => onChange("dry_ice_blocks", e.target.value)}
-          min={0}
-          max={1000}
-          placeholder="0"
+          min={minimumIce}
+          max={2001}
+          step={1}
         />
-        <p className="field-hint">$15 per block.</p>
+        <p className="field-hint">
+          {Number(form.quantity) > 150
+            ? "First 3 blocks: $15 each; additional blocks: $10 each for orders over 150 paletas."
+            : "$15 per block. For orders over 150 paletas, the first 3 stay $15 each and additional blocks are $10 each."}{" "}
+          At least {minimumIce} blocks required for this order: 3 blocks for
+          every 150 paletas, rounded up. You may add more.
+        </p>
         {errors.dry_ice_blocks && (
           <p id="cf-dry-ice-error" className="field-error" role="alert">
             {errors.dry_ice_blocks}
@@ -924,10 +1013,12 @@ function StepSummary({
                 <dd>{form.flavor_requests}</dd>
               </>
             )}
-            {form.dry_ice_blocks && (
+            <dt>Required dry ice</dt>
+            <dd>{effectiveDryIce(form)} blocks</dd>
+            {form.allergy_notes && (
               <>
-                <dt>Dry ice</dt>
-                <dd>{form.dry_ice_blocks} blocks</dd>
+                <dt>Allergy notes</dt>
+                <dd>{form.allergy_notes}</dd>
               </>
             )}
           </dl>
@@ -1120,6 +1211,9 @@ function validateStep(step, form) {
     }
     if (start <= Date.now())
       errors.event_starts_at = "Event start must be in the future.";
+    if (form.service_type === "full_service" && !form.event_ends_at)
+      errors.event_ends_at =
+        "Full service requires an end time for the $15/hour employee charge.";
     if (end <= start)
       errors.event_ends_at = "Event end must be after the start time.";
   }
@@ -1135,15 +1229,23 @@ function validateStep(step, form) {
       const issue = flavorMixIssue(form.flavor_allocations, form.quantity);
       if (issue) errors.flavor_allocations = issue.message;
     }
+    if (!customNoticeAllowed(form)) {
+      if (form.flavor_requests.trim())
+        errors.flavor_requests =
+          "Custom requests require two weeks’ notice. Clear this request or choose a later event date.";
+      if (form.popsicle_shape === "heart")
+        errors.popsicle_shape =
+          "Heart-shaped paletas require two weeks’ notice. Choose regular paletas or a later date.";
+    }
     const dryIce = form.dry_ice_blocks;
     if (
       dryIce !== "" &&
       (!Number.isInteger(Number(dryIce)) ||
         Number(dryIce) < 0 ||
-        Number(dryIce) > 1000)
+        Number(dryIce) > 2001)
     )
       errors.dry_ice_blocks =
-        "Enter a whole number of dry ice blocks from 0 to 1,000.";
+        "Enter a whole number of dry ice blocks from 0 to 2,001.";
   }
   return errors;
 }
@@ -1155,10 +1257,10 @@ function buildRequestBody(form, quoteId) {
       quantity: Number(form.quantity),
       popsicle_shape: form.popsicle_shape,
       flavor_requests: form.flavor_requests.trim(),
+      allergy_notes: form.allergy_notes.trim(),
       add_ons: [],
       service_type: form.service_type,
-      dry_ice_blocks:
-        form.dry_ice_blocks !== "" ? Number(form.dry_ice_blocks) : null,
+      dry_ice_blocks: effectiveDryIce(form),
     },
     event: {
       type: form.event_type.trim(),
@@ -1212,7 +1314,7 @@ function CateringModal({ onClose, draft, onDraftChange }) {
     enabled: false,
     service_area_enabled: false,
     radius_miles: 30,
-    origin_name: "Stafford, TX 77477",
+    origin_name: "Houston area · ZIP 77477",
     origin_postal_code: "77477",
   });
   const [addressConfigLoading, setAddressConfigLoading] = useState(true);
@@ -1932,8 +2034,9 @@ export function CateringPage() {
             </div>
             <h3>Full Event Service</h3>
             <p>
-              Full service includes 1–2 staff, 30 minutes of setup, 2.5 hours of
-              serving, and 30 minutes of breakdown.
+              Full service costs $150 plus one employee at $15/hour for the
+              event duration. Setup and teardown are included in the service
+              fee.
             </p>
           </div>
         </div>
@@ -2010,7 +2113,10 @@ export function CateringPage() {
           <span aria-hidden="true">&middot;</span>
           <span>Delivery within 30 miles: $25&ndash;$75</span>
           <span aria-hidden="true">&middot;</span>
-          <span>Dry ice: $15 per block</span>
+          <span>
+            Dry ice: $15 per block; orders over 150 paletas pay $10 for each
+            block after the first 3
+          </span>
           <span aria-hidden="true">&middot;</span>
           <span>50% deposit to confirm</span>
         </div>

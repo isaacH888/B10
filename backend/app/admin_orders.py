@@ -20,7 +20,15 @@ from .auth.guards import require_admin
 from .health import database_configured
 
 admin_orders = Blueprint("admin_orders", __name__)
-STATUSES = ("pending", "awaiting_deposit", "confirmed", "owner_review", "fulfilled", "cancelled")
+STATUSES = (
+    "pending",
+    "awaiting_deposit",
+    "confirmed",
+    "owner_review",
+    "conditionally_confirmed",
+    "fulfilled",
+    "cancelled",
+)
 JOIN = (
     " FROM orders o LEFT JOIN automation_order_links l ON l.order_id=o.public_id"
     " LEFT JOIN automation_bookings b ON b.id=l.booking_id"
@@ -118,6 +126,12 @@ def _record(order, booking=None):
                 "calendar_status",
             )
         }
+        summary.update(
+            {
+                key: booking.get(key)
+                for key in ("contract_url", "end_unspecified", "customer_message", "decision")
+            }
+        )
     return {"order": {**order, "admin_notes": order.get("admin_notes", "")}, "booking": summary}
 
 

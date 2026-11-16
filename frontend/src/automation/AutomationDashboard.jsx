@@ -8,6 +8,13 @@ import {
   saveBookingAllocations,
 } from "../admin/adminApi.js";
 
+import {
+  centralTimeToIso,
+  centralInputValue,
+  EVENT_TIME_ZONE,
+} from "../eventTime.js";
+import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
+
 const base = "/admin/automation";
 const money = (value, currency) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
@@ -31,9 +38,9 @@ function Input({ name, label, type = "text", ...props }) {
 
 function eventPayload(form) {
   return {
-    start: form.get("start"),
-    end: form.get("end"),
-    timezone: form.get("timezone"),
+    start: centralTimeToIso(form.get("start")),
+    end: centralTimeToIso(form.get("end")),
+    timezone: EVENT_TIME_ZONE,
     venue: form.get("venue"),
   };
 }
@@ -43,21 +50,17 @@ function EventFields({ booking = {} }) {
     <>
       <Input
         name="start"
-        label="Event start (ISO date, time and UTC offset)"
-        placeholder="2027-06-12T14:00:00-05:00"
-        defaultValue={booking.start}
+        label="Event start (Houston/Central time)"
+        type="datetime-local"
+        defaultValue={centralInputValue(booking.start)}
       />
       <Input
         name="end"
-        label="Event end (ISO date, time and UTC offset)"
-        placeholder="2027-06-12T16:00:00-05:00"
-        defaultValue={booking.end}
+        label="Event end (Houston/Central time)"
+        type="datetime-local"
+        defaultValue={centralInputValue(booking.end)}
       />
-      <Input
-        name="timezone"
-        label="IANA time zone"
-        defaultValue={booking.timezone || "America/Chicago"}
-      />
+      <p>All event times use Houston/Central time.</p>
       <Input
         name="venue"
         label="Venue"
@@ -161,8 +164,15 @@ export function AutomationDashboard({ identity, csrfToken }) {
     event.preventDefault();
     const element = event.currentTarget;
     const form = new FormData(element);
+    let schedule;
+    try {
+      schedule = eventPayload(form);
+    } catch (failure) {
+      setError(failure.message);
+      return;
+    }
     const ok = await mutate("/bookings", {
-      ...eventPayload(form),
+      ...schedule,
       quantity: Number(form.get("quantity")),
       total_minor: Number(form.get("total_minor")),
       currency: form.get("currency"),
@@ -390,6 +400,7 @@ export function AutomationDashboard({ identity, csrfToken }) {
           <caption>Catering bookings</caption>
           <thead>
             <tr>
+              <th>Customer</th>
               <th>Reference</th>
               <th>Booking</th>
               <th>Payment</th>
@@ -400,6 +411,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
           <tbody>
             {items.map((booking) => (
               <tr key={booking.id}>
+                <td>
+                  {booking.source_order?.customer.name ||
+                    booking.customer_email}
+                </td>
                 <th>
                   <Link to={`/admin/bookings/${booking.id}`}>
                     {booking.reference}
@@ -580,21 +595,31 @@ function BookingInventory({ booking, refresh }) {
 }
 
 function BookingDetail({ detail, busy, mutate, refresh }) {
+  const [formError, setFormError] = useState("");
   const booking = detail.booking;
   const path = `/bookings/${booking.id}`;
   const revision = { expected_revision: booking.revision };
   function submit(action, build) {
     return (event) => {
       event.preventDefault();
-      mutate(`${path}/${action}`, {
-        ...revision,
-        ...build(new FormData(event.currentTarget)),
-      });
+      setFormError("");
+      try {
+        mutate(`${path}/${action}`, {
+          ...revision,
+          ...build(new FormData(event.currentTarget)),
+        });
+      } catch (failure) {
+        setFormError(failure.message);
+      }
     };
   }
   return (
     <article aria-label={`Booking ${booking.reference}`}>
-      <h3>{booking.reference}</h3>
+      <h3>
+        {booking.source_order?.customer.name || booking.customer_email} ·{" "}
+        {booking.reference}
+      </h3>
+      {formError && <p role="alert">{formError}</p>}
       <dl>
         <dt>Booking / payment / calendar</dt>
         <dd>
@@ -628,19 +653,10 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
         <dd>{booking.owner_review_reason || "None"}</dd>
       </dl>
       {booking.source_order && <OrderSelections order={booking.source_order} />}
+      <OrderDecisionControls booking={booking} onSaved={refresh} />
       <fieldset disabled={busy}>
         <legend>Owner actions</legend>
         <div className="actions">
-          {["requested", "owner_review", "awaiting_deposit"].includes(
-            booking.status,
-          ) && (
-            <button
-              type="button"
-              onClick={() => mutate(`${path}/approve`, revision)}
-            >
-              Approve availability and reserve capacity
-            </button>
-          )}
           <button type="button" onClick={() => mutate(`${path}/retry`)}>
             Retry calendar sync
           </button>
@@ -729,9 +745,34 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
           <form
             onSubmit={submit("reopen", (form) => ({
               reason: form.get("reason"),
+              ...(form.get("contract_url")
+                ? { contract_url: form.get("contract_url") }
+                : {}),
+              ...(form.get("end")
+                ? {
+                    end: new Date(
+                      centralTimeToIso(form.get("end")),
+                    ).toISOString(),
+                  }
+                : {}),
             }))}
           >
             <Input name="reason" label="Reason for reopening" minLength={10} />
+            {!booking.contract_url && (
+              <Input
+                name="contract_url"
+                label="Customer contract link before reopening (HTTPS)"
+                type="url"
+                pattern="https://.*"
+              />
+            )}
+            {booking.end_unspecified && (
+              <Input
+                name="end"
+                label="Event end before reopening (Houston/Central time)"
+                type="datetime-local"
+              />
+            )}
             <button>Reopen and check capacity</button>
           </form>
         )}
@@ -808,13 +849,19 @@ function OrderSelections({ order }) {
 }
 
 function CustomerOrder({ order, busy, mutate }) {
+  const [error, setError] = useState("");
   async function submit(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    await mutate(`/orders/${encodeURIComponent(order.id)}/booking`, {
-      end: form.get("end"),
-      contract_url: form.get("contract_url"),
-    });
+    setError("");
+    try {
+      await mutate(`/orders/${encodeURIComponent(order.id)}/booking`, {
+        end: centralTimeToIso(form.get("end")),
+        contract_url: form.get("contract_url"),
+      });
+    } catch (failure) {
+      setError(failure.message);
+    }
   }
   return (
     <details>
@@ -822,6 +869,7 @@ function CustomerOrder({ order, busy, mutate }) {
         {order.customer.name} · {order.id}
       </summary>
       <OrderSelections order={order} />
+      {error && <p role="alert">{error}</p>}
       <p>
         Event starts: {time(order.event.starts_at)} · {order.event.timezone}
       </p>
@@ -830,9 +878,9 @@ function CustomerOrder({ order, busy, mutate }) {
           <legend>Prepare customer order for booking</legend>
           <Input
             name="end"
-            label="Confirmed event end (ISO date, time and UTC offset)"
-            defaultValue={order.event.ends_at || ""}
-            placeholder="2027-06-12T16:00:00-05:00"
+            label="Confirmed event end (Houston/Central time)"
+            type="datetime-local"
+            defaultValue={centralInputValue(order.event.ends_at)}
           />
           <Input
             name="contract_url"

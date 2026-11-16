@@ -71,7 +71,7 @@ export function PublicHome() {
               Discover the paleta life <span aria-hidden="true">↓</span>
             </a>
           </div>
-          <small>A little taste of Stafford, Texas.</small>
+          <small>A little taste of Houston, Texas.</small>
         </div>
         <div className="hero-art">
           <img
@@ -92,10 +92,8 @@ export function PublicHome() {
             height="1254"
             fetchPriority="high"
           />
-          <span className="hero-art__badge" aria-hidden="true">
-            ENDLESS
-            <br />
-            POSSIBILITIES
+          <span className="hero-art__fruit" aria-hidden="true">
+            {"\u{1F353}\u{1F34B}"}
           </span>
         </div>
       </section>
@@ -207,9 +205,9 @@ export function PublicHome() {
         >
           <StoryGallery />
           <div className="story-copy">
-            <div className="eyebrow red-text">HELLO FROM STAFFORD, TEXAS</div>
+            <div className="eyebrow red-text">HELLO FROM HOUSTON, TEXAS</div>
             <h2 id="story-heading">
-              MEXICAN SOUL.
+              MEXICAN FLAVORS.
               <br />
               TEXAS HEART.
             </h2>

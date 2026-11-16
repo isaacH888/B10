@@ -143,7 +143,7 @@
   align-items: center;
   min-height: 44px;
   color: var(--purple);
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 700;
   white-space: nowrap;
   text-underline-offset: 6px;
@@ -166,7 +166,7 @@
   border-radius: 999px;
   color: #fff;
   background: var(--purple);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -262,7 +262,7 @@
   font: inherit;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .public-site {
     --site-header-height: 180px;
   }
@@ -291,7 +291,7 @@
   }
 
   .public-chrome .site-nav a {
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .public-chrome .site-signin {
@@ -310,5 +310,14 @@
   .public-chrome .site-footer__contact {
     flex-direction: column;
     gap: 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .public-chrome .site-nav {
+    gap: 0 6px;
+  }
+  .public-chrome .site-nav a {
+    font-size: 14px;
   }
 }

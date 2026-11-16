@@ -63,6 +63,7 @@ const labels = {
   pending: "Pending request",
   awaiting_deposit: "Awaiting deposit",
   confirmed: "Confirmed",
+  conditionally_confirmed: "Conditionally confirmed",
   owner_review: "Owner review",
   fulfilled: "Fulfilled",
   cancelled: "Cancelled",

@@ -131,8 +131,8 @@ def test_exact_thirty_mile_boundary_applies_to_both_services(address_app, servic
     assert priced.json["data"]["status"] == ("requires_review" if outside else "priced")
     if outside:
         estimate = priced.json["data"]["estimate"]
-        assert estimate["subtotal_cents"] == 22500
-        assert {line["code"] for line in estimate["line_items"]} == {"popsicles"}
+        assert estimate["subtotal_cents"] == 27000
+        assert {line["code"] for line in estimate["line_items"]} == {"popsicles", "dry_ice"}
         assert priced.json["data"]["pricing"] is None
     del body["event"]["delivery_distance_miles"]
     body["quote_id"] = priced.json["data"]["id"]
@@ -157,7 +157,7 @@ def test_unverified_distance_has_no_price_and_cannot_create_an_order(address_app
     result = quote(client, body).json["data"]
     assert result["status"] == "requires_review"
     assert result["pricing"] is None
-    assert result["estimate"]["subtotal_cents"] == 22500
+    assert result["estimate"]["subtotal_cents"] == 27000
     assert result["next_action"]["reason_code"] == "address_verification_unavailable"
     body["quote_id"] = result["id"]
     blocked = order(client, body)
@@ -178,7 +178,7 @@ def test_owner_review_estimate_has_product_prices_without_logistics_or_deposit(
     data = quote(client, body).json["data"]
     estimate = data["estimate"]
     assert data["status"] == "requires_review" and data["pricing"] is None
-    assert estimate["subtotal_cents"] == 50 * unit_cents + 3000
+    assert estimate["subtotal_cents"] == 50 * unit_cents + 4500
     assert (
         sum(item["amount_cents"] for item in estimate["line_items"]) == estimate["subtotal_cents"]
     )

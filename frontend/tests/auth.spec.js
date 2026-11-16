@@ -321,33 +321,25 @@ test("account reload restores the session without storing tokens", async ({
   ).toEqual({ local: {}, session: {}, cookie: "" });
 });
 
-test("staff sees assigned booking permissions and no owner financial access", async ({
+test("staff can sign out but cannot open the owner dashboard or team account", async ({
   page,
 }) => {
-  await mockApi(page, { admin: makeSession("admin") });
+  const requests = await mockApi(page, { admin: makeSession("admin") });
   await page.goto("/admin");
+  await expect(page).toHaveURL(`${origin}/admin/dashboard`);
   await expect(
-    page.getByRole("heading", { name: "Team account" }),
+    page.getByRole("heading", { name: "Owner access required" }),
   ).toBeVisible();
-  await expect(page.getByText("View bookings", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("Mark fulfillment", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Manage payments", { exact: true }),
-  ).not.toBeVisible();
-  await expect(
-    page.getByText("Export customer data", { exact: true }),
-  ).not.toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Your team permissions" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Management workspace" }),
-  ).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "Team account" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+  expect(
+    requests.some((request) => request.path === "/api/v1/admin/dashboard"),
+  ).toBe(false);
 });
 
-test("owner capabilities come from the current server permissions", async ({
+test("owners land on the owner dashboard with the current server permissions", async ({
   page,
 }) => {
   const administrator = {
@@ -359,24 +351,16 @@ test("owner capabilities come from the current server permissions", async ({
   };
   await mockApi(page, { admin: makeSession("admin", { administrator }) });
   await page.goto("/admin");
+  await expect(page).toHaveURL(`${origin}/admin/dashboard`);
   await expect(
-    page.getByText("Manage payments", { exact: true }),
+    page.getByRole("navigation", { name: "Admin pages" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Export customer data", { exact: true }),
+    page.getByRole("link", { name: "Orders", exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Confirm bookings", { exact: true }),
-  ).not.toBeVisible();
-  await expect(
-    page.getByText("Manage payments", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Export customer data", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "View customer orders", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Team account" })).toHaveCount(
+    0,
+  );
 });
 
 test("a customer session does not grant admin access", async ({ page }) => {
@@ -454,7 +438,7 @@ test("a provider outage clears identity while allowing local logout with memory-
   });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Team account" }),
+    page.getByRole("heading", { name: "Owner access required" }),
   ).toBeVisible();
   await page.clock.fastForward(61000);
   await expect(
@@ -535,7 +519,7 @@ test("session polling keeps the server idle deadline and sends no activity mutat
   const requests = await mockApi(page, { admin: session });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Team account" }),
+    page.getByRole("heading", { name: "Owner access required" }),
   ).toBeVisible();
   await page.clock.fastForward(61000);
   await expect
@@ -546,10 +530,9 @@ test("session polling keeps the server idle deadline and sends no activity mutat
     )
     .toBeGreaterThanOrEqual(2);
   expect(requests.every((request) => request.method === "GET")).toBe(true);
-  await expect(page.locator("time")).toHaveAttribute(
-    "datetime",
-    session.idle_expires_at,
-  );
+  await expect(
+    page.getByRole("heading", { name: "Owner access required" }),
+  ).toBeVisible();
 });
 
 test("logout sends the in-memory CSRF token and redirects to provider logout", async ({
@@ -636,7 +619,7 @@ test("native admin sign-in outages are actionable without exposing the account",
   await expect(page.getByLabel("Password", { exact: true })).not.toBeVisible();
 });
 
-test("a verified native password and TOTP login opens the protected team account", async ({
+test("a verified native password and TOTP login opens the protected owner route", async ({
   page,
 }) => {
   const requests = await mockApi(page, {
@@ -651,16 +634,16 @@ test("a verified native password and TOTP login opens the protected team account
     page.getByRole("table", { name: "Sample bookings" }),
   ).not.toBeVisible();
   await submitCode(page);
-  await expect(page).toHaveURL(`${origin}/admin`);
+  await expect(page).toHaveURL(`${origin}/admin/dashboard`);
   await expect(
-    page.getByRole("heading", { name: "Team account" }),
+    page.getByRole("heading", { name: "Owner access required" }),
   ).toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Session Details" }),
-  ).toBeVisible();
+  ).not.toBeVisible();
   expect(
     requests
       .filter((entry) => entry.method === "POST")
@@ -748,10 +731,12 @@ test("booking previews require the server-assigned booking permission", async ({
   await mockApi(page, { admin: makeSession("admin", { administrator }) });
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Team account" }),
+    page.getByRole("heading", { name: "Owner access required" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Booking access is not assigned to this account."),
+    page.getByText(
+      "Only an owner with booking access can open this workspace.",
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
@@ -761,17 +746,19 @@ test("booking previews require the server-assigned booking permission", async ({
   ).not.toBeVisible();
   await expect(
     page.getByText("Manage payments", { exact: true }),
-  ).toBeVisible();
+  ).not.toBeVisible();
 });
 
-test("the sample dashboard follows live role and permission changes", async ({
+test("the owner dashboard follows live role and permission changes", async ({
   page,
 }) => {
   await page.clock.install({ time: new Date(Date.now()) });
   const options = { admin: makeSession("admin") };
   await mockApi(page, options);
   await page.goto("/admin");
-  await expect(page.getByText("Staff", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Owner access required" }),
+  ).toBeVisible();
   options.admin = makeSession("admin", {
     administrator: {
       id: "admin-123",
@@ -782,13 +769,17 @@ test("the sample dashboard follows live role and permission changes", async ({
     },
   });
   await page.clock.fastForward(61000);
-  await expect(page.getByText("Owner", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Admin pages" }),
+  ).toBeVisible();
   await expect(
     page.getByText("Manage payments", { exact: true }),
-  ).toBeVisible();
+  ).not.toBeVisible();
   options.admin = makeSession("admin");
   await page.clock.fastForward(61000);
-  await expect(page.getByText("Staff", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Owner access required" }),
+  ).toBeVisible();
   await expect(
     page.getByText("Manage payments", { exact: true }),
   ).not.toBeVisible();
@@ -806,7 +797,7 @@ test("disabled administrator access clears the team account", async ({
   await page.goto("/admin");
   await expect(
     page.getByRole("heading", { name: "Session Details" }),
-  ).toBeVisible();
+  ).not.toBeVisible();
   active = false;
   await page.clock.fastForward(61000);
   await expect(
@@ -826,7 +817,7 @@ test("the team account fits a narrow viewport", async ({ page }) => {
   await page.goto("/admin");
   await expect(
     page.getByRole("heading", { name: "Session Details" }),
-  ).toBeVisible();
+  ).not.toBeVisible();
   await expect(
     page.getByRole("table", { name: "Sample bookings" }),
   ).toHaveCount(0);
@@ -1071,7 +1062,7 @@ test("an invited administrator replaces the password and enrolls before a separa
   await expect(page.getByText(setupSecret, { exact: true })).not.toBeVisible();
   await submitPassword(page);
   await submitCode(page);
-  await expect(page).toHaveURL(`${origin}/admin`);
+  await expect(page).toHaveURL(`${origin}/admin/dashboard`);
   expect(
     requests
       .filter((entry) => entry.method === "POST")
@@ -1260,6 +1251,6 @@ test("duplicate TOTP submission is disabled while verification is pending", asyn
   await expect(
     page.getByRole("button", { name: "Verify authenticator code" }),
   ).toBeDisabled();
-  await expect(page).toHaveURL(`${origin}/admin`);
+  await expect(page).toHaveURL(`${origin}/admin/dashboard`);
   expect(requests.filter((r) => r.method === "POST")).toHaveLength(1);
 });

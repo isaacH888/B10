@@ -26,8 +26,8 @@ const booking = {
   calendar_error: null,
 };
 
-async function mock(page, role = "owner") {
-  let current = { ...booking };
+async function mock(page, role = "owner", overrides = {}) {
+  let current = { ...booking, ...overrides };
   const payments = [],
     mutations = [];
   await page.route("**/api/v1/**", async (route) => {
@@ -421,8 +421,8 @@ test("owner imports a customer order without retyping its selections or price", 
     intake.getByText("75 heart popsicles · delivery", { exact: true }),
   ).toBeVisible();
   await page
-    .getByLabel("Confirmed event end (ISO date, time and UTC offset)")
-    .fill("2027-06-12T16:00:00-05:00");
+    .getByLabel("Confirmed event end (Houston/Central time)")
+    .fill("2027-06-12T16:00");
   await page
     .getByLabel("Order contract link (HTTPS)")
     .fill("https://example.invalid/contract");
@@ -436,4 +436,40 @@ test("owner imports a customer order without retyping its selections or price", 
     end: "2027-06-12T16:00:00-05:00",
     contract_url: "https://example.invalid/contract",
   });
+});
+
+test("reopening a denied request collects missing contract and end through a picker", async ({
+  page,
+}) => {
+  const mutations = await mock(page, "owner", {
+    status: "cancelled",
+    contract_url: "",
+    end_unspecified: true,
+  });
+  await page.goto(`/admin/bookings/${booking.id}`);
+  await page
+    .getByLabel("Reason for reopening")
+    .fill("Customer agreed to revised event details");
+  await page
+    .getByLabel("Customer contract link before reopening (HTTPS)")
+    .fill("https://example.invalid/revised-contract");
+  const end = page.getByLabel(
+    "Event end before reopening (Houston/Central time)",
+  );
+  await expect(end).toHaveAttribute("type", "datetime-local");
+  await end.fill("2027-06-12T16:00");
+  await page
+    .getByRole("button", { name: "Reopen and check capacity", exact: true })
+    .click();
+  await expect
+    .poll(() => mutations.find((item) => item.path.endsWith("/reopen")))
+    .toEqual({
+      path: `${prefix}/bookings/${booking.id}/reopen`,
+      body: {
+        expected_revision: booking.revision,
+        reason: "Customer agreed to revised event details",
+        contract_url: "https://example.invalid/revised-contract",
+        end: "2027-06-12T21:00:00.000Z",
+      },
+    });
 });

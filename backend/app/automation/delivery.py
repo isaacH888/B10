@@ -362,6 +362,8 @@ class JobProcessor:
                 f"Start: {booking['start']} ({booking['timezone']})\nEnd: {booking['end']}\n"
                 f"Popsicles: {booking['quantity']}\nAgreed total: {total}\nRemaining balance: {remaining}\n"
             )
+            if booking.get("source_order_id"):
+                summary += f"Customer order: {booking['source_order_id']}\n"
             recipient = booking["customer_email"]
             if kind == "reminder":
                 items = self.reminders.outstanding(booking, payload)
@@ -382,6 +384,8 @@ class JobProcessor:
                 subject = f"Popssibilities booking {reference} confirmed"
                 body = "Your verified deposit confirms your catering booking.\n" + summary
                 if kind == "confirmation_customer":
+                    if booking.get("customer_message"):
+                        body += f"Message from the owner: {booking['customer_message']}\n"
                     contract = booking.get("contract_url") or self.settings.get(
                         "AUTOMATION_CONTRACT_URL"
                     )
@@ -394,18 +398,40 @@ class JobProcessor:
                     )
                     body += f"Private dashboard: {self.settings['AUTOMATION_DASHBOARD_URL'].rstrip('/')}/{booking['id']}\n"
             elif kind == "deposit_request":
+                if "decision_generation" in payload and payload[
+                    "decision_generation"
+                ] != booking.get("decision_generation", 0):
+                    return False
                 if (
                     booking["status"] != "awaiting_deposit"
                     or (booking.get("reservation_expires_at") or 0)
                     <= instant(self.clock()).timestamp()
                 ):
                     return False
-                subject = f"Deposit requested for Popssibilities booking {reference}"
+                subject = f"Popssibilities event approved: {reference} — deposit requested"
                 body = (
                     summary
                     + f"Availability is approved. Deposit requested: {money(booking['currency'], booking['deposit_minor'])}.\n"
                 )
                 body += "Arrange payment using the method agreed with Popssibilities. Payment is verified by the owner.\n"
+                if booking.get("customer_message"):
+                    body += f"Message from the owner: {booking['customer_message']}\n"
+            elif kind == "decision_customer":
+                if payload.get("decision_generation") != booking.get("decision_generation"):
+                    return False
+                conditional = payload.get("decision") == "conditionally_confirm"
+                expected_status = "conditionally_confirmed" if conditional else "cancelled"
+                if booking["status"] != expected_status:
+                    return False
+                label = "conditionally confirmed" if conditional else "denied"
+                subject = f"Popssibilities request {reference}: {label}"
+                body = f"Your catering request is {label}.\n" + summary
+                if conditional:
+                    body += "Your event details have been reviewed, but we need to agree on the conditions below before final approval. No deposit is requested yet and capacity is not reserved. Please reply to discuss the options.\n"
+                else:
+                    body += "We cannot accept this request. No new payment is requested. Contact us about any payments already made.\n"
+                if booking.get("customer_message"):
+                    body += f"Message from the owner: {booking['customer_message']}\n"
             else:
                 raise ValueError("Unsupported automation job kind")
             if not recipient:

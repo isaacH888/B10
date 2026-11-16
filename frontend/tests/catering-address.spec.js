@@ -10,7 +10,7 @@ const location = {
 const area = (outside = false) => ({
   enabled: true,
   radius_miles: 30,
-  origin_name: "Stafford, TX 77477",
+  origin_name: "Houston area · ZIP 77477",
   origin_postal_code: "77477",
   distance_method: "zip_centroid_radius",
   service_area_enabled: true,
@@ -49,7 +49,7 @@ async function addressApi(
             enabled,
             service_area_enabled: serviceAreaEnabled,
             radius_miles: 30,
-            origin_name: "Stafford, TX 77477",
+            origin_name: "Houston area · ZIP 77477",
             origin_postal_code: "77477",
             distance_method: "zip_centroid_radius",
           },
@@ -536,7 +536,9 @@ test("ZIP-only radius checks work even without address suggestions", async ({
     page.getByText("Within our service area", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText(/ZIP-area centers within 30 miles of Stafford, TX 77477/),
+    page.getByText(
+      /ZIP-area centers within 30 miles of our Houston-area service ZIP 77477/,
+    ),
   ).toBeVisible();
   await expect(page.locator("#cf-line1")).toHaveValue("");
   await expect(page.locator("#cf-city")).toHaveValue("");

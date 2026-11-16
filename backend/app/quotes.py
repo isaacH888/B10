@@ -28,8 +28,8 @@ Contract adaptations (docs/api-contract.md):
     volume discounts and heart surcharge: regular paletas cost $4.50 each,
     and heart-shaped paletas cost $3.00 each.
 
-Business rules live in ``pricing.config.json`` and are never hard-coded here
-beyond the configuration defaults.
+Unit prices and service fees live in ``pricing.config.json``. Required dry ice
+and the two-week customization notice are enforced for every new request.
 """
 
 import copy
@@ -47,7 +47,7 @@ from urllib.parse import urlsplit
 import pymysql
 from flask import Blueprint, current_app, g, jsonify, request
 
-from .flavors import FlavorAllocationError, clean_flavor_allocations
+from .flavors import SAMPLE_FLAVORS, FlavorAllocationError, clean_flavor_allocations
 from .health import connection_options, database_configured
 
 quotes_bp = Blueprint("quotes", __name__)
@@ -68,7 +68,12 @@ _DEFAULT_BUSINESS_RULES = {
     ],
     "customizations": {"heart_shaped_unit_price": 3.00},
     "logistics": {
-        "dry_ice": {"price_per_block": 15.00},
+        "dry_ice": {
+            "price_per_block": 15.00,
+            "discount_minimum_quantity": 151,
+            "full_price_blocks": 3,
+            "additional_block_price": 10.00,
+        },
         "delivery": {
             "origin_facility_name": "Wingman Kitchens Houston",
             "origin_facility_address": "4783 Lexington Blvd, Missouri City, TX 77459",
@@ -77,7 +82,11 @@ _DEFAULT_BUSINESS_RULES = {
             "max_radius_miles": 30.0,
             "exceeded_radius_action": "REDIRECT_CONTACT_FORM",
         },
-        "full_service": {"flat_fee": 150.00},
+        "full_service": {
+            "flat_fee": 150.00,
+            "employee_hourly_rate": 15.00,
+            "serve_duration_hours": 2.5,
+        },
     },
     "payments": {"deposit_rate": 0.50},
 }
@@ -168,6 +177,9 @@ class PricingRules:
     tiers: tuple
     heart_unit_price_cents: int
     dry_ice_block_cents: int
+    dry_ice_discount_minimum_quantity: int
+    dry_ice_full_price_blocks: int
+    dry_ice_additional_block_cents: int
     delivery_base_cents: int
     delivery_max_cents: int
     delivery_max_radius_miles: float
@@ -175,6 +187,8 @@ class PricingRules:
     delivery_origin_address: str
     exceeded_radius_action: str
     full_service_flat_cents: int
+    employee_hourly_cents: int
+    default_service_hours: Fraction
     deposit_rate: Fraction
     revision: str = "pricing_config"
 
@@ -209,6 +223,10 @@ def parse_business_rules(business_rules, version=None):
     if not tiers:
         raise ValueError("pricing config must define at least one volume tier")
     delivery = rules["logistics"]["delivery"]
+    dry_ice = rules["logistics"]["dry_ice"]
+    for name, minimum in (("discount_minimum_quantity", 1), ("full_price_blocks", 0)):
+        if type(dry_ice[name]) is not int or dry_ice[name] < minimum:
+            raise ValueError(f"pricing config dry_ice.{name} must be an integer >= {minimum}")
     radius = delivery["max_radius_miles"]
     deposit_rate = rules["payments"]["deposit_rate"]
     if not _is_number(radius) or radius <= 0:
@@ -223,7 +241,12 @@ def parse_business_rules(business_rules, version=None):
             "heart_shaped_unit_price",
         ),
         dry_ice_block_cents=_dollars_to_cents(
-            rules["logistics"]["dry_ice"]["price_per_block"], "dry_ice.price_per_block"
+            dry_ice["price_per_block"], "dry_ice.price_per_block"
+        ),
+        dry_ice_discount_minimum_quantity=dry_ice["discount_minimum_quantity"],
+        dry_ice_full_price_blocks=dry_ice["full_price_blocks"],
+        dry_ice_additional_block_cents=_dollars_to_cents(
+            dry_ice["additional_block_price"], "dry_ice.additional_block_price"
         ),
         delivery_base_cents=_dollars_to_cents(delivery["base_fee"], "delivery.base_fee"),
         delivery_max_cents=_dollars_to_cents(delivery["max_fee"], "delivery.max_fee"),
@@ -234,6 +257,11 @@ def parse_business_rules(business_rules, version=None):
         full_service_flat_cents=_dollars_to_cents(
             rules["logistics"]["full_service"]["flat_fee"], "full_service.flat_fee"
         ),
+        employee_hourly_cents=_dollars_to_cents(
+            rules["logistics"]["full_service"]["employee_hourly_rate"],
+            "full_service.employee_hourly_rate",
+        ),
+        default_service_hours=_fraction(rules["logistics"]["full_service"]["serve_duration_hours"]),
         deposit_rate=_fraction(deposit_rate),
         revision=f"pricing_config_{version}"
         if isinstance(version, str) and version
@@ -286,12 +314,25 @@ def calculate_heart_shape_price(rules, total_qty, heart_qty=0):
     return _round_half_up(_fraction(heart_qty) * rules.heart_unit_price_cents)
 
 
-def calculate_dry_ice_fee(rules, blocks=0):
+def calculate_dry_ice_fee(rules, blocks=0, total_quantity=0):
     if not _is_number(blocks) or blocks < 0:
         raise QuoteError(
             "Quantities cannot be negative.", "ERR_INVALID_DATA_TYPE", "dry_ice_blocks", blocks
         )
-    return _round_half_up(_fraction(blocks) * rules.dry_ice_block_cents)
+    discounted = (
+        max(0, blocks - rules.dry_ice_full_price_blocks)
+        if total_quantity >= rules.dry_ice_discount_minimum_quantity
+        else 0
+    )
+    return _round_half_up(
+        _fraction(blocks - discounted) * rules.dry_ice_block_cents
+        + _fraction(discounted) * rules.dry_ice_additional_block_cents
+    )
+
+
+def minimum_dry_ice_blocks(quantity):
+    """Three blocks for each started group of 150 paletas."""
+    return 3 * ((int(quantity) + 149) // 150)
 
 
 def calculate_logistics_fees(rules, service_type="PICKUP", distance_miles=0):
@@ -401,9 +442,13 @@ def validate_quote_payload(rules, payload):
             "heart_shaped_quantity",
             heart_shaped_quantity,
         )
-    if not _is_number(dry_ice_blocks) or dry_ice_blocks < 0:
+    if (
+        not _is_number(dry_ice_blocks)
+        or dry_ice_blocks < 0
+        or int(dry_ice_blocks) != dry_ice_blocks
+    ):
         raise QuoteError(
-            "Quantities cannot be negative.",
+            "Dry ice blocks must be a non-negative whole number.",
             "ERR_INVALID_DATA_TYPE",
             "dry_ice_blocks",
             dry_ice_blocks,
@@ -470,6 +515,7 @@ def validate_quote_payload(rules, payload):
         "service_type": service_type,
         "delivery_distance_miles": sanitized_distance,
         "dry_ice_blocks": dry_ice_blocks,
+        "service_duration_hours": data.get("service_duration_hours", rules.default_service_hours),
         "flavors": sanitized_flavors,
     }
 
@@ -497,12 +543,30 @@ def calculate_order_quote(rules, payload):
     base_cents = _round_half_up(
         (total_quantity - _fraction(heart_quantity)) * tier.unit_price_cents
     )
-    dry_ice_cents = calculate_dry_ice_fee(rules, payload.get("dry_ice_blocks", 0))
+    blocks = max(payload.get("dry_ice_blocks", 0), minimum_dry_ice_blocks(total_quantity))
+    dry_ice_cents = calculate_dry_ice_fee(rules, blocks, total_quantity)
     delivery_cents, full_service_cents = calculate_logistics_fees(
         rules, payload.get("service_type", "PICKUP"), payload.get("delivery_distance_miles", 0)
     )
 
-    total_cents = base_cents + heart_cents + dry_ice_cents + delivery_cents + full_service_cents
+    employee_cents = 0
+    if payload.get("service_type") == "FULL_SERVICE":
+        hours = payload.get("service_duration_hours", rules.default_service_hours)
+        if not isinstance(hours, Fraction):
+            if not _is_number(hours) or hours <= 0:
+                raise QuoteError(
+                    "Event duration must be positive.", "ERR_INVALID_DATA_TYPE", "event.ends_at"
+                )
+            hours = _fraction(hours)
+        employee_cents = _round_half_up(hours * rules.employee_hourly_cents)
+    total_cents = (
+        base_cents
+        + heart_cents
+        + dry_ice_cents
+        + delivery_cents
+        + full_service_cents
+        + employee_cents
+    )
     # RoundUp(total_amount * deposit_rate, 2): always round the deposit up to a whole cent.
     deposit_cents = math.ceil(total_cents * rules.deposit_rate)
     balance_cents = total_cents - deposit_cents
@@ -517,6 +581,7 @@ def calculate_order_quote(rules, payload):
             "dry_ice_cents": dry_ice_cents,
             "delivery_fee_cents": delivery_cents,
             "full_service_fee_cents": full_service_cents,
+            "employee_service_cents": employee_cents,
         },
         "pricing_summary": {
             "subtotal_cents": total_cents,
@@ -563,6 +628,7 @@ def normalize_quote_payload(raw_payload):
         raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
     )
     event = raw_payload.get("event") if isinstance(raw_payload.get("event"), dict) else {}
+    validate_custom_notice(catering, event)
 
     if "flavor_allocations" in catering:
         try:
@@ -589,6 +655,15 @@ def normalize_quote_payload(raw_payload):
         flat["service_type"] = (
             service_type.strip().upper() if isinstance(service_type, str) else service_type
         )
+    if flat.get("service_type") == "FULL_SERVICE":
+        start = _event_instant(event.get("starts_at"), "event.starts_at")
+        end = _event_instant(event.get("ends_at"), "event.ends_at")
+        seconds = (end - start).total_seconds()
+        if seconds <= 0:
+            raise QuoteError(
+                "Event end must be after the start time.", "ERR_INVALID_EVENT", "event.ends_at"
+            )
+        flat["service_duration_hours"] = _fraction(seconds) / 3600
 
     dry_ice = catering.get("dry_ice_blocks")
     flat["dry_ice_blocks"] = 0 if dry_ice is None else dry_ice
@@ -599,6 +674,46 @@ def normalize_quote_payload(raw_payload):
     if distance is not None:
         flat["delivery_distance_miles"] = distance
     return flat
+
+
+def _event_instant(value, field):
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError
+        return parsed.astimezone(timezone.utc)
+    except (ValueError, AttributeError, TypeError, OverflowError):
+        raise QuoteError(
+            "Choose an event date and time. Full service requires an end time to calculate employee service.",
+            "ERR_INVALID_EVENT",
+            field,
+        ) from None
+
+
+def validate_custom_notice(catering, event, now=None):
+    custom_field = None
+    if str(catering.get("popsicle_shape", "")).strip().lower() == "heart":
+        custom_field = "catering_request.popsicle_shape"
+    if (
+        isinstance(catering.get("flavor_requests"), str) and catering["flavor_requests"].strip()
+    ) or catering.get("add_ons"):
+        custom_field = "catering_request.flavor_requests"
+    allocations = catering.get("flavor_allocations")
+    if isinstance(allocations, list) and any(
+        isinstance(row, dict)
+        and isinstance(row.get("flavor"), str)
+        and row["flavor"].strip().casefold() not in {name.casefold() for name in SAMPLE_FLAVORS}
+        for row in allocations
+    ):
+        custom_field = "catering_request.flavor_allocations"
+    if custom_field:
+        start = _event_instant(event.get("starts_at"), "event.starts_at")
+        if start < (now or datetime.now(timezone.utc)) + timedelta(days=14):
+            raise QuoteError(
+                "Custom paletas require at least two weeks' notice. Short-notice events use available paletas only; remove custom requests or choose a later date.",
+                "ERR_CUSTOM_NOTICE",
+                custom_field,
+            )
 
 
 class AddressReviewRequired(QuoteError):
@@ -657,6 +772,18 @@ def _line_items(rules, payload, calculation):
     tier = calculation["tier_applied"]
     regular_quantity = payload["total_quantity"] - payload["heart_shaped_quantity"]
     items = []
+    ice_blocks = max(payload["dry_ice_blocks"], minimum_dry_ice_blocks(payload["total_quantity"]))
+    ice_description = f"Dry ice, {_fmt(ice_blocks)} blocks at {_money(rules.dry_ice_block_cents)}"
+    if (
+        payload["total_quantity"] >= rules.dry_ice_discount_minimum_quantity
+        and ice_blocks > rules.dry_ice_full_price_blocks
+    ):
+        ice_description = (
+            f"Dry ice, {_fmt(ice_blocks)} blocks: first {rules.dry_ice_full_price_blocks} at "
+            f"{_money(rules.dry_ice_block_cents)} each; "
+            f"{_fmt(ice_blocks - rules.dry_ice_full_price_blocks)} additional at "
+            f"{_money(rules.dry_ice_additional_block_cents)} each"
+        )
     if regular_quantity:
         items.append(
             {
@@ -674,7 +801,7 @@ def _line_items(rules, payload, calculation):
         ),
         (
             "dry_ice",
-            f"Dry ice, {_fmt(payload['dry_ice_blocks'])} blocks at {_money(rules.dry_ice_block_cents)}",
+            ice_description,
             breakdown["dry_ice_cents"],
         ),
         (
@@ -683,6 +810,11 @@ def _line_items(rules, payload, calculation):
             breakdown["delivery_fee_cents"],
         ),
         ("full_service_fee", "Full service flat fee", breakdown["full_service_fee_cents"]),
+        (
+            "employee_service",
+            f"Employee service for the event duration at {_money(rules.employee_hourly_cents)}/hour",
+            breakdown["employee_service_cents"],
+        ),
     ]
     items.extend(
         {"code": code, "description": text, "amount_cents": cents}
@@ -702,11 +834,18 @@ def _contract_quote(raw_payload, status, pricing, rules, unresolved_decisions, n
         if isinstance(event, dict)
         else {}
     )
+    catering = {
+        **raw_payload["catering_request"],
+        "dry_ice_blocks": max(
+            raw_payload["catering_request"].get("dry_ice_blocks") or 0,
+            minimum_dry_ice_blocks(raw_payload["catering_request"]["quantity"]),
+        ),
+    }
     return {
         "id": f"quote_{uuid.uuid4().hex}",
         "status": status,
         "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "catering_request": raw_payload["catering_request"],
+        "catering_request": catering,
         "event": event,
         "pricing": pricing,
         "pricing_revision": rules.revision if pricing is not None else None,

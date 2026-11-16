@@ -72,6 +72,7 @@ export function formatFlavorRequests(catering) {
       (row) => `${row.flavor}: ${row.quantity}`,
     ),
     catering.flavor_requests,
+    catering.allergy_notes ? `Allergy notes: ${catering.allergy_notes}` : "",
   ]
     .filter(Boolean)
     .join(" · ");
