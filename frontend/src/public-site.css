@@ -381,9 +381,12 @@
   object-position: 50% 24%;
 }
 
-.public-home .feature__photo--sharing img,
-.public-home .feature__photo--serving img {
+.public-home .feature__photo--sharing img {
   object-position: 50% 28%;
+}
+
+.public-home .feature__photo--heart img {
+  object-position: 50% 58%;
 }
 
 :where(.public-home, .customer-signin) .yellow {

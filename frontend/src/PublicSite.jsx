@@ -7,7 +7,7 @@ import paletasSmall from "./assets/paletas-hero-768.webp";
 import logo from "./assets/logo.png";
 import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
 import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
-import servingPaletas from "./assets/story/audrey-serving-paletas.jpg";
+import heartPaleta from "./assets/story/heart-paleta-mural.jpg";
 import fruitIllustration from "./assets/illustrations/fruit.svg";
 import "./public-site.css";
 
@@ -32,13 +32,15 @@ export function PublicLayout({ children }) {
       ? "public-home"
       : pathname === "/order"
         ? "public-order"
-        : pathname === "/account"
-          ? "public-account"
-          : pathname === "/order/confirm" ||
-              pathname === "/payment/return" ||
-              pathname === "/payment/pay"
-            ? "public-confirmation"
-            : "public-content";
+        : pathname === "/faq"
+          ? "public-faq"
+          : pathname === "/account"
+            ? "public-account"
+            : pathname === "/order/confirm" ||
+                pathname === "/payment/return" ||
+                pathname === "/payment/pay"
+              ? "public-confirmation"
+              : "public-content";
   return (
     <div className="public-site">
       <PublicHeader />
@@ -213,14 +215,14 @@ export function PublicHome() {
             <small>The sweetest part? Sharing the moment.</small>
           </article>
           <article className="feature blue">
-            <div className="feature__photo feature__photo--serving">
+            <div className="feature__photo feature__photo--heart">
               <img
-                src={servingPaletas}
-                alt="Audrey serving paletas from her cart"
+                src={heartPaleta}
+                alt="A pink and yellow heart-shaped paleta in front of a colorful mural"
                 loading="lazy"
                 decoding="async"
-                width="1050"
-                height="1400"
+                width="904"
+                height="1200"
               />
               <span className="burst" aria-hidden="true">
                 <Sunburst />

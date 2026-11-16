@@ -320,7 +320,8 @@ html {
 }
 
 .public-chrome .site-footer__contact a:hover,
-.public-chrome .site-footer__links a:hover {
+.public-chrome .site-footer__links a:hover,
+.public-chrome .site-footer__links a[aria-current="page"] {
   color: var(--yellow);
   text-decoration: underline;
   text-underline-offset: 4px;

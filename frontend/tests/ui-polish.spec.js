@@ -149,6 +149,9 @@ test("reduced motion keeps catering photos still while keyboard controls work", 
   await page.goto("/order");
   const hero = page.getByRole("region", { name: /Bring the Chill/ });
   await expect(
+    hero.getByRole("button", { name: /^Go to slide \d:/ }),
+  ).toHaveCount(3);
+  await expect(
     hero.getByRole("button", { name: "Play slideshow" }),
   ).toBeVisible();
   await page.clock.fastForward(10000);
@@ -188,23 +191,23 @@ test("catering rotation pauses for hover, offscreen content, focus and motion ch
   await hero.scrollIntoViewIfNeeded();
   await expect(hero).toBeInViewport();
   await page.clock.fastForward(4600);
-  await expect(slide(hero, 4)).toHaveAttribute("aria-current", "true");
+  await expect(slide(hero, 1)).toHaveAttribute("aria-current", "true");
   await hero.getByRole("button", { name: "Next slide" }).focus();
   await page.clock.fastForward(10000);
-  await expect(slide(hero, 4)).toHaveAttribute("aria-current", "true");
-  await page.keyboard.press("ArrowRight");
   await expect(slide(hero, 1)).toHaveAttribute("aria-current", "true");
+  await page.keyboard.press("ArrowRight");
+  await expect(slide(hero, 2)).toHaveAttribute("aria-current", "true");
   await page.mouse.move(0, 0);
   await page.clock.fastForward(10000);
-  await expect(slide(hero, 1)).toHaveAttribute("aria-current", "true");
+  await expect(slide(hero, 2)).toHaveAttribute("aria-current", "true");
   await hero.getByRole("button", { name: "Play slideshow" }).click();
   await page.mouse.move(0, 0);
   await page.clock.fastForward(4600);
-  await expect(slide(hero, 2)).toHaveAttribute("aria-current", "true");
+  await expect(slide(hero, 3)).toHaveAttribute("aria-current", "true");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(
     hero.getByRole("button", { name: "Play slideshow" }),
   ).toBeVisible();
   await page.clock.fastForward(10000);
-  await expect(slide(hero, 2)).toHaveAttribute("aria-current", "true");
+  await expect(slide(hero, 3)).toHaveAttribute("aria-current", "true");
 });

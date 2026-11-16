@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
 import eventCart from "./assets/story/audrey-event-cart.jpg";
 import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
-import servingPaletas from "./assets/story/audrey-serving-paletas.jpg";
 
 const photos = [
   {
@@ -16,10 +15,6 @@ const photos = [
   {
     src: eventCart,
     alt: "Audrey with her Popssibilities cart and colorful popsicle shirt",
-  },
-  {
-    src: servingPaletas,
-    alt: "Audrey opening her paleta cart to serve a guest",
   },
 ];
 

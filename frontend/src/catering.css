@@ -695,6 +695,25 @@
   background: #f8bfcb;
   transform: rotate(2deg);
 }
+.cat-cta__faq {
+  margin: 22px 0 0;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.cat-cta__faq a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.cat-cta__faq a:hover {
+  text-decoration-thickness: 2px;
+}
+.cat-cta__faq a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
 .cat-cta__photo img {
   display: block;
   width: 100%;
@@ -702,7 +721,7 @@
   aspect-ratio: 1;
   border-radius: 20px;
   object-fit: cover;
-  object-position: center top;
+  object-position: 50% 80%;
 }
 .cat-cta__photo span {
   display: block;
