@@ -32,7 +32,7 @@ import {
   PublicLayout,
 } from "./PublicSite.jsx";
 import restrictedAccessArt from "./assets/illustrations/restricted-access.svg";
-import meltedPaleta from "./assets/illustrations/melted-paleta.svg";
+import errorMascot from "./assets/illustrations/Popssibilities Popsicle.svg";
 
 const adminPreview =
   import.meta.env.DEV && import.meta.env.MODE === "admin-preview";
@@ -282,7 +282,7 @@ function ProtectedPage({
         <div className="error-card">
           <div className="error-card__visual">
             <img
-              src={isForbidden ? restrictedAccessArt : meltedPaleta}
+              src={isForbidden ? restrictedAccessArt : errorMascot}
               alt=""
               className="error-card__art"
               width="140"
@@ -435,7 +435,7 @@ function NotFound() {
       <div className="error-card">
         <div className="error-card__visual">
           <img
-            src={meltedPaleta}
+            src={errorMascot}
             alt=""
             className="error-card__art"
             width="140"
@@ -601,7 +601,7 @@ function ErrorPreviewPage() {
             <div className="error-card">
               <div className="error-card__visual">
                 <img
-                  src={meltedPaleta}
+                  src={errorMascot}
                   alt=""
                   className="error-card__art"
                   width="140"
