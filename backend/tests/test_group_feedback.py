@@ -206,11 +206,10 @@ def test_owner_can_review_an_unlinked_order_atomically(intake_app, decision):
         "message": "Please discuss an alternative flavor.",
         "expected_version": order["version"],
     }
-    if decision == "confirm":
-        body["contract_url"] = "https://example.invalid/contract"
     response = client.post(BASE + f"/orders/{order['id']}/decision", json=body, headers=headers)
     assert response.status_code == 200, response.json
     booking = response.json["data"]
+    assert booking["contract_url"] == ""
     assert (
         booking["status"]
         == {
@@ -311,7 +310,7 @@ def test_reapproval_suppresses_the_previous_deposit_email(setup):
     assert "Flavor agreed" in mail.messages[0]["body"]
 
 
-def test_reopening_a_denied_request_requires_real_end_and_contract(intake_app):
+def test_reopening_a_denied_request_requires_real_end_but_no_contract(intake_app):
     client, headers = signed_owner(intake_app)
     body = order_payload()
     body["event"]["ends_at"] = None
@@ -338,13 +337,12 @@ def test_reopening_a_denied_request_requires_real_end_and_contract(intake_app):
         "expected_revision": booking["revision"],
     }
     assert client.post(path, json=request, headers=headers).status_code == 400
-    request["contract_url"] = "https://example.invalid/revised-contract"
-    assert client.post(path, json=request, headers=headers).status_code == 400
     request["end"] = "2099-01-15T17:00:00-06:00"
     reopened = client.post(path, json=request, headers=headers)
     assert reopened.status_code == 200, reopened.json
     assert reopened.json["data"]["status"] == "awaiting_deposit"
     assert reopened.json["data"]["end_unspecified"] is False
+    assert reopened.json["data"]["contract_url"] == ""
 
 
 def test_final_quantity_keeps_the_required_dry_ice_count(setup):

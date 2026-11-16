@@ -30,6 +30,8 @@ import {
   PublicHome,
   PublicLayout,
 } from "./PublicSite.jsx";
+import restrictedAccessArt from "./assets/illustrations/restricted-access.svg";
+import meltedPaleta from "./assets/illustrations/melted-paleta.svg";
 
 const adminPreview =
   import.meta.env.DEV && import.meta.env.MODE === "admin-preview";
@@ -54,34 +56,38 @@ function Layout({ children }) {
     pathname === "/order" ||
     pathname === "/account" ||
     pathname === "/order/confirm" ||
+    pathname === "/error-preview" ||
     pathname === "/payment/return" ||
     pathname === "/payment/pay"
   ) {
     return <PublicLayout>{children}</PublicLayout>;
   }
-  return (
-    <div className="test-shell">
-      <header>
-        <p>
-          <strong>Popssibilities authentication test</strong>
-        </p>
-        <nav aria-label="Main navigation">
-          <Link to="/">Home</Link>
-          <Link to="/order">Catering order</Link>
-          <Link to="/login">Customer login</Link>
-          <Link to="/account">Customer session</Link>
-          <Link to="/admin/login">Admin login</Link>
-          <Link to="/admin">Admin dashboard</Link>
-          <Link to="/diagnostics">Connection diagnostics</Link>
-        </nav>
-      </header>
-      <main id="main-content">{children}</main>
-      <footer>
-        This is a temporary interface for testing authentication. The frontend
-        design is not final.
-      </footer>
-    </div>
-  );
+  if (pathname === "/diagnostics") {
+    return (
+      <div className="test-shell">
+        <header>
+          <p>
+            <strong>Popssibilities authentication test</strong>
+          </p>
+          <nav aria-label="Main navigation">
+            <Link to="/">Home</Link>
+            <Link to="/order">Catering order</Link>
+            <Link to="/login">Customer login</Link>
+            <Link to="/account">Customer session</Link>
+            <Link to="/admin/login">Admin login</Link>
+            <Link to="/admin">Admin dashboard</Link>
+            <Link to="/diagnostics">Connection diagnostics</Link>
+          </nav>
+        </header>
+        <main id="main-content">{children}</main>
+        <footer>
+          This is a temporary interface for testing authentication. The frontend
+          design is not final.
+        </footer>
+      </div>
+    );
+  }
+  return <PublicLayout>{children}</PublicLayout>;
 }
 
 function DiagnosticsPage() {
@@ -133,9 +139,9 @@ function DiagnosticsPage() {
   );
 }
 
-function Notice({ children }) {
+function Notice({ children, className }) {
   return (
-    <div className="notice" role="alert">
+    <div className={`notice ${className || ""}`.trim()} role="alert">
       {children}
     </div>
   );
@@ -253,12 +259,10 @@ function ProtectedPage({
 
   if (session.status === "loading")
     return (
-      <p
-        className={admin ? undefined : "customer-account-loading"}
-        role="status"
-      >
-        Checking your session…
-      </p>
+      <div className="session-loading-view" role="status">
+        <span className="auth-spinner" aria-hidden="true" />
+        <span>Checking your session…</span>
+      </div>
     );
   if (session.status === "signed-out") {
     return (
@@ -268,32 +272,71 @@ function ProtectedPage({
       />
     );
   }
-  if (session.status === "error")
+  if (session.status === "error") {
+    const isForbidden = session.error.status === 403;
+    const isReauth = session.error.code === "reauthentication_required";
     return (
-      <section className={admin ? undefined : "customer-account-state"}>
-        <h1>
-          {session.error.code === "reauthentication_required"
-            ? "Verification required"
-            : session.error.status === 403
-              ? "Access unavailable"
-              : "Sign-in unavailable"}
-        </h1>
-        <Notice>{errorMessage(session.error)}</Notice>
-        <div className="actions">
-          <button type="button" onClick={() => refresh(area)}>
-            Try again
-          </button>
-          {session.canLogout && (
-            <button type="button" onClick={() => logout(area)}>
-              Sign out
-            </button>
-          )}
-          <Link to={admin ? "/admin/login?reauth=1" : "/login"}>
-            Back to sign-in
-          </Link>
+      <section className="error-view session-error-view">
+        <div className="error-card">
+          <div className="error-card__visual">
+            <img
+              src={isForbidden ? restrictedAccessArt : meltedPaleta}
+              alt=""
+              className="error-card__art"
+              width="140"
+              height="140"
+              aria-hidden="true"
+            />
+          </div>
+          <div className="error-card__content">
+            <span
+              className={`error-badge ${isForbidden ? "error-badge--restricted" : ""}`}
+            >
+              {isReauth
+                ? "AUTH CHECK"
+                : isForbidden
+                  ? "403 RESTRICTED ACCESS"
+                  : "SERVER NOTICE"}
+            </span>
+            <h1 className="error-title">
+              {isReauth
+                ? "Verification required"
+                : isForbidden
+                  ? "Access unavailable"
+                  : "Sign-in unavailable"}
+            </h1>
+            <Notice>
+              <p>{errorMessage(session.error)}</p>
+            </Notice>
+            <div className="actions error-actions">
+              <button
+                type="button"
+                className="pill red"
+                onClick={() => refresh(area)}
+              >
+                Try again
+              </button>
+              {session.canLogout && (
+                <button
+                  type="button"
+                  className="pill outline"
+                  onClick={() => logout(area)}
+                >
+                  Sign out
+                </button>
+              )}
+              <Link
+                to={admin ? "/admin/login?reauth=1" : "/login"}
+                className="pill outline"
+              >
+                Back to sign-in
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
     );
+  }
 
   const identity = session.data[admin ? "administrator" : "customer"];
   const deadline = new Date(sessionDeadline(session.data));
@@ -311,23 +354,49 @@ function ProtectedPage({
       !identity.permissions.includes("bookings:read")
     ) {
       return (
-        <section className="test-shell">
-          <h1>Owner access required</h1>
-          <p>Only an owner with booking access can open this workspace.</p>
-          {remaining <= 5 && (
-            <Notice>
-              Your session expires in{" "}
-              {remaining ? `${remaining} minutes` : "less than a minute"}.
-            </Notice>
-          )}
-          <Link to="/admin/login">Back to owner sign-in</Link>
-          <Link to="/admin/login?reauth=1">Verify again</Link>
-          <button
-            type="button"
-            onClick={() => logout(area, session.data.csrf_token)}
-          >
-            Sign out
-          </button>
+        <section className="error-view session-error-view">
+          <div className="error-card">
+            <div className="error-card__visual">
+              <img
+                src={restrictedAccessArt}
+                alt=""
+                className="error-card__art"
+                width="140"
+                height="140"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="error-card__content">
+              <span className="error-badge error-badge--restricted">
+                403 RESTRICTED ACCESS
+              </span>
+              <h1 className="error-title">Owner access required</h1>
+              <p className="error-desc">
+                Only an owner with booking access can open this workspace.
+              </p>
+              {remaining <= 5 && (
+                <Notice className="session-expiry-notice">
+                  Your session expires in{" "}
+                  {remaining ? `${remaining} minutes` : "less than a minute"}.
+                </Notice>
+              )}
+              <div className="actions error-actions">
+                <Link to="/admin/login?reauth=1" className="pill red">
+                  Back to owner sign-in
+                </Link>
+                <Link to="/admin/login?reauth=1" className="pill outline">
+                  Verify again
+                </Link>
+                <button
+                  type="button"
+                  className="pill outline"
+                  onClick={() => logout(area, session.data.csrf_token)}
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
       );
     }
@@ -360,10 +429,211 @@ function ProtectedPage({
 
 function NotFound() {
   return (
-    <section>
-      <h1>Page not found</h1>
-      <Link to="/">Back home</Link>
+    <section className="error-view not-found-view">
+      <div className="error-card">
+        <div className="error-card__visual">
+          <img
+            src={meltedPaleta}
+            alt=""
+            className="error-card__art"
+            width="140"
+            height="140"
+            aria-hidden="true"
+          />
+        </div>
+        <div className="error-card__content">
+          <span className="error-badge">404</span>
+          <h1 className="error-title">Page not found</h1>
+          <p className="error-desc">
+            Looks like this page melted in the Texas sun. The flavor or link
+            you're looking for doesn't exist or has moved.
+          </p>
+          <div className="actions error-actions">
+            <Link to="/" className="pill red">
+              Back home
+            </Link>
+            <Link to="/order" className="pill outline">
+              Explore catering
+            </Link>
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function ErrorPreviewPage() {
+  const [tab, setTab] = useState("404");
+  return (
+    <div className="error-preview-container">
+      <div
+        className="error-preview-switcher"
+        style={{
+          display: "flex",
+          gap: "8px",
+          justifyContent: "center",
+          padding: "16px",
+          background: "#35162f",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          className={`pill ${tab === "404" ? "red" : "outline"}`}
+          style={{ minHeight: "36px", padding: "8px 16px", fontSize: "13px" }}
+          onClick={() => setTab("404")}
+        >
+          404 Page Not Found
+        </button>
+        <button
+          type="button"
+          className={`pill ${tab === "403" ? "red" : "outline"}`}
+          style={{ minHeight: "36px", padding: "8px 16px", fontSize: "13px" }}
+          onClick={() => setTab("403")}
+        >
+          403 Access Unavailable
+        </button>
+        <button
+          type="button"
+          className={`pill ${tab === "403-owner" ? "red" : "outline"}`}
+          style={{ minHeight: "36px", padding: "8px 16px", fontSize: "13px" }}
+          onClick={() => setTab("403-owner")}
+        >
+          403 Owner Required
+        </button>
+        <button
+          type="button"
+          className={`pill ${tab === "500" ? "red" : "outline"}`}
+          style={{ minHeight: "36px", padding: "8px 16px", fontSize: "13px" }}
+          onClick={() => setTab("500")}
+        >
+          500 Server Outage
+        </button>
+        <button
+          type="button"
+          className={`pill ${tab === "loading" ? "red" : "outline"}`}
+          style={{ minHeight: "36px", padding: "8px 16px", fontSize: "13px" }}
+          onClick={() => setTab("loading")}
+        >
+          Session Loading
+        </button>
+      </div>
+      <div>
+        {tab === "404" && <NotFound />}
+        {tab === "403" && (
+          <section className="error-view session-error-view">
+            <div className="error-card">
+              <div className="error-card__visual">
+                <img
+                  src={restrictedAccessArt}
+                  alt=""
+                  className="error-card__art"
+                  width="140"
+                  height="140"
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="error-card__content">
+                <span className="error-badge error-badge--restricted">
+                  403 RESTRICTED ACCESS
+                </span>
+                <h1 className="error-title">Access unavailable</h1>
+                <Notice>
+                  <p>
+                    You do not have permission to view this protected workspace.
+                  </p>
+                </Notice>
+                <div className="actions error-actions">
+                  <button type="button" className="pill red">
+                    Try again
+                  </button>
+                  <Link to="/admin/login" className="pill outline">
+                    Back to sign-in
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+        {tab === "403-owner" && (
+          <section className="error-view session-error-view">
+            <div className="error-card">
+              <div className="error-card__visual">
+                <img
+                  src={restrictedAccessArt}
+                  alt=""
+                  className="error-card__art"
+                  width="140"
+                  height="140"
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="error-card__content">
+                <span className="error-badge error-badge--restricted">
+                  403 RESTRICTED ACCESS
+                </span>
+                <h1 className="error-title">Owner access required</h1>
+                <p className="error-desc">
+                  Only an owner with booking access can open this workspace.
+                </p>
+                <Notice className="session-expiry-notice">
+                  Your session expires in less than a minute.
+                </Notice>
+                <div className="actions error-actions">
+                  <Link to="/admin/login?reauth=1" className="pill red">
+                    Back to owner sign-in
+                  </Link>
+                  <Link to="/admin/login?reauth=1" className="pill outline">
+                    Verify again
+                  </Link>
+                  <button type="button" className="pill outline">
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+        {tab === "500" && (
+          <section className="error-view session-error-view">
+            <div className="error-card">
+              <div className="error-card__visual">
+                <img
+                  src={meltedPaleta}
+                  alt=""
+                  className="error-card__art"
+                  width="140"
+                  height="140"
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="error-card__content">
+                <span className="error-badge">SERVER NOTICE</span>
+                <h1 className="error-title">Sign-in unavailable</h1>
+                <Notice>
+                  The backend connection could not be verified. Check that the
+                  server is running.
+                </Notice>
+                <div className="actions error-actions">
+                  <button type="button" className="pill red">
+                    Try again
+                  </button>
+                  <Link to="/login" className="pill outline">
+                    Back to sign-in
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+        {tab === "loading" && (
+          <div className="session-loading-view" role="status">
+            <span className="auth-spinner" aria-hidden="true" />
+            <span>Checking your session…</span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -470,6 +740,7 @@ export default function App() {
                 </ProtectedPage>
               }
             />
+            <Route path="/error-preview" element={<ErrorPreviewPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>

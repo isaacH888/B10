@@ -363,9 +363,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
       <section aria-labelledby="customer-intake-heading">
         <h3 id="customer-intake-heading">Customer order intake</h3>
         <p>
-          Review submitted orders, add the contract link and confirm the event
-          end time. Creating a booking keeps the customer's saved selections and
-          price. Approve availability separately.
+          Review submitted orders and confirm the event end time. You can
+          include a contract link if available. Creating a booking keeps the
+          customer's saved selections and price. Approve availability
+          separately.
         </p>
         {ordersError && (
           <p role="alert">Could not load customer orders. {ordersError}</p>
@@ -467,8 +468,10 @@ export function AutomationDashboard({ identity, csrfToken }) {
             />
             <Input
               name="contract_url"
-              label="Customer contract link (HTTPS)"
+              label="Customer contract link (optional, HTTPS)"
               type="url"
+              required={false}
+              pattern="https://.*"
               placeholder="https://example.com/contract"
             />
             <button>Create booking request</button>
@@ -769,8 +772,9 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
             {!booking.contract_url && (
               <Input
                 name="contract_url"
-                label="Customer contract link before reopening (HTTPS)"
+                label="Customer contract link before reopening (optional, HTTPS)"
                 type="url"
+                required={false}
                 pattern="https://.*"
               />
             )}
@@ -894,8 +898,9 @@ function CustomerOrder({ order, busy, mutate }) {
           />
           <Input
             name="contract_url"
-            label="Order contract link (HTTPS)"
+            label="Order contract link (optional, HTTPS)"
             type="url"
+            required={false}
             pattern="https://.*"
           />
           <button>Create booking from order</button>

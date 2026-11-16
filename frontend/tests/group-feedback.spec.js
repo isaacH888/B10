@@ -145,12 +145,48 @@ test("confirming an existing conditional booking uses a Central date picker and 
   expect(decisions[0].body).toMatchObject({
     expected_revision: 4,
     decision: "confirm",
+    contract_url: "https://example.invalid/contract",
     end: "2099-01-17T02:30:00.000Z",
   });
   await expect(page.getByLabel("Order status overview")).toContainText(
     "Awaiting deposit",
   );
 });
+
+for (const linked of [false, true]) {
+  test(`owner can confirm availability without a contract for ${linked ? "a linked booking" : "an unlinked order"}`, async ({
+    page,
+  }) => {
+    const { decisions } = await reviewWorkspace(page, { linked });
+    await expect(
+      page.getByLabel("Customer contract link (optional, HTTPS)"),
+    ).toBeEmpty();
+    const end = page.getByLabel(
+      "Event end (Houston/Central time, required to confirm)",
+    );
+    await end.fill("");
+    await page
+      .getByRole("button", { name: "Confirm availability", exact: true })
+      .click();
+    await expect(page.locator(".od-review").getByRole("alert")).toContainText(
+      "Add the event end time",
+    );
+    expect(decisions).toHaveLength(0);
+    await end.fill("2099-01-15T17:00");
+    await page
+      .getByRole("button", { name: "Confirm availability", exact: true })
+      .click();
+    await expect(page.getByLabel("Order status overview")).toContainText(
+      "Awaiting deposit",
+    );
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].body).not.toHaveProperty("contract_url");
+    expect(decisions[0].body).toMatchObject({
+      decision: "confirm",
+      [linked ? "expected_revision" : "expected_version"]: linked ? 4 : 1,
+    });
+  });
+}
 
 test("failed decisions explain the conflict without claiming an email was queued", async ({
   page,

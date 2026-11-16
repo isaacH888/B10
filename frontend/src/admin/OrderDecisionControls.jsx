@@ -37,11 +37,11 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
       if (booking) body.expected_revision = booking.revision;
       else body.expected_version = order.version;
       if (decision === "confirm") {
-        if (!contract.trim() || !end)
+        if (!end)
           throw new Error(
-            "Add the contract link and event end time before confirming availability.",
+            "Add the event end time before confirming availability.",
           );
-        body.contract_url = contract.trim();
+        if (contract.trim()) body.contract_url = contract.trim();
         body.end = new Date(centralTimeToIso(end)).toISOString();
       }
       await apiRequest(
@@ -93,9 +93,10 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
           {!confirmed && (
             <>
               <label>
-                Customer contract link (required to confirm)
+                Customer contract link (optional, HTTPS)
                 <input
                   type="url"
+                  pattern="https://.*"
                   value={contract}
                   onChange={(event) => setContract(event.target.value)}
                   placeholder="https://"

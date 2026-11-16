@@ -1,5 +1,5 @@
-import { Link, NavLink } from "react-router-dom";
-import { useLayoutEffect, useRef } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import SocialLinks from "./SocialLinks.jsx";
 import logo from "./assets/logo.png";
@@ -8,12 +8,46 @@ import "./public-chrome.css";
 
 const siteCommit = typeof __SITE_COMMIT__ === "string" ? __SITE_COMMIT__ : null;
 
+function SectionLink({ to, hash, children }) {
+  const { pathname } = useLocation();
+  function handleClick(e) {
+    if (pathname === "/") {
+      const section = document.getElementById(hash);
+      if (section) {
+        e.preventDefault();
+        if (window.location.hash !== `#${hash}`) {
+          window.history.pushState(null, "", `/#${hash}`);
+        }
+        const prefersReducedMotion =
+          typeof window !== "undefined" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        section.scrollIntoView({
+          behavior: prefersReducedMotion ? "instant" : "smooth",
+          block: "start",
+        });
+      }
+    }
+  }
+
+  return (
+    <Link to={to} onClick={handleClick}>
+      {children}
+    </Link>
+  );
+}
+
 function SectionLinks() {
   return (
     <>
-      <Link to="/#paleta-life">The Paleta Life</Link>
-      <Link to="/#flavors">Flavors</Link>
-      <Link to="/#our-story">Our Story</Link>
+      <SectionLink to="/#paleta-life" hash="paleta-life">
+        The Paleta Life
+      </SectionLink>
+      <SectionLink to="/#flavors" hash="flavors">
+        Flavors
+      </SectionLink>
+      <SectionLink to="/#our-story" hash="our-story">
+        Our Story
+      </SectionLink>
       <NavLink to="/order" end aria-label="Catering order">
         Catering
       </NavLink>
@@ -23,7 +57,26 @@ function SectionLinks() {
 
 export function PublicHeader() {
   const { sessions } = useAuth();
+  const { pathname } = useLocation();
   const header = useRef(null);
+
+  function handleBrandClick(e) {
+    if (pathname === "/") {
+      e.preventDefault();
+      if (window.location.hash) {
+        window.history.pushState(null, "", "/");
+      }
+      const prefersReducedMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: prefersReducedMotion ? "instant" : "smooth",
+      });
+    }
+  }
+
   useLayoutEffect(() => {
     const element = header.current;
     const site = element?.closest(".public-site");
@@ -48,7 +101,12 @@ export function PublicHeader() {
         MEXICAN PALETAS. ENDLESS POPSSIBILITIES.
       </div>
       <header className="site-header">
-        <Link className="site-brand" to="/" aria-label="Popssibilities home">
+        <Link
+          className="site-brand"
+          to="/"
+          aria-label="Popssibilities home"
+          onClick={handleBrandClick}
+        >
           <img src={logo} alt="Popssibilities" width="88" height="88" />
         </Link>
         <nav className="site-nav" aria-label="Main navigation">
@@ -103,5 +161,52 @@ export function PublicFooter() {
         </p>
       </div>
     </footer>
+  );
+}
+
+export function BackToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    function handleScroll() {
+      setVisible(window.scrollY > 400);
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  function scrollToTop() {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion ? "instant" : "smooth",
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      className={`back-to-top-btn ${visible ? "is-visible" : ""}`}
+      onClick={scrollToTop}
+      aria-label="Back to top"
+      title="Back to top"
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
   );
 }

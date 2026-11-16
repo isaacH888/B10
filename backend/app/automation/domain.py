@@ -280,8 +280,8 @@ class BookingService:
         if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
             raise DomainError("customer_email must be a valid email address")
         contract = (
-            text(payload.get("contract_url"), "contract_url", 2000)
-            if payload.get("contract_url") or not review_only
+            text(payload.get("contract_url"), "contract_url", 2000, 0)
+            if payload.get("contract_url") is not None
             else ""
         )
         try:
@@ -386,8 +386,6 @@ class BookingService:
             ):
                 raise DomainError("contract_url must be an absolute HTTPS link")
             booking["contract_url"] = contract
-        if not booking.get("contract_url"):
-            raise DomainError("Add a customer contract link before confirming availability")
         if payload.get("end"):
             booking.update(schedule({**booking, "end": payload["end"]}))
             booking["end_unspecified"] = False

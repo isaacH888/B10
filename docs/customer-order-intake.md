@@ -7,9 +7,10 @@ for DEV publication. Hosted deployment and production approval are separate step
 
 Keep the existing customer order and automation booking implementations. A customer
 submits the existing `SubmitOrderRequest`; its saved selections and integer-cent
-prices are the source for the owner's booking. The owner supplies the contract
-link and any missing event end time, because the public order contract does not
-require those fields. Do not invent an owner identity, end time or contract URL.
+prices are the source for the owner's booking. The owner supplies any missing
+event end time and may include a contract link when available. A contract link
+is optional for intake and availability approval. Do not invent an owner
+identity, end time or contract URL.
 
 After intake, the linked automation booking controls operational status, capacity,
 verified payments, Calendar state and reminder jobs. The original customer order
@@ -34,7 +35,7 @@ Mutation also requires fresh owner verification, the configured exact Origin and
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/v1/admin/automation/orders` | `200` data array of up to 100 newest pending, unlinked customer orders. Owner workspace refreshes it every 30 seconds. |
-| `POST /api/v1/admin/automation/orders/{order_id}/booking` | Accept only `contract_url` and optional `end`. Return `201` with the existing booking representation on first import, `200` for an identical retry. |
+| `POST /api/v1/admin/automation/orders/{order_id}/booking` | Accept only optional `contract_url` and `end`; a missing saved event end must be supplied. Return `201` with the existing booking representation on first import, `200` for an identical retry. |
 
 Example supplement (synthetic only):
 
@@ -47,9 +48,9 @@ Example supplement (synthetic only):
 
 If `end` is omitted, use the saved order's `event.ends_at`; missing or invalid
 end times fail validation. The existing booking validator requires a future event,
-valid time zone/offsets, an end after the start, and an absolute HTTPS contract
-URL. Customer fields, quantity, service, total and deposit come from the saved
-order; client overrides are rejected. The full address stays in the source
+valid time zone/offsets and an end after the start. A supplied contract link must
+be an absolute HTTPS URL. Customer fields, quantity, service, total and deposit
+come from the saved order; client overrides are rejected. The full address stays in the source
 snapshot; the existing Calendar venue summary is capped at its 500-character limit.
 
 An import creates a `requested` booking owned by the authenticated administrator.
@@ -57,6 +58,8 @@ It does not approve capacity, verify a payment, send mail or create a Calendar
 event. Continue with the existing approve and independently verified payment
 actions. Approval queues the deposit request; a verified deposit queues Calendar,
 customer/owner confirmations and reminder scheduling.
+Customer confirmations include the booking contract link or configured fallback
+when available; without either, the confirmation still sends without a contract line.
 
 Errors use the existing error envelope and request ID:
 
@@ -125,7 +128,7 @@ reviewing `/admin/automation`.
    is required. Fractions and out-of-range counts must stay on the entry step.
 3. With a configured owner session and `AUTOMATION_ENABLED=true`, open
    `/admin/automation`, expand Customer order intake, review the order, supply an
-   end time and HTTPS contract link, then create its booking.
+   end time, optionally include an HTTPS contract link, then create its booking.
 4. Open that booking. Confirm the original selections and total are visible.
    Approve availability; verify a synthetic payment only in an isolated test
    environment. Observe the queued jobs and remaining balance.

@@ -393,9 +393,8 @@ class JobProcessor:
                     contract = booking.get("contract_url") or self.settings.get(
                         "AUTOMATION_CONTRACT_URL"
                     )
-                    if not contract:
-                        raise ValueError("Contract URL is required for confirmation")
-                    body += f"Review your contract: {contract}\n"
+                    if contract:
+                        body += f"Review your contract: {contract}\n"
                 else:
                     recipient = (
                         booking.get("request_recipient") or self.settings["AUTOMATION_OWNER_EMAIL"]

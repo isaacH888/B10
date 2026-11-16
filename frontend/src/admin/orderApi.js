@@ -118,7 +118,7 @@ export function adaptOrder({ order, booking }) {
       heading: STATUS_LABELS[status] || status,
       body: booking
         ? "This page shows the saved order and current booking status. Manage availability, payment verification and Calendar in the booking workspace."
-        : "Review this customer request and supply its contract link and event end time in the booking workspace. No payment or availability is approved by viewing this page.",
+        : "Review this customer request and confirm its event end time in the booking workspace. You can also include a contract link if available. No payment or availability is approved by viewing this page.",
     },
   };
 }

@@ -1,8 +1,9 @@
 """Lossless, owner-reviewed handoff from customer orders to booking automation.
 
 Delivery requests may omit an event end; customer requests do not supply a contract URL.
-The owner supplies these before confirming availability. Plain imports do not approve
-capacity or payment. Decision imports atomically save the owner review and email intent.
+The owner supplies a missing event end before confirming availability; contract links
+are optional. Plain imports do not approve capacity or payment. Decision imports
+atomically save the owner review and email intent.
 """
 
 import hashlib

@@ -13410,7 +13410,7 @@
           "contract_url": {
             "type": "string",
             "format": "uri",
-            "description": "HTTPS customer contract link; required before confirming availability."
+            "description": "Optional HTTPS customer contract link. Availability can be confirmed without one; customer confirmation emails include it when available."
           }
         },
         "allOf": [
@@ -13458,7 +13458,7 @@
           "contract_url": {
             "type": "string",
             "format": "uri",
-            "description": "HTTPS customer contract link; required before confirming availability."
+            "description": "Optional HTTPS customer contract link. Availability can be confirmed without one; customer confirmation emails include it when available."
           }
         },
         "allOf": [

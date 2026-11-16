@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" fill="none">
+  <g
+    stroke="#4b004b"
+    stroke-width="3.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- Cart Awning Roof (Pink & Red Stripes) -->
+    <path d="M22 48h96V32L104 16H36L22 32Z" fill="#f7c2ce" />
+    <path
+      d="m36 16-7 16v16h16V32l4-16m16 0v32h16V32l-2-16m16 0 9 16v16h12V32L104 16"
+      fill="#da2935"
+    />
+
+    <!-- Awning Poles -->
+    <path d="M32 48v24m76-24v24" />
+
+    <!-- Cart Body -->
+    <rect x="22" y="72" width="96" height="36" rx="6" fill="#fff3d8" />
+    <path d="M22 80h96" />
+
+    <!-- Cute Brass Padlock on Cart Front -->
+    <rect x="63" y="90" width="14" height="12" rx="3" fill="#ffcf4b" />
+    <path d="M66 90v-4a4 4 0 0 1 8 0v4" fill="none" stroke-width="2.5" />
+    <circle cx="70" cy="96" r="1.5" fill="#4b004b" stroke="none" />
+
+    <!-- Cart Wheels -->
+    <circle cx="40" cy="112" r="12" fill="#ffcf4b" />
+    <circle cx="40" cy="112" r="4" fill="#4b004b" />
+    <circle cx="100" cy="112" r="12" fill="#ffcf4b" />
+    <circle cx="100" cy="112" r="4" fill="#4b004b" />
+
+    <!-- Ground Shadow Line -->
+    <path d="M14 126h112" stroke-width="3" stroke="#e0d4e3" />
+
+    <!-- Little Sparkles -->
+    <path d="m14 62-4-3m116 2 4-3M18 20l4 4" />
+  </g>
+</svg>

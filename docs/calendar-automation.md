@@ -30,7 +30,7 @@ External adapters can be injected through `AUTOMATION_GOOGLE`, `AUTOMATION_SECRE
 ## Local setup
 
 1. Follow [existing development setup](development-setup.md) and [authentication setup](authentication.md). Keep the existing MySQL database and Cognito pools. Use a provisioned owner with password and TOTP; there is no development identity bypass.
-2. Install the pinned backend dependencies in a virtual environment and frontend dependencies using the existing lockfile. Merge `backend/.env.automation.example` into your private `backend/.env`, alongside the existing DB/auth values. Use a real contract URL before customer email delivery. Leave `AUTOMATION_MODE=local` initially.
+2. Install the pinned backend dependencies in a virtual environment and frontend dependencies using the existing lockfile. Merge `backend/.env.automation.example` into your private `backend/.env`, alongside the existing DB/auth values. Contract links are optional; supply a real HTTPS URL if one should be included in customer confirmations. Leave `AUTOMATION_MODE=local` initially.
 3. Run additive migrations explicitly with a migration account. Application startup never runs DDL:
 
    ```sh
@@ -40,7 +40,7 @@ External adapters can be injected through `AUTOMATION_GOOGLE`, `AUTOMATION_SECRE
    ```
 
 4. Run `npm run dev --prefix frontend` in another terminal. Vite proxies `/api/v1` to Flask, preserving same-origin session and CSRF behavior. Sign in as an owner and open the booking automation controls.
-5. Create a future catering request with start/end including offsets, IANA time zone, venue, service type, quantity, agreed `total_minor`, currency, customer email and contract URL. Approve availability to reserve capacity and queue the deposit request. Verify an actual external payment in the provider account as described below.
+5. Create a future catering request with start/end including offsets, IANA time zone, venue, service type, quantity, agreed `total_minor`, currency, customer email and an optional HTTPS contract URL. Approve availability to reserve capacity and queue the deposit request. Verify an actual external payment in the provider account as described below.
 6. Execute local jobs in the **same process** using:
 
    ```sh
@@ -83,13 +83,13 @@ All paths below begin with `/api/v1/admin/automation`. Browser calls include the
 | `POST /bookings/<id>/payments` | `reference`, positive integer `amount_minor`, `currency`, `verification_details`, optional `provider`. |
 | `POST /bookings/<id>/reschedule` | Required `start`, `end`, `timezone`; optional `venue` and `reservation_seconds`. |
 | `POST /bookings/<id>/cancel` | Cancels booking, releases capacity and removes owned calendar projection. |
-| `POST /bookings/<id>/reopen` | Required `reason`; supply `contract_url` and `end` if missing before rechecking availability and preserved payments. |
+| `POST /bookings/<id>/reopen` | Required `reason`; supply `end` if missing before rechecking availability and preserved payments. `contract_url` is optional. |
 | `POST /bookings/<id>/final-count` | Optional integer `quantity` (minimum 50); checks capacity for changes and finalizes the current count. |
 | `POST /bookings/<id>/retry` | Reconciles current Calendar and reminder state. |
 | `POST /bookings/<id>/repair` | Explicit Calendar repair after owner investigation. |
 | `POST /jobs/<job-key>/retry` | Audited replay of a failed/dead-letter job; successful/skipped jobs are rejected. |
 
-Decision values are `confirm`, `conditionally_confirm`, and `deny`. Conditional confirmation requires a customer message and does not request payment or reserve capacity. Confirmation requires a contract link and known event end, then uses the existing availability/deposit workflow. Denial retains payment history and cancels the booking. See [group feedback behavior](group-feedback.md).
+Decision values are `confirm`, `conditionally_confirm`, and `deny`. Conditional confirmation requires a customer message and does not request payment or reserve capacity. Confirmation requires a known event end, then uses the existing availability/deposit workflow. Contract links are optional for creation, approval and reopening. Customer confirmation emails include the booking link or `AUTOMATION_CONTRACT_URL` fallback when available; otherwise they send without a contract line. Denial retains payment history and cancels the booking. See [group feedback behavior](group-feedback.md).
 
 For booking mutations that accept a JSON body, send `expected_revision` from the latest booking response to detect concurrent dashboard edits; a mismatch returns HTTP 409. Money fields are integers in minor currency units, never decimal floats. Event timestamps require explicit offsets and a valid IANA time zone. Example create body (substitute future dates and owner-approved details):
 
@@ -146,7 +146,7 @@ Before deploying:
 
 - Supply existing private subnet/security-group IDs. Allow MySQL TLS connectivity and outbound access through NAT to Google, Cognito and AWS endpoints, or appropriate AWS VPC endpoints plus NAT for Google. Restrict the database application user to the needed tables. Grant `SELECT, INSERT, UPDATE` on `automation_mutex`, `automation_bookings`, `automation_outbox`, `automation_deliveries` and `automation_connections`; `SELECT, INSERT, DELETE` on single-use `automation_oauth_states`; **SELECT/INSERT only** on `automation_payments`; and **INSERT only** on `automation_audit`. Use a separate migration account for DDL. Existing auth grants remain governed by its deployment guide. Do not grant the app payment DELETE or UPDATE privileges.
 - Package the current database provider's CA chain under `backend/certs/` and put its deployed path, e.g. `/var/task/certs/mysql-ca.pem`, in the private runtime configuration. Verify the chain/source through your database provider. `DB_TLS_CA_FILE` is required in hosted environments; certificate and hostname verification stay enabled.
-- Create an existing runtime Secrets Manager secret containing **string-valued environment settings** for the current app: `APP_SECRET_KEY`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_TLS_CA_FILE`, `AUTH_TOKEN_ENCRYPTION_KEY`, and both `COGNITO_CUSTOMER_*` / `COGNITO_ADMIN_*` issuer, client ID, client secret and domain values. Also include `AUTOMATION_CONTRACT_URL` and any nondefault capacity/reservation configuration. Lambda cold-start bootstrap imports this JSON without logging it; explicit Lambda environment settings take precedence. Use the already approved Cognito clients/pools. Update their exact allowed callbacks/logout URLs if deploying a new origin.
+- Create an existing runtime Secrets Manager secret containing **string-valued environment settings** for the current app: `APP_SECRET_KEY`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_TLS_CA_FILE`, `AUTH_TOKEN_ENCRYPTION_KEY`, and both `COGNITO_CUSTOMER_*` / `COGNITO_ADMIN_*` issuer, client ID, client secret and domain values. Optionally include `AUTOMATION_CONTRACT_URL` for a shared contract link, plus any nondefault capacity/reservation configuration. Lambda cold-start bootstrap imports this JSON without logging it; explicit Lambda environment settings take precedence. Use the already approved Cognito clients/pools. Update their exact allowed callbacks/logout URLs if deploying a new origin.
 - Verify the SES sender/domain in the same region, configure DKIM/SPF/DMARC and bounce/complaint handling, and request SES production access before real customers receive mail. In SES sandbox, verify recipients or use the mailbox simulator. SAM grants SendEmail only on the supplied identity and configured From address. [SES SendEmail prerequisites](https://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html) apply.
 - The token-secret prefix must match SAM's scoped IAM resources. Defaults use the AWS-managed Secrets Manager key. If using customer-managed KMS keys, add narrow `kms:Decrypt`/`GenerateDataKey` grants and key policy permissions for the specific role/key before deployment. Set operator notifications on the declared queue-age and Scheduler-DLQ alarms; the template intentionally does not invent an email subscription.
 

@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
 import StoryGallery from "./StoryGallery.jsx";
-import { PublicHeader, PublicFooter } from "./PublicChrome.jsx";
+import { PublicHeader, PublicFooter, BackToTop } from "./PublicChrome.jsx";
 import FlavorMenu from "./FlavorMenu.jsx";
 import paletas from "./assets/paletas-hero.webp";
 import paletasSmall from "./assets/paletas-hero-768.webp";
+import logo from "./assets/logo.png";
 import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
 import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
 import servingPaletas from "./assets/story/audrey-serving-paletas.jpg";
@@ -45,6 +46,7 @@ export function PublicLayout({ children }) {
         {children}
       </main>
       <PublicFooter />
+      <BackToTop />
     </div>
   );
 }
@@ -100,19 +102,52 @@ export function PublicHome() {
         </div>
       </section>
       <div className="ticker" aria-hidden="true">
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>MEXICAN PALETAS</span>
-        <b>
-          <Sunburst />
-        </b>
-        <span>ENDLESS JOY</span>
+        <div className="ticker-track">
+          <div className="ticker-group">
+            <span>MEXICAN PALETAS</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>BIG JOY ON A STICK</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>HAND-CRAFTED IN HOUSTON</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>ENDLESS POPSSIBILITIES</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>FRESH ALL-NATURAL FRUIT</span>
+            <b>
+              <Sunburst />
+            </b>
+          </div>
+          <div className="ticker-group" aria-hidden="true">
+            <span>MEXICAN PALETAS</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>BIG JOY ON A STICK</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>HAND-CRAFTED IN HOUSTON</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>ENDLESS POPSSIBILITIES</span>
+            <b>
+              <Sunburst />
+            </b>
+            <span>FRESH ALL-NATURAL FRUIT</span>
+            <b>
+              <Sunburst />
+            </b>
+          </div>
+        </div>
       </div>
       <section
         id="paleta-life"
@@ -263,12 +298,10 @@ export function CustomerSignInLayout({ children }) {
               </Link>
               <div className="auth-image">
                 <img
-                  src={paletas}
-                  srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
-                  sizes="(max-width: 800px) 300px, (max-width: 1280px) 40vw, 520px"
-                  alt="Popssibilities paletas"
-                  width="1254"
-                  height="1254"
+                  src={logo}
+                  alt="Popssibilities logo"
+                  width="349"
+                  height="317"
                 />
               </div>
             </div>
@@ -303,12 +336,10 @@ export function AdminSignInLayout({ children }) {
               </Link>
               <div className="auth-image">
                 <img
-                  src={paletas}
-                  srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
-                  sizes="(max-width: 800px) 300px, (max-width: 1280px) 40vw, 520px"
-                  alt="Popssibilities paletas"
-                  width="1254"
-                  height="1254"
+                  src={logo}
+                  alt="Popssibilities logo"
+                  width="349"
+                  height="317"
                 />
               </div>
             </div>

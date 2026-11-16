@@ -71,6 +71,20 @@ def test_deposit_rounded_up_confirms_with_balance_and_atomic_outbox(setup):
         assert len(tx.payments(booking["id"])) == 1
 
 
+@pytest.mark.parametrize("contract", [{}, {"contract_url": ""}, {"contract_url": None}])
+def test_booking_without_contract_can_be_approved_and_confirmed(setup, contract):
+    _, service, _ = setup
+    request = payload()
+    request.pop("contract_url")
+    booking = service.create({**request, **contract}, "owner")
+    assert booking["contract_url"] == ""
+    approved_booking = service.approve(booking["id"], {}, "owner")
+    assert approved_booking["status"] == "awaiting_deposit"
+    confirmed = service.verify_payment(booking["id"], payment(), "owner")
+    assert confirmed["status"] == "confirmed"
+    assert confirmed["remaining_minor"] == 5000
+
+
 def test_payment_after_cancellation_is_retained_and_flags_review(setup):
     store, service, _ = setup
     booking = approved(service)

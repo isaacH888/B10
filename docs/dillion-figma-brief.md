@@ -13,8 +13,8 @@ into that visual system.
    contact, event location/date/time/timezone, quantity/service, contract link,
    total, deposit due, verified payments and remaining balance. Include pending
    request, awaiting deposit, confirmed, owner review and cancelled variants.
-   Intake collects the contract URL and any required end time, with the saved
-   request and price visible. Make availability approval and deposit confirmation
+   Intake collects an optional contract URL and any required end time, with the
+   saved request and price visible. Make availability approval and deposit confirmation
    distinct steps. Start from `/admin/automation` and `/admin/bookings/:bookingId`.
 2. **Booking action dialogs.** Design approve availability, verify external
    payment, reschedule, cancel, reopen, finalize quantity and Calendar recovery.
