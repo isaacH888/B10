@@ -29,7 +29,8 @@ Contract adaptations (docs/api-contract.md):
     and heart-shaped paletas cost $3.00 each.
 
 Unit prices and service fees live in ``pricing.config.json``. Required dry ice
-and the two-week customization notice are enforced for every new request.
+and two weeks' notice for custom flavors are enforced for new contract requests.
+Short-notice delivery and full service use available flavors and quantities.
 """
 
 import copy
@@ -607,6 +608,7 @@ _CONTRACT_FIELD_PATHS = {
     "delivery_distance_miles": "event.delivery_distance_miles",
 }
 QUOTE_VALIDITY = timedelta(minutes=15)  # proposed technical limit in the contract
+CUSTOM_FLAVOR_NOTICE = timedelta(days=14)
 
 
 def is_contract_payload(raw_payload):
@@ -628,7 +630,6 @@ def normalize_quote_payload(raw_payload):
         raw_payload["catering_request"] if isinstance(raw_payload["catering_request"], dict) else {}
     )
     event = raw_payload.get("event") if isinstance(raw_payload.get("event"), dict) else {}
-    validate_custom_notice(catering, event)
 
     if "flavor_allocations" in catering:
         try:
@@ -690,30 +691,30 @@ def _event_instant(value, field):
         ) from None
 
 
-def validate_custom_notice(catering, event, now=None):
+def validate_catering_notice(catering, event, now=None):
+    start = _event_instant(event.get("starts_at"), "event.starts_at")
+    now = now or datetime.now(timezone.utc)
+    if start <= now:
+        raise QuoteError(
+            "Event start must be in the future.",
+            "ERR_INVALID_EVENT",
+            "event.starts_at",
+        )
     custom_field = None
-    if str(catering.get("popsicle_shape", "")).strip().lower() == "heart":
-        custom_field = "catering_request.popsicle_shape"
-    if (
-        isinstance(catering.get("flavor_requests"), str) and catering["flavor_requests"].strip()
-    ) or catering.get("add_ons"):
+    if isinstance(catering.get("flavor_requests"), str) and catering["flavor_requests"].strip():
         custom_field = "catering_request.flavor_requests"
-    allocations = catering.get("flavor_allocations")
-    if isinstance(allocations, list) and any(
-        isinstance(row, dict)
-        and isinstance(row.get("flavor"), str)
-        and row["flavor"].strip().casefold() not in {name.casefold() for name in SAMPLE_FLAVORS}
-        for row in allocations
+    menu_flavors = {name.casefold() for name in SAMPLE_FLAVORS}
+    if any(
+        row["flavor"].strip().casefold() not in menu_flavors
+        for row in catering.get("flavor_allocations", [])
     ):
         custom_field = "catering_request.flavor_allocations"
-    if custom_field:
-        start = _event_instant(event.get("starts_at"), "event.starts_at")
-        if start < (now or datetime.now(timezone.utc)) + timedelta(days=14):
-            raise QuoteError(
-                "Custom paletas require at least two weeks' notice. Short-notice events use available paletas only; remove custom requests or choose a later date.",
-                "ERR_CUSTOM_NOTICE",
-                custom_field,
-            )
+    if custom_field and start < now + CUSTOM_FLAVOR_NOTICE:
+        raise QuoteError(
+            "Custom flavors require at least two weeks (14 days) of advance notice. Choose available menu flavors or a later event date.",
+            "ERR_CUSTOM_NOTICE",
+            custom_field,
+        )
 
 
 class AddressReviewRequired(QuoteError):
@@ -735,6 +736,9 @@ def prepare_quote_payload(rules, raw_payload):
             "Choose delivery or full service for catering.", "ERR_INVALID_DATA_TYPE", "service_type"
         )
     event = raw_payload.get("event")
+    validate_catering_notice(
+        raw_payload["catering_request"], event if isinstance(event, dict) else {}
+    )
     location = event.get("location") if isinstance(event, dict) else None
     from .addresses import clean_location
 

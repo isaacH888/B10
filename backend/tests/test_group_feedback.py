@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from app.automation.delivery import JobProcessor, MemoryMail, MemoryQueue
 from app.automation.domain import DomainError
-from app.quotes import QuoteError, validate_custom_notice
 from test_auth import auth_app as auth_app
 from test_automation_domain import payload, payment
 from test_automation_domain import setup as setup
@@ -117,27 +116,23 @@ def test_invalid_event_timezone_boundary_returns_validation_error(client):
     "custom",
     [
         {"flavor_requests": "Lavender"},
-        {"popsicle_shape": "heart"},
-        {"add_ons": ["Custom coating"]},
         {"flavor_allocations": [{"flavor": "Lavender", "quantity": 50}]},
     ],
 )
-def test_custom_notice_exact_boundary_and_timezone(custom):
-    now = datetime(2030, 1, 1, 12, tzinfo=timezone.utc)
-    event = {"starts_at": "2030-01-15T06:00:00-06:00"}
-    validate_custom_notice(custom, event, now=now)
-    with pytest.raises(QuoteError, match="two weeks"):
-        validate_custom_notice(custom, {"starts_at": "2030-01-15T05:59:59-06:00"}, now=now)
-
-
-def test_short_notice_allergy_notes_remain_allowed_but_custom_requests_fail(client):
-    body = contract_payload(allergy_notes="Nut allergy")
+def test_custom_orders_obey_the_catering_notice_period(client, custom):
+    body = contract_payload(**custom)
     body["event"]["starts_at"] = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
-    assert client.post("/api/v1/quotes", json=body).status_code == 200
-    body["catering_request"]["flavor_requests"] = "Custom lavender"
     response = client.post("/api/v1/quotes", json=body)
     assert response.status_code == 422
-    assert response.json["error"]["fields"][0]["field"] == "catering_request.flavor_requests"
+    assert response.json["error"]["fields"][0]["field"].startswith("catering_request.flavor_")
+    assert "14 days" in response.json["error"]["message"]
+
+
+def test_allergy_notes_and_custom_requests_are_allowed_with_two_weeks_notice(client):
+    body = contract_payload(allergy_notes="Nut allergy")
+    assert client.post("/api/v1/quotes", json=body).status_code == 200
+    body["catering_request"]["flavor_requests"] = "Custom lavender"
+    assert client.post("/api/v1/quotes", json=body).status_code == 200
 
 
 def test_conditional_decision_requires_message_and_does_not_reserve_or_confirm_payment(setup):

@@ -5,6 +5,21 @@ for DEV publication. Hosted deployment and production approval are separate step
 
 ## Record ownership
 
+Adriana clarified that only custom flavors require two weeks (14 full days) of
+advance notice. Delivery and full service may be requested on short notice,
+including a next-day order of 50 paletas. The calendar uses Houston/Central time
+and permits any future start. Custom flavor text and off-menu flavor allocations
+are rejected inside the two-week window; heart shapes, add-ons and allergy notes
+do not carry that restriction. Custom quotes are checked again on submission.
+Successful submission replays retain the original response.
+
+The booking form and FAQ encourage as much notice as possible and explain that
+short-notice flavors and quantities depend on available stock. There is no fixed
+150-200 cap: the suggested range was provisional and Adriana accepted an
+availability note. Owner inventory tracks stock and confirmed-booking allocations;
+customer requests do not automatically reserve stock or enforce a live stock cap.
+The owner confirms available flavors and quantities before accepting the booking.
+
 Keep the existing customer order and automation booking implementations. A customer
 submits the existing `SubmitOrderRequest`; its saved selections and integer-cent
 prices are the source for the owner's booking. The owner supplies any missing

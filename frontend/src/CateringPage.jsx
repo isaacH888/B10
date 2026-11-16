@@ -21,10 +21,12 @@ import fruitIllustration from "./assets/illustrations/fruit.svg";
 import cartIllustration from "./assets/illustrations/cart.svg";
 import { apiRequest } from "./auth/api.js";
 import {
+  CUSTOM_FLAVOR_NOTICE_MESSAGE,
   centralTimeToIso,
-  eventDayStart,
+  earliestCateringInput,
   EVENT_TIME_ZONE,
   formatEventTime,
+  minimumCustomFlavorStart,
 } from "./eventTime.js";
 
 // ---------------------------------------------------------------------------
@@ -36,11 +38,11 @@ function requiredDryIce(quantity) {
   return 3 * Math.ceil((Number(quantity) || 50) / 150);
 }
 
-function customNoticeAllowed(form) {
+function customFlavorsAllowed(form) {
   try {
     return (
       Date.parse(centralTimeToIso(form.event_starts_at)) >=
-      Date.now() + 14 * 86400000
+      minimumCustomFlavorStart()
     );
   } catch {
     return false;
@@ -124,6 +126,7 @@ const initialForm = {
   quantity: 50,
   popsicle_shape: "standard",
   flavor_requests: "",
+  add_on_requests: "",
   allergy_notes: "",
   flavor_allocations: [],
   dry_ice_blocks: "",
@@ -162,6 +165,7 @@ const SERVER_FIELDS = new Map([
   ["catering_request.quantity", ["quantity", 4]],
   ["catering_request.popsicle_shape", ["popsicle_shape", 4]],
   ["catering_request.flavor_requests", ["flavor_requests", 4]],
+  ["catering_request.add_ons", ["add_on_requests", 4]],
   ["catering_request.flavor_allocations", ["flavor_allocations", 4]],
   ["catering_request.dry_ice_blocks", ["dry_ice_blocks", 4]],
 ]);
@@ -185,7 +189,10 @@ function readDraft() {
         .every(
           (key) =>
             (typeof (
-              saved.form?.[key] ?? (key === "allergy_notes" ? "" : undefined)
+              saved.form?.[key] ??
+              (["allergy_notes", "add_on_requests"].includes(key)
+                ? ""
+                : undefined)
             ) === "string" ||
               (["quantity", "dry_ice_blocks"].includes(key) &&
                 typeof saved.form?.[key] === "number" &&
@@ -507,9 +514,9 @@ function StepEvent({
 }
 
 function StepEventDetails({ form, onChange, errors }) {
-  const [earliestDate, setEarliestDate] = useState(eventDayStart);
+  const [earliestDate, setEarliestDate] = useState(earliestCateringInput);
   function refreshEarliestDate() {
-    setEarliestDate(eventDayStart());
+    setEarliestDate(earliestCateringInput());
   }
   useEffect(() => {
     const timer = window.setInterval(refreshEarliestDate, 60_000);
@@ -531,6 +538,11 @@ function StepEventDetails({ form, onChange, errors }) {
       <p id="event-timezone-hint" className="schedule-hint">
         All event times are in Houston/Central time. Enter the event start and,
         if known, the event end.
+      </p>
+      <p id="catering-notice-hint" className="schedule-hint">
+        Next-day delivery and full service are welcome, subject to availability.
+        More notice helps us prepare. Custom flavors require at least two weeks’
+        notice; short-notice flavors and quantities depend on available stock.
       </p>
 
       <div className="form-field">
@@ -617,7 +629,7 @@ function StepEventDetails({ form, onChange, errors }) {
               errors,
               "event_starts_at",
               "cf-starts-at",
-              "event-timezone-hint",
+              "event-timezone-hint catering-notice-hint",
             )}
             type="datetime-local"
             min={earliestDate}
@@ -646,7 +658,7 @@ function StepEventDetails({ form, onChange, errors }) {
               errors,
               "event_ends_at",
               "cf-ends-at",
-              "event-timezone-hint",
+              "event-timezone-hint catering-notice-hint",
             )}
             type="datetime-local"
             min={earliestDate}
@@ -678,7 +690,7 @@ function StepEventDetails({ form, onChange, errors }) {
 }
 
 function StepOrderDetails({ form, onChange, errors }) {
-  const customAllowed = customNoticeAllowed(form);
+  const customAllowed = customFlavorsAllowed(form);
   const minimumIce = requiredDryIce(form.quantity);
   return (
     <fieldset>
@@ -718,11 +730,7 @@ function StepOrderDetails({ form, onChange, errors }) {
             onChange={(e) => onChange("popsicle_shape", e.target.value)}
           >
             {PALETA_SHAPES.map((shape) => (
-              <option
-                key={shape.value}
-                value={shape.value}
-                disabled={shape.value === "heart" && !customAllowed}
-              >
+              <option key={shape.value} value={shape.value}>
                 {shape.label} — {formatCents(shape.unitCents)} each
               </option>
             ))}
@@ -735,10 +743,10 @@ function StepOrderDetails({ form, onChange, errors }) {
       </div>
 
       <p className="field-hint" role="note">
-        Custom flavors and shapes require at least two weeks’ notice.{" "}
+        Custom flavors require at least two weeks’ notice.{" "}
         {customAllowed
           ? "Custom requests are subject to owner approval."
-          : "Your event is short notice, so orders use paletas currently available. Flavor choices below are preferences and depend on stock."}
+          : "Short-notice orders use available flavors and quantities. Larger orders may be limited by stock, so please give us as much notice as possible."}
       </p>
       {errors.popsicle_shape && (
         <p className="field-error" role="alert">
@@ -755,7 +763,7 @@ function StepOrderDetails({ form, onChange, errors }) {
 
       <div className="form-field">
         <label htmlFor="cf-flavors">
-          Custom flavor or add-on requests (two weeks’ notice required)
+          Custom flavor requests (two weeks’ notice required)
         </label>
         <textarea
           id="cf-flavors"
@@ -766,19 +774,44 @@ function StepOrderDetails({ form, onChange, errors }) {
           onChange={(e) => onChange("flavor_requests", e.target.value)}
           rows={2}
           maxLength={2000}
-          placeholder="Share custom flavor or add-on requests"
+          placeholder="Share a flavor you’d like us to make specially for your event"
         />
         <p id="cf-flavor-hint" className="field-hint">
           Flavors vary by batch. We’ll confirm available options for your event.
         </p>
         {!customAllowed && form.flavor_requests && (
           <button type="button" onClick={() => onChange("flavor_requests", "")}>
-            Clear custom requests
+            Clear custom flavor request
           </button>
         )}
         {errors.flavor_requests && (
           <p className="field-error" role="alert">
             {errors.flavor_requests}
+          </p>
+        )}
+      </div>
+      <div className="form-field">
+        <label htmlFor="cf-add-ons">Add-on requests (optional)</label>
+        <input
+          id="cf-add-ons"
+          {...fieldAccessibility(
+            errors,
+            "add_on_requests",
+            "cf-add-ons",
+            "cf-add-ons-hint",
+          )}
+          type="text"
+          value={form.add_on_requests}
+          onChange={(e) => onChange("add_on_requests", e.target.value)}
+          maxLength={100}
+          placeholder="e.g. Napkins"
+        />
+        <p id="cf-add-ons-hint" className="field-hint">
+          Add-ons are subject to availability and owner approval.
+        </p>
+        {errors.add_on_requests && (
+          <p id="cf-add-ons-error" className="field-error" role="alert">
+            {errors.add_on_requests}
           </p>
         )}
       </div>
@@ -850,8 +883,11 @@ function QuoteEstimate({ quote, customer }) {
       (item) => `${item.flavor}: ${item.quantity}`,
     ),
     quote.catering_request?.flavor_requests
-      ? `Flavor and allergy requests: ${quote.catering_request.flavor_requests}`
+      ? `Custom flavor requests: ${quote.catering_request.flavor_requests}`
       : "",
+    ...(quote.catering_request?.add_ons || []).map(
+      (item) => `Add-on request: ${item}`,
+    ),
     quote.event?.notes ? `Event notes: ${quote.event.notes}` : "",
     ...estimate.line_items.map(
       (item) => `${item.description}: ${formatCents(item.amount_cents)}`,
@@ -1013,6 +1049,12 @@ function StepSummary({
               <>
                 <dt>Requests</dt>
                 <dd>{form.flavor_requests}</dd>
+              </>
+            )}
+            {form.add_on_requests && (
+              <>
+                <dt>Add-on requests</dt>
+                <dd>{form.add_on_requests}</dd>
               </>
             )}
             <dt>Required dry ice</dt>
@@ -1231,14 +1273,11 @@ function validateStep(step, form) {
       const issue = flavorMixIssue(form.flavor_allocations, form.quantity);
       if (issue) errors.flavor_allocations = issue.message;
     }
-    if (!customNoticeAllowed(form)) {
-      if (form.flavor_requests.trim())
-        errors.flavor_requests =
-          "Custom requests require two weeks’ notice. Clear this request or choose a later event date.";
-      if (form.popsicle_shape === "heart")
-        errors.popsicle_shape =
-          "Heart-shaped paletas require two weeks’ notice. Choose regular paletas or a later date.";
-    }
+    if (!customFlavorsAllowed(form) && form.flavor_requests.trim())
+      errors.flavor_requests = CUSTOM_FLAVOR_NOTICE_MESSAGE;
+    if (form.add_on_requests.trim().length > 100)
+      errors.add_on_requests =
+        "Keep add-on requests to 100 characters or fewer.";
     const dryIce = form.dry_ice_blocks;
     if (
       dryIce !== "" &&
@@ -1260,7 +1299,7 @@ function buildRequestBody(form, quoteId) {
       popsicle_shape: form.popsicle_shape,
       flavor_requests: form.flavor_requests.trim(),
       allergy_notes: form.allergy_notes.trim(),
-      add_ons: [],
+      add_ons: form.add_on_requests.trim() ? [form.add_on_requests.trim()] : [],
       service_type: form.service_type,
       dry_ice_blocks: effectiveDryIce(form),
     },
@@ -1627,7 +1666,9 @@ function CateringModal({ onClose, draft, onDraftChange }) {
     for (const { field, message } of error.fields || []) {
       const path = field.startsWith("catering_request.flavor_allocations[")
         ? "catering_request.flavor_allocations"
-        : field;
+        : field.startsWith("catering_request.add_ons[")
+          ? "catering_request.add_ons"
+          : field;
       const binding = SERVER_FIELDS.get(path);
       if (!binding) continue;
       const [key, step] = binding;

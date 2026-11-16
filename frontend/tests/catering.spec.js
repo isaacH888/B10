@@ -744,31 +744,31 @@ test("manual-review quotes do not claim that an order was submitted", async ({
 test.describe("Houston event schedule", () => {
   test.use({ timezoneId: "Asia/Tokyo" });
 
-  test("calendars exclude past Central days, allow today, and refresh after midnight", async ({
+  test("calendars allow short-notice Central times and refresh after midnight", async ({
     page,
   }) => {
     // Tokyo is already on Nov 14; Houston is still on Nov 13.
     await page.clock.setFixedTime(new Date("2026-11-14T05:30:00Z"));
     const calls = await api(page);
     await orderDetails(page, {
-      start: "2026-11-12T12:00",
-      end: "2026-11-12T13:00",
+      start: "2026-11-13T23:29",
+      end: "2026-11-13T23:29",
     });
     const start = page.locator("#cf-starts-at");
     const end = page.locator("#cf-ends-at");
     for (const field of [start, end]) {
-      await expect(field).toHaveAttribute("min", "2026-11-13T00:00");
+      await expect(field).toHaveAttribute("min", "2026-11-13T23:30");
       expect(
         await field.evaluate((input) => input.validity.rangeUnderflow),
       ).toBe(true);
     }
     await expect(start).toBeFocused();
-    await expect(page.getByRole("alert")).toContainText(
-      "Event start must be in the future.",
+    await expect(start).toHaveAccessibleDescription(
+      /Event start must be in the future/,
     );
     expect(calls.quotes).toHaveLength(0);
 
-    // A later time today is accepted, even though the device date is tomorrow.
+    // A later time today is accepted, using Houston rather than the device zone.
     await start.fill("2026-11-13T23:45");
     await end.fill("");
     expect(await start.evaluate((input) => input.validity.rangeUnderflow)).toBe(
@@ -781,7 +781,7 @@ test.describe("Houston event schedule", () => {
     await page.clock.setFixedTime(new Date("2026-11-14T06:30:00Z"));
     await end.focus();
     for (const field of [start, end]) {
-      await expect(field).toHaveAttribute("min", "2026-11-14T00:00");
+      await expect(field).toHaveAttribute("min", "2026-11-14T00:30");
     }
     expect(await start.evaluate((input) => input.validity.rangeUnderflow)).toBe(
       true,
@@ -790,6 +790,44 @@ test.describe("Houston event schedule", () => {
     await expect(start).toBeFocused();
     expect(calls.quotes).toHaveLength(0);
   });
+
+  for (const [now, earliest, tooSoon, customStart] of [
+    [
+      "2027-03-01T18:00:00Z",
+      "2027-03-01T12:00",
+      "2027-03-15T12:59",
+      "2027-03-15T13:00",
+    ],
+    [
+      "2027-11-01T17:00:00Z",
+      "2027-11-01T12:00",
+      "2027-11-15T10:59",
+      "2027-11-15T11:00",
+    ],
+    [
+      "2026-11-16T18:00:01Z",
+      "2026-11-16T12:01",
+      "2026-11-30T12:00",
+      "2026-11-30T12:01",
+    ],
+  ]) {
+    test(`only custom flavors need 14 full days from ${now}`, async ({
+      page,
+    }) => {
+      await page.clock.setFixedTime(new Date(now));
+      await api(page);
+      await orderDetails(page, { start: tooSoon });
+      await expect(page.locator("#cf-flavors")).toBeDisabled();
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await expect(page.locator("#cf-starts-at")).toHaveAttribute(
+        "min",
+        earliest,
+      );
+      await page.locator("#cf-starts-at").fill(customStart);
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.locator("#cf-flavors")).toBeEnabled();
+    });
+  }
 
   for (const [month, offset, abbreviation] of [
     ["01", "-06:00", "CST"],
@@ -970,27 +1008,78 @@ for (const width of [320, 375, 768]) {
   });
 }
 
-test("short-notice orders block customization while retaining allergy information", async ({
+for (const service of ["delivery", "full_service"]) {
+  test(`next-day ${service} accepts menu flavors, shapes and add-ons`, async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(new Date("2026-11-16T18:00:00Z"));
+    const calls = await api(page);
+    await orderDetails(page, {
+      start: "2026-11-17T12:00",
+      end: "2026-11-17T13:00",
+      service,
+    });
+    await expect(page.locator("#cf-flavors")).toBeDisabled();
+    await expect(page.locator('#cf-shape option[value="heart"]')).toBeEnabled();
+    await expect(
+      page.getByText(/Larger orders may be limited by stock/),
+    ).toBeVisible();
+    await page.locator("#cf-shape").selectOption("heart");
+    await page
+      .getByRole("button", { name: "+ Add a flavor", exact: true })
+      .click();
+    await page.locator("#cf-add-ons").fill("Napkins");
+    await page
+      .locator("#cf-allergies")
+      .fill("Nut allergy; please confirm ingredients.");
+    await quote(page);
+    await expect(
+      page.getByRole("region", { name: "Paletas and extras" }),
+    ).toContainText("Napkins");
+    expect(calls.quotes[0].catering_request).toMatchObject({
+      quantity: 50,
+      popsicle_shape: "heart",
+      flavor_requests: "",
+      flavor_allocations: [{ flavor: "Mango Lime", quantity: 50 }],
+      add_ons: ["Napkins"],
+      allergy_notes: "Nut allergy; please confirm ingredients.",
+      dry_ice_blocks: 3,
+    });
+    await page
+      .getByRole("button", { name: "Submit catering request", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Catering Request Received" }),
+    ).toBeVisible();
+    expect(calls.orders[0].body.catering_request).toEqual(
+      calls.quotes[0].catering_request,
+    );
+  });
+}
+
+test("moving a custom request to short notice requires clearing only the custom flavor", async ({
   page,
 }) => {
+  await page.clock.setFixedTime(new Date("2026-11-16T18:00:00Z"));
   const calls = await api(page);
-  await orderDetails(page, {
-    start: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 16),
-  });
+  await orderDetails(page);
+  await page.locator("#cf-flavors").fill("Lavender");
+  await page.locator("#cf-add-ons").fill("Napkins");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.locator("#cf-starts-at").fill("2026-11-17T12:00");
+  await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.locator("#cf-flavors")).toBeDisabled();
-  await expect(page.locator('#cf-shape option[value="heart"]')).toBeDisabled();
-  await expect(
-    page.getByText(/orders use paletas currently available/),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Custom flavors require at least two weeks",
+  );
+  expect(calls.quotes).toHaveLength(0);
   await page
-    .locator("#cf-allergies")
-    .fill("Nut allergy; please confirm ingredients.");
+    .getByRole("button", { name: "Clear custom flavor request", exact: true })
+    .click();
   await quote(page);
-  expect(calls.quotes[0].catering_request).toMatchObject({
-    flavor_requests: "",
-    allergy_notes: "Nut allergy; please confirm ingredients.",
-    dry_ice_blocks: 3,
-  });
+  expect(calls.quotes[0].catering_request.flavor_requests).toBe("");
+  expect(calls.quotes[0].catering_request.add_ons).toEqual(["Napkins"]);
 });
 
 for (const [quantity, blocks] of [

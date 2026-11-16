@@ -76,6 +76,7 @@ See the [reporting integration review](reporting-query-fixes.md).
 | Requirement | Interface expectation |
 | --- | --- |
 | At least 50 popsicles | Backend rejects smaller quantities with 422 |
+| Two weeks' notice for custom flavors | Custom flavor text and off-menu flavor allocations require at least 14 full days before the event. Short-notice delivery and full service, including next-day orders, use available flavors and quantities; shapes and add-ons have no separate notice minimum |
 | Regular and heart-shaped pricing | November 13 supplied rates: regular $4.50/unit, heart-shaped $3.00/unit. Accept quantity/shape; further discounts and mixed-shape policy remain D01/D02 |
 | Custom flavors and add-ons | Accept request text and add-on requests; pricing/availability depend on D03 |
 | Event details | Collect type, address, timestamp with offset, and IANA timezone |
@@ -109,7 +110,10 @@ policy rejects such quotes until priced. A manual-review order path needs D08 ap
   the client-approved rounding policy. Never accept a client-supplied authoritative total.
 - Trim textual input, validate email/phone formats, reject nonexistent local times and
   timezone/offset mismatches, and require event end after start when provided.
-- Reject past event starts on quote/submission; example dates remain static fixtures.
+- Reject past event starts. Require at least 14 full days of advance notice only for
+  custom flavor requests; compare instants using the supplied UTC offset. Short-notice
+  delivery and full service are allowed, subject to available flavors and quantities.
+  Example dates remain static fixtures.
 
 Proposed technical limits are 100000 popsicles per request, 1000 requested dry-ice
 blocks, 20 add-on requests, 2000-character notes, 15-minute quote expiry, page size

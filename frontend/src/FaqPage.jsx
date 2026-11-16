@@ -11,18 +11,18 @@ const questions = [
   {
     question: "How far in advance should I place my order?",
     answer:
-      "We recommend placing custom catering orders at least two weeks in advance to ensure availability and allow time for preparation.",
+      "Please give us as much notice as possible so we can prepare for your event. Custom flavors require at least two weeks (14 days) of notice. Delivery and full service can be requested on shorter notice, including next-day events, subject to availability.",
   },
   {
     question: "Can I request custom flavors?",
     answer:
-      "Yes! Customers can request custom flavors. We’ll work with you to come up with flavor ideas, too.",
+      "Yes! With at least two weeks (14 days) of notice, you can request custom flavors for our team to review. We’ll work with you to come up with flavor ideas, too.",
   },
   {
     question:
       "What happens if I place an order less than two weeks before my event?",
     answer:
-      "Orders placed within two weeks of the event may be fulfilled using available flavors and inventory rather than custom-made selections.",
+      "Short-notice catering uses the flavors and quantities we have available. Next-day requests are welcome, including orders of 50 paletas, but larger orders may be limited by stock. We’ll confirm what we can accommodate. More notice gives us more time to prepare.",
   },
   {
     question: "Do you offer delivery?",

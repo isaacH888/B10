@@ -1,4 +1,16 @@
 export const EVENT_TIME_ZONE = "America/Chicago";
+export const CUSTOM_FLAVOR_NOTICE_DAYS = 14;
+export const CUSTOM_FLAVOR_NOTICE_MESSAGE =
+  "Custom flavors require at least two weeks (14 days) of advance notice. Clear the custom flavor request or choose a later event date.";
+
+export function minimumCustomFlavorStart(timestamp = Date.now()) {
+  return timestamp + CUSTOM_FLAVOR_NOTICE_DAYS * 86400000;
+}
+
+export function earliestCateringInput(timestamp = Date.now()) {
+  // Short-notice catering is welcome; only past times are unavailable.
+  return centralInputValue(Math.ceil(timestamp / 60000) * 60000);
+}
 
 const partsFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: EVENT_TIME_ZONE,
@@ -10,15 +22,6 @@ const partsFormatter = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
   hourCycle: "h23",
 });
-
-export function eventDayStart(timestamp = Date.now()) {
-  const parts = Object.fromEntries(
-    partsFormatter
-      .formatToParts(new Date(timestamp))
-      .map(({ type, value }) => [type, value]),
-  );
-  return `${parts.year}-${parts.month}-${parts.day}T00:00`;
-}
 
 function wallTime(timestamp) {
   const parts = Object.fromEntries(

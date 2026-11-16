@@ -10741,6 +10741,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 40,
+            "description": "Event start must be in the future. Short-notice delivery and full service, including next-day requests, are allowed subject to availability. Only custom flavors require at least 14 full days of advance notice.",
             "format": "date-time"
           },
           "ends_at": {
@@ -10843,7 +10844,7 @@
             "items": {
               "$ref": "#/components/schemas/FlavorAllocation"
             },
-            "description": "Optional requested flavor mix. Non-empty quantities must total catering_request.quantity. Omitted or empty lets the owner choose; this is not a stock reservation."
+            "description": "Optional requested flavor mix. Non-empty quantities must total catering_request.quantity. Off-menu flavors require at least 14 full days of notice. Omitted or empty lets the owner choose; this is not a stock reservation."
           },
           "allergy_notes": {
             "type": "string",
