@@ -41,22 +41,10 @@
   background: var(--cream);
   transform: rotate(12deg);
   pointer-events: none;
-  animation: float-paleta-accent 4.5s ease-in-out infinite;
   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .flavor-menu__photo:hover .flavor-menu__accent {
-  animation-play-state: paused;
   transform: rotate(28deg) scale(1.15) translateY(-4px);
-}
-
-@keyframes float-paleta-accent {
-  0%,
-  100% {
-    transform: rotate(12deg) translateY(0);
-  }
-  50% {
-    transform: rotate(17deg) translateY(-8px);
-  }
 }
 .flavor-menu__copy {
   min-width: 0;
@@ -246,7 +234,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .public-home .flavor-menu__accent {
-    animation: none !important;
     transition: none !important;
     transform: none !important;
   }

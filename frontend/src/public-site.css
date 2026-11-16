@@ -13,6 +13,16 @@
 
 .public-home {
   --red-ink: #a11f32;
+  animation: page-fade-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .public-home ::selection,
@@ -192,16 +202,6 @@
   }
 }
 
-@keyframes float-accent {
-  0%,
-  100% {
-    transform: rotate(-14deg) translateY(0);
-  }
-  50% {
-    transform: rotate(-9deg) translateY(-8px);
-  }
-}
-
 @keyframes float-fruit {
   0%,
   100% {
@@ -231,25 +231,13 @@
   animation: float-fruit 4.8s ease-in-out infinite 0.6s;
 }
 
-@keyframes float-paletas {
-  0%,
-  100% {
-    transform: rotate(0deg) translateY(0);
-    filter: drop-shadow(0 8px 18px rgba(218, 41, 53, 0.1));
-  }
-  50% {
-    transform: rotate(-1.5deg) translateY(-6px);
-    filter: drop-shadow(0 14px 26px rgba(218, 41, 53, 0.16));
-  }
-}
-
 .public-home .hero-art__paletas {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: contain;
   transform-origin: 50% 85%;
-  animation: float-paletas 6.5s ease-in-out infinite;
+  filter: drop-shadow(0 8px 18px rgba(218, 41, 53, 0.12));
 }
 
 .public-home .hero-art__accent {
@@ -261,7 +249,6 @@
   height: auto;
   transform: rotate(-14deg);
   pointer-events: none;
-  animation: float-accent 5s ease-in-out infinite;
 }
 
 :where(.public-home, .customer-signin) .ticker {
@@ -1187,6 +1174,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .public-home,
   .error-card__art,
   :where(.public-home, .customer-signin) .ticker-track,
   .public-home .hero-art__fruit,
