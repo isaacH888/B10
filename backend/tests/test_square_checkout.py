@@ -511,6 +511,22 @@ def test_approval_resend_deposit_and_balance_use_the_same_verified_checkout_flow
         assert len(tx.payments(booking["id"])) == 2
 
 
+def test_manual_link_queued_before_approval_email_sends_only_one_deposit_message():
+    store, _, service, booking, clock, _ = setup()
+    link = service.create(booking["id"], "deposit", email=True)
+    mail = MemoryMail()
+    worker = JobProcessor(service.settings, store, None, mail, None, None, clock=lambda: clock[0])
+    worker.checkout = service
+    with store.transaction() as tx:
+        job = next(j for j in tx.list_outbox() if j["kind"] == "deposit_request")
+    worker.process({"job_key": job["key"]})
+    assert mail.messages == []
+    worker.process({"job_key": "checkout_email:" + link["id"]})
+    worker.process({"job_key": "checkout_email:" + link["id"]})
+    assert len(mail.messages) == 1
+    assert link["url"] in mail.messages[0]["body"]
+
+
 def test_overpayment_race_retains_money_and_flags_review():
     store, bookings, service, booking, _, gateway = setup()
     link = service.create(booking["id"], "deposit")

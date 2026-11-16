@@ -466,6 +466,11 @@ class JobProcessor:
                 )
                 if self.settings.get("SQUARE_ENABLED"):
                     link = self.checkout.create(booking["id"], "deposit", locked=True)
+                    with self.store.transaction() as tx:
+                        if tx.get_outbox("checkout_email:" + link["id"]):
+                            # An owner already requested this same payment
+                            # email while automatic delivery was paused.
+                            return False
                     body += f"Pay your remaining deposit of {money(link['currency'], link['amount_minor'])} securely with Square:\n{link['url']}\n"
                     body += "This link expires within 24 hours and before your capacity reservation ends. Contact Popssibilities if it expires.\n"
                 else:
