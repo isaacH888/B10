@@ -131,3 +131,11 @@ class SESMailer:
         if not isinstance(message_id, str) or not message_id or len(message_id) > 256:
             raise MailFailure("uncertain", "ses_response_invalid")
         return message_id
+
+
+def create_mailer(settings):
+    if settings.get("EMAIL_PROVIDER", "ses") == "resend":
+        from .resend import ResendMailer
+
+        return ResendMailer(settings)
+    return SESMailer(settings)

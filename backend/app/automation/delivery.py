@@ -9,6 +9,15 @@ from uuid import uuid4
 from .reminders import instant
 
 UTC = timezone.utc
+MAIL_KINDS = {
+    "request_email",
+    "reminder",
+    "confirmation_customer",
+    "confirmation_owner",
+    "checkout_email",
+    "deposit_request",
+    "decision_customer",
+}
 
 
 def stamp(value):
@@ -220,6 +229,7 @@ class JobProcessor:
                 replayed_at=stamp(self.clock()),
                 replayed_by=actor,
                 generation=delivery.get("generation", 0) + 1,
+                provider_first_attempt_at=None,
             )
             job.update(
                 status="pending",
@@ -254,6 +264,26 @@ class JobProcessor:
                 raise RetryLater((instant(delivery["next_attempt_at"]) - now).total_seconds())
             if delivery.get("lease_until") and instant(delivery["lease_until"]) > now:
                 raise RetryLater((instant(delivery["lease_until"]) - now).total_seconds())
+            if self.settings.get("EMAIL_PROVIDER") == "resend" and job["kind"] in MAIL_KINDS:
+                first_attempt = delivery.get("provider_first_attempt_at")
+                if first_attempt and now >= instant(first_attempt) + timedelta(hours=23):
+                    # A stopped lab can resume days after an uncertain send.
+                    # Resend forgets provider idempotency keys after 24 hours.
+                    delivery.update(
+                        status="failed",
+                        lease_until=None,
+                        next_attempt_at=None,
+                        last_error="Check delivery in Resend before retrying; the automatic email retry window expired.",
+                    )
+                    tx.save_delivery(delivery)
+                    tx.audit("automation.mail.review_required", detail={"job_key": key})
+                    return
+                if not first_attempt:
+                    delivery["provider_first_attempt_at"] = stamp(now)
+                job = {
+                    **job,
+                    "mail_idempotency_key": f"{key}:{delivery.get('generation', 0)}",
+                }
             delivery.update(
                 status="sending",
                 attempts=delivery["attempts"] + 1,
@@ -268,7 +298,13 @@ class JobProcessor:
             provider_id = self._execute(job)
         except Exception as error:
             category = getattr(error, "category", None)
-            permanent = category in {"invalid", "missing", "repair_required", "reconnect_required"}
+            rejected_mail = getattr(error, "kind", None) == "rejected"
+            permanent = rejected_mail or category in {
+                "invalid",
+                "missing",
+                "repair_required",
+                "reconnect_required",
+            }
             # Provider exception strings may contain credentials, request bodies or PII.
             safe_error = {
                 "invalid": "Correct event details, then retry.",
@@ -276,6 +312,8 @@ class JobProcessor:
                 "missing": "Calendar or event is missing; owner repair is required.",
                 "reconnect_required": "Reconnect Google Calendar, then retry.",
             }.get(category, "An external service failed; retry is scheduled.")
+            if rejected_mail:
+                safe_error = "Email was rejected. Check the verified sender and recipient in the mail provider, then retry."
             exhausted = delivery["attempts"] >= self.settings.get("AUTOMATION_MAX_ATTEMPTS", 6)
             if exhausted and not permanent:
                 # Persist terminal state only after DLQ publication succeeds. A crash can duplicate
@@ -454,7 +492,9 @@ class JobProcessor:
                 raise ValueError("Unsupported automation job kind")
             if not recipient:
                 raise ValueError("Mail recipient is required")
-            return self.mail.send(recipient, subject, body, job["key"])
+            return self.mail.send(
+                recipient, subject, body, job.get("mail_idempotency_key", job["key"])
+            )
 
     def handle_batch(self, event):
         failures, blocked = [], set()

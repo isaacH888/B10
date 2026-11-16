@@ -5,12 +5,14 @@ import hmac
 import json
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from unittest.mock import Mock
 
 import pytest
 from app import create_app
 from app.automation.delivery import JobProcessor, MemoryMail, MemoryQueue, OutboxDispatcher
 from app.automation.domain import BookingService, DomainError
 from app.automation.store import MemoryStore, Store
+from app.email.resend import ResendClient, ResendMail
 from app.payments.service import CheckoutService
 from app.payments.settings import API_VERSION, environment_settings, validate_settings
 from app.payments.square import SquareFailure, SquareGateway, valid_signature
@@ -454,6 +456,59 @@ def test_deposit_email_uses_application_gate_and_stale_emails_are_suppressed():
     service.enabled = False
     assert service.email_checkout(link["id"], booking) is None
     assert len(mail.messages) == 1
+
+
+def test_approval_resend_deposit_and_balance_use_the_same_verified_checkout_flow():
+    import re
+
+    store, _, service, booking, clock, gateway = setup()
+    service.settings.update(
+        EMAIL_PROVIDER="resend",
+        RESEND_API_KEY="re_synthetic_private_key_for_offline_tests",
+        AUTOMATION_FROM_EMAIL="notifications@example.invalid",
+        EMAIL_REPLY_TO_ADDRESS="owner@example.invalid",
+    )
+    http = Mock()
+    http.post.return_value = Mock(status_code=200)
+    http.post.return_value.json.return_value = {"id": "resend-accepted"}
+    mail = ResendMail(service.settings, client=ResendClient(service.settings, http=http))
+    worker = JobProcessor(
+        service.settings, store, MemoryQueue(), mail, None, None, clock=lambda: clock[0]
+    )
+    worker.checkout = service
+    with store.transaction() as tx:
+        deposit_job = next(j for j in tx.list_outbox() if j["kind"] == "deposit_request")
+    worker.process({"job_key": deposit_job["key"]})
+    worker.process({"job_key": deposit_job["key"]})
+    assert http.post.call_count == 1
+    email = http.post.call_args.kwargs["json"]
+    assert email["to"] == [booking["customer_email"]]
+    deposit_id = re.search(r"/payment/pay\?checkout=([a-f0-9]{32})", email["text"])[1]
+    assert service.public_status(deposit_id)["purpose"] == "deposit"
+    assert service.start(deposit_id)["url"].startswith("https://sandbox.square.link/")
+    gateway.settle(deposit_id)
+    # A return redirect or even a settled provider payment does not update
+    # local money before the authenticated, provider-verified notification.
+    assert service.public_status(deposit_id)["status"] == "pending"
+    service.webhook(*signed(deposit_id, "deposit-resend-flow"))
+    service.webhook(*signed(deposit_id, "deposit-resend-flow"))
+    assert service.public_status(deposit_id)["status"] == "paid"
+    with store.transaction() as tx:
+        assert tx.get_booking(booking["id"])["status"] == "confirmed"
+        assert len(tx.payments(booking["id"])) == 1
+        confirmation = next(j for j in tx.list_outbox() if j["kind"] == "confirmation_customer")
+    worker.process({"job_key": confirmation["key"]})
+    assert "Your verified deposit confirms" in http.post.call_args.kwargs["json"]["text"]
+    balance = service.create(booking["id"], "balance", email=True)
+    worker.process({"job_key": "checkout_email:" + balance["id"]})
+    assert balance["url"] in http.post.call_args.kwargs["json"]["text"]
+    assert balance["amount_minor"] == 5000
+    gateway.settle(balance["id"])
+    service.webhook(*signed(balance["id"], "balance-resend-flow"))
+    assert service.public_status(balance["id"])["status"] == "paid"
+    with store.transaction() as tx:
+        assert tx.get_booking(booking["id"])["payment_status"] == "paid"
+        assert len(tx.payments(booking["id"])) == 2
 
 
 def test_overpayment_race_retains_money_and_flags_review():

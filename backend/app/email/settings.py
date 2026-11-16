@@ -30,6 +30,7 @@ def environment_settings():
     return {
         "EMAIL_ENABLED": enabled == "true",
         "EMAIL_PROVIDER": os.getenv("EMAIL_PROVIDER", "ses"),
+        "RESEND_API_KEY": os.getenv("RESEND_API_KEY", ""),
         "EMAIL_AWS_REGION": os.getenv("EMAIL_AWS_REGION", "us-east-1"),
         "EMAIL_FROM_ADDRESS": os.getenv("EMAIL_FROM_ADDRESS", ""),
         "EMAIL_REPLY_TO_ADDRESS": os.getenv("EMAIL_REPLY_TO_ADDRESS", ""),
@@ -41,15 +42,28 @@ def environment_settings():
 
 
 def validate_settings(settings):
+    provider = settings.get("EMAIL_PROVIDER", "ses")
+    automated_resend = (
+        settings.get("AUTOMATION_ENABLED")
+        and settings.get("AUTOMATION_MODE") == "aws"
+        and provider == "resend"
+    )
+    if automated_resend:
+        validate_resend_settings(settings)
+        if not valid_address(settings.get("AUTOMATION_FROM_EMAIL")):
+            raise ValueError("AUTOMATION_FROM_EMAIL must be one bare email address")
     if not settings.get("EMAIL_ENABLED", False):
         return
     if not authentication_enabled(settings, "customer"):
         raise ValueError("Email requires authenticated customer sessions")
-    if settings.get("EMAIL_PROVIDER") != "ses":
-        raise ValueError("EMAIL_PROVIDER must be ses")
+    if provider not in {"ses", "resend"}:
+        raise ValueError("EMAIL_PROVIDER must be ses or resend")
     for key in ("EMAIL_FROM_ADDRESS", "EMAIL_REPLY_TO_ADDRESS"):
         if not valid_address(settings.get(key)):
             raise ValueError(f"{key} must be one bare email address")
+    if provider == "resend":
+        validate_resend_settings(settings)
+        return
     if not REGION.fullmatch(settings.get("EMAIL_AWS_REGION", "")):
         raise ValueError("EMAIL_AWS_REGION must identify an AWS region")
     configuration_set = settings.get("EMAIL_SES_CONFIGURATION_SET", "")
@@ -60,3 +74,9 @@ def validate_settings(settings):
     token = settings.get("EMAIL_AWS_SESSION_TOKEN", "")
     if bool(access) != bool(secret) or (token and not access):
         raise ValueError("Dedicated email credentials require both an access key and a secret key")
+
+
+def validate_resend_settings(settings):
+    key = settings.get("RESEND_API_KEY", "")
+    if not isinstance(key, str) or not re.fullmatch(r"re_[A-Za-z0-9_-]{10,200}", key):
+        raise ValueError("RESEND_API_KEY must be a private Resend API key without whitespace")

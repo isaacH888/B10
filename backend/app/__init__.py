@@ -83,7 +83,7 @@ def create_app(test_config=None):
     from .automation.routes import automation
     from .automation.store import Store as AutomationStore
     from .automation.store import StoreUnavailable as AutomationUnavailable
-    from .email.provider import SESMailer
+    from .email.provider import create_mailer
 
     app.register_blueprint(automation, url_prefix="/api/v1/admin/automation")
     app.register_blueprint(orders_bp, url_prefix="/api/v1")
@@ -129,7 +129,7 @@ def create_app(test_config=None):
             app.config,
             app.extensions["auth_service"],
             app.config.get("EMAIL_STORE") or MailStore(app.config),
-            app.config.get("EMAIL_MAILER") or SESMailer(app.config),
+            app.config.get("EMAIL_MAILER") or create_mailer(app.config),
         )
     app.register_blueprint(email, url_prefix="/api/v1")
     app.register_blueprint(quotes_bp, url_prefix="/api/v1")

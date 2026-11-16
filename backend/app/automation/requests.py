@@ -67,7 +67,7 @@ class RequestNotifications:
             "calendar_id": (connection or {}).get("calendar_id"),
             "email_mode": "simulated"
             if self.settings.get("AUTOMATION_MODE", "local") == "local"
-            else "ses",
+            else self.settings.get("EMAIL_PROVIDER", "ses"),
             "requests": rows,
         }
 
@@ -217,7 +217,7 @@ class RequestNotifications:
                 record["recipient"],
                 f"New catering request: {event['type']} ({order['id']})",
                 body,
-                job["key"],
+                job.get("mail_idempotency_key", job["key"]),
             )
 
     def retry_calendar(self, order_id, actor, repair=False):

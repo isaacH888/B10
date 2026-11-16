@@ -22,7 +22,13 @@ def build_services(settings, store, orders=None):
     clock = settings.get("AUTOMATION_CLOCK")
     epoch_clock = (lambda: instant(clock()).timestamp()) if clock else None
     queue = settings.get("AUTOMATION_QUEUE") or (MemoryQueue() if local else SqsQueue(settings))
-    mail = settings.get("AUTOMATION_MAIL") or (MemoryMail() if local else SesMail(settings))
+    if settings.get("EMAIL_PROVIDER", "ses") == "resend" and not local:
+        from ..email.resend import ResendMail
+
+        default_mail = ResendMail(settings)
+    else:
+        default_mail = MemoryMail() if local else SesMail(settings)
+    mail = settings.get("AUTOMATION_MAIL") or default_mail
     scheduler = settings.get("AUTOMATION_SCHEDULER") or (
         MemoryScheduler() if local else AwsScheduler(settings)
     )
