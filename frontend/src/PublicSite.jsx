@@ -33,7 +33,9 @@ export function PublicLayout({ children }) {
         ? "public-order"
         : pathname === "/account"
           ? "public-account"
-          : pathname === "/order/confirm"
+          : pathname === "/order/confirm" ||
+              pathname === "/payment/return" ||
+              pathname === "/payment/pay"
             ? "public-confirmation"
             : "public-content";
   return (

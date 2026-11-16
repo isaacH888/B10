@@ -116,12 +116,14 @@ class BookingService:
         capacity=1000,
         reservation_seconds=172800,
         payment_adapter=None,
+        checkout_enabled=False,
     ):
         self.store = store
         self.clock = clock
         self.capacity = integer(capacity, "capacity", 50, 10000000)
         self.reservation_seconds = integer(reservation_seconds, "reservation_seconds", 60, 604800)
         self.payment_adapter = payment_adapter or ManualPaymentAdapter()
+        self.checkout_enabled = checkout_enabled
 
     def _now(self):
         value = self.clock()
@@ -226,6 +228,8 @@ class BookingService:
         )
         if booking.get("request_calendar") and "calendar" not in kinds:
             kinds = (*kinds, "calendar")
+        if self.checkout_enabled and action != "created":
+            kinds = (*kinds, "square_reconcile")
         for kind in kinds:
             payload = {"schedule_revision": booking["schedule_revision"]}
             if kind in {"confirmation_customer", "confirmation_owner"}:
@@ -439,71 +443,99 @@ class BookingService:
             now = self._now()
             booking = self._get(tx, booking_id, payload)
             payment = self.payment_adapter.verify(booking, payload, actor, now)
-            previous = tx.get_payment(payment["reference"])
-            if previous:
-                if any(
-                    previous[key] != payment[key]
-                    for key in ("booking_id", "amount_minor", "currency")
-                ):
-                    raise DomainError(
-                        "Payment reference already belongs to a different payment",
-                        409,
-                        "payment_reference_conflict",
-                    )
-                return booking
-            if not tx.add_payment(payment):
+            if payment["provider"].lower() == "square":
+                payment["reference"] = text(
+                    "square:" + payment["reference"].removeprefix("square:"),
+                    "Square transaction reference",
+                    190,
+                )
+            elif payment["reference"].startswith("square:"):
+                raise DomainError("Square references are reserved for Square payment records", 422)
+            return self.record_payment_in_transaction(tx, booking, payment, actor, now)
+
+    def record_payment_in_transaction(self, tx, booking, payment, actor, now):
+        """Shared atomic ledger transition. Call only with independently verified money."""
+        previous = tx.get_payment(payment["reference"])
+        if (
+            not previous
+            and payment["provider"].lower() == "square"
+            and payment["reference"].startswith("square:")
+        ):
+            previous = tx.get_payment(payment["reference"].removeprefix("square:"))
+            if previous and previous.get("provider", "").lower() != "square":
                 raise DomainError(
-                    "Payment reference was already verified", 409, "payment_reference_conflict"
+                    "Square transaction ID conflicts with a legacy payment record. Review the provider records before retrying.",
+                    409,
+                    "payment_reference_conflict",
                 )
-            self._money(tx, booking)
-            kinds = ()
-            if (
-                booking["status"] != "cancelled"
-                and booking["status"] != "confirmed"
-                and booking["status"] != "conditionally_confirmed"
-                and booking["paid_minor"] >= booking["deposit_minor"]
+        if previous:
+            if any(
+                previous[key] != payment[key] for key in ("booking_id", "amount_minor", "currency")
             ):
-                valid = (
-                    booking["status"] == "awaiting_deposit"
-                    and (booking.get("reservation_expires_at") or 0) > now
-                    and instant(booking["start"]).timestamp() > now
-                    and self._available(tx, booking, now)
+                raise DomainError(
+                    "Payment reference already belongs to a different payment",
+                    409,
+                    "payment_reference_conflict",
                 )
-                if valid:
-                    self._confirm(booking, now)
-                    kinds = (
-                        "calendar",
-                        "confirmation_customer",
-                        "confirmation_owner",
-                        "reminder_schedule",
-                    )
-                else:
-                    booking["status"] = "owner_review"
-                    booking["reservation_expires_at"] = None
-                    booking["owner_review_reason"] = (
-                        "Payment retained; owner must approve availability and a new capacity reservation"
-                    )
-            elif booking["status"] == "confirmed":
-                # Keep Google synced_revision truthful after financial changes;
-                # worker reads the latest state and updates its stable event.
-                booking["calendar_status"] = "pending"
-                kinds = ("calendar",)
-            elif booking["status"] == "cancelled":
-                booking["owner_review_reason"] = (
-                    "Payment received after cancellation; retained for owner review. Handle any refund separately."
-                )
-            tx.audit(
-                "payment.verified",
-                actor,
-                {
-                    "booking_id": booking_id,
-                    "reference": payment["reference"],
-                    "amount_minor": payment["amount_minor"],
-                    "currency": payment["currency"],
-                },
-                iso(now),
+            return booking
+        if not tx.add_payment(payment):
+            raise DomainError(
+                "Payment reference was already verified", 409, "payment_reference_conflict"
             )
-            return self._save(tx, booking, actor, "payment_recorded", now, kinds)
+        self._money(tx, booking)
+        kinds = ()
+        if (
+            booking["status"] != "cancelled"
+            and booking["status"] != "confirmed"
+            and booking["status"] != "conditionally_confirmed"
+            and booking["paid_minor"] >= booking["deposit_minor"]
+        ):
+            valid = (
+                booking["status"] == "awaiting_deposit"
+                and (booking.get("reservation_expires_at") or 0) > now
+                and instant(booking["start"]).timestamp() > now
+                and self._available(tx, booking, now)
+            )
+            if valid:
+                self._confirm(booking, now)
+                kinds = (
+                    "calendar",
+                    "confirmation_customer",
+                    "confirmation_owner",
+                    "reminder_schedule",
+                )
+            else:
+                booking["status"] = "owner_review"
+                booking["reservation_expires_at"] = None
+                booking["owner_review_reason"] = (
+                    "Payment retained; owner must approve availability and a new capacity reservation"
+                )
+        elif booking["status"] == "confirmed":
+            # Keep Google synced_revision truthful after financial changes;
+            # worker reads the latest state and updates its stable event.
+            booking["calendar_status"] = "pending"
+            kinds = ("calendar",)
+        elif booking["status"] == "cancelled":
+            booking["owner_review_reason"] = (
+                "Payment received after cancellation; retained for owner review. Handle any refund separately."
+            )
+        if booking["overpaid_minor"]:
+            booking["owner_review_reason"] = (
+                (booking.get("owner_review_reason") or "")
+                + " Payment exceeds the agreed total; review the retained funds and handle any refund separately."
+            ).strip()
+        tx.audit(
+            "payment.verified",
+            actor,
+            {
+                "booking_id": booking["id"],
+                "reference": payment["reference"],
+                "amount_minor": payment["amount_minor"],
+                "currency": payment["currency"],
+            },
+            iso(now),
+        )
+        return self._save(tx, booking, actor, "payment_recorded", now, kinds)
 
     def reschedule(self, booking_id, payload, actor):
         actor, now = self._actor(actor), self._now()

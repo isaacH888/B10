@@ -3,7 +3,7 @@
 All transactions briefly hold one durable mutex row. This deliberately conservative
 MVP serializes capacity decisions, payment reference checks and job claims across
 processes. Network calls belong outside transactions; booking_lock serializes a
-single booking's Google calls independently.
+single booking's external provider calls independently.
 """
 
 import hashlib
@@ -85,6 +85,62 @@ class MemoryTransaction:
     def get_payment(self, reference):
         return deepcopy(self.state["payments"].get(reference))
 
+    def get_checkout(self, checkout_id):
+        return deepcopy(self.state["square_checkouts"].get(checkout_id))
+
+    def checkouts(self, booking_id):
+        return deepcopy(
+            [
+                row
+                for row in self.state["square_checkouts"].values()
+                if row["booking_id"] == booking_id
+            ]
+        )
+
+    def get_checkout_by_order(self, order_id):
+        return deepcopy(
+            next(
+                (
+                    row
+                    for row in self.state["square_checkouts"].values()
+                    if row.get("provider_order_id") == order_id and order_id
+                ),
+                None,
+            )
+        )
+
+    def expired_checkouts(self, now, limit):
+        return deepcopy(
+            sorted(
+                (
+                    row
+                    for row in self.state["square_checkouts"].values()
+                    if row["status"] in {"creating", "open"}
+                    and row["expires_at"] <= now
+                    and "square_expire:" + row["id"] not in self.state["outbox"]
+                ),
+                key=lambda row: row["expires_at"],
+            )[:limit]
+        )
+
+    def save_checkout(self, checkout):
+        if any(
+            row["id"] != checkout["id"]
+            and any(
+                checkout.get(key) and row.get(key) == checkout[key]
+                for key in ("provider_link_id", "provider_order_id")
+            )
+            for row in self.state["square_checkouts"].values()
+        ):
+            raise ValueError("Square resource already belongs to another checkout")
+        self.state["square_checkouts"][checkout["id"]] = deepcopy(checkout)
+
+    def get_square_event(self, event_id):
+        return deepcopy(self.state["square_events"].get(event_id))
+
+    def save_square_event(self, event):
+        self.state["square_events"][event["id"]] = deepcopy(event)
+
     def enqueue(self, key, kind, booking_id, revision, payload=None):
         if key in self.state["outbox"]:
             return False
@@ -156,6 +212,8 @@ class MemoryStore:
         self._state["audits"] = []
         self._state["order_links"] = {}
         self._state["requests"] = {}
+        self._state["square_checkouts"] = {}
+        self._state["square_events"] = {}
         self._lock = threading.RLock()
         self._booking_locks = {}
         self._local = threading.local()
@@ -328,6 +386,65 @@ class SQLTransaction:
     def get_payment(self, reference):
         return self._read(
             "SELECT data FROM automation_payments WHERE reference=%s FOR UPDATE", (reference,)
+        )
+
+    def get_checkout(self, checkout_id):
+        return self._read(
+            "SELECT data FROM square_checkouts WHERE id=%s FOR UPDATE", (checkout_id,)
+        )
+
+    def checkouts(self, booking_id):
+        return self._read(
+            "SELECT data FROM square_checkouts WHERE booking_id=%s FOR UPDATE",
+            (booking_id,),
+            many=True,
+        )
+
+    def save_checkout(self, checkout):
+        if self.get_checkout(checkout["id"]):
+            self._execute(
+                "UPDATE square_checkouts SET provider_link_id=%s,provider_order_id=%s,status=%s,expires_at=%s,data=%s WHERE id=%s",
+                (
+                    checkout.get("provider_link_id"),
+                    checkout.get("provider_order_id"),
+                    checkout["status"],
+                    checkout["expires_at"],
+                    _json(checkout),
+                    checkout["id"],
+                ),
+            )
+        else:
+            self._execute(
+                "INSERT INTO square_checkouts (id,booking_id,provider_link_id,provider_order_id,status,expires_at,data) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    checkout["id"],
+                    checkout["booking_id"],
+                    checkout.get("provider_link_id"),
+                    checkout.get("provider_order_id"),
+                    checkout["status"],
+                    checkout["expires_at"],
+                    _json(checkout),
+                ),
+            )
+
+    def get_checkout_by_order(self, order_id):
+        return self._read(
+            "SELECT data FROM square_checkouts WHERE provider_order_id=%s FOR UPDATE", (order_id,)
+        )
+
+    def expired_checkouts(self, now, limit):
+        return self._read(
+            "SELECT data FROM square_checkouts AS c WHERE status IN ('creating','open') AND expires_at<=%s AND NOT EXISTS (SELECT 1 FROM automation_outbox AS o WHERE o.job_key=CONCAT('square_expire:',c.id)) ORDER BY expires_at,id LIMIT %s FOR UPDATE",
+            (int(now), limit),
+            many=True,
+        )
+
+    def get_square_event(self, event_id):
+        return self._read("SELECT data FROM square_events WHERE id=%s FOR UPDATE", (event_id,))
+
+    def save_square_event(self, event):
+        self._execute(
+            "INSERT INTO square_events (id,data) VALUES (%s,%s)", (event["id"], _json(event))
         )
 
     def enqueue(self, key, kind, booking_id, revision, payload=None):

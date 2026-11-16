@@ -32,6 +32,9 @@ def create_app(test_config=None):
     from .email.settings import validate_settings as validate_email_settings
 
     validate_email_settings(app.config)
+    from .payments.settings import validate_settings as validate_payment_settings
+
+    validate_payment_settings(app.config)
     if app.config["AUTH_TRUSTED_PROXY_HOPS"]:
         app.wsgi_app = ProxyFix(
             app.wsgi_app,
@@ -92,6 +95,7 @@ def create_app(test_config=None):
             clock=app.config.get("AUTOMATION_CLOCK") or time.time,
             capacity=app.config.get("AUTOMATION_CAPACITY", 1000),
             reservation_seconds=app.config.get("AUTOMATION_RESERVATION_SECONDS", 172800),
+            checkout_enabled=app.config.get("SQUARE_ENABLED", False),
         )
         if app.config.get("AUTOMATION_SERVICES") is not None:
             services = app.config["AUTOMATION_SERVICES"]
@@ -105,6 +109,17 @@ def create_app(test_config=None):
             )
         app.extensions.update(services)
         app.extensions["automation_services"] = services
+        from .payments.service import CheckoutService
+
+        checkout = CheckoutService(app.config, automation_store, app.extensions["booking_service"])
+        app.extensions["square_checkout"] = checkout
+        if services.get("processor"):
+            services["processor"].checkout = checkout
+        if services.get("dispatcher"):
+            services["dispatcher"].checkout = checkout
+    from .payments.routes import payments
+
+    app.register_blueprint(payments, url_prefix="/api/v1")
     from .email.routes import email
     from .email.service import CustomerMailService
     from .email.store import MailStore

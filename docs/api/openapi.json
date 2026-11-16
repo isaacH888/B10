@@ -17,6 +17,10 @@
     },
     {
       "name": "Admin"
+    },
+    {
+      "name": "Payments",
+      "description": "Hosted Checkout and verified Square payment notifications."
     }
   ],
   "paths": {
@@ -10076,6 +10080,547 @@
           }
         }
       }
+    },
+    "/admin/automation/square": {
+      "get": {
+        "operationId": "readSquareCheckoutAvailability",
+        "summary": "Read Square Checkout availability",
+        "description": "Owner access; exposes no private configuration.",
+        "tags": ["Admin"],
+        "x-owner": "Isaac Hernandez",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["enabled", "environment"],
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": ["sandbox", "production"]
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/automation/bookings/{booking_id}/checkout": {
+      "post": {
+        "operationId": "createBookingSquareCheckout",
+        "summary": "Create and email an approved deposit or balance Checkout",
+        "description": "Fresh owner and CSRF required. Server-calculated outstanding deposit/balance. Reuses an eligible Square link or durable idempotent creation intent. Returns the Popssibilities payment page URL and queues its email; that page checks eligibility before Square handoff. No caller prices or redirects.",
+        "tags": ["Admin"],
+        "x-owner": "Isaac Hernandez",
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SquareCheckoutLink"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "booking_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SquareCheckoutRequest"
+              },
+              "example": {
+                "purpose": "deposit",
+                "expected_revision": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/square/{checkout_id}": {
+      "get": {
+        "operationId": "readSquarePaymentStatus",
+        "summary": "Read payment status using an opaque Checkout capability",
+        "description": "Public read-only status with no customer identity, event details, booking ID or payment URL. Redirect query parameters never verify payment.",
+        "tags": ["Payments"],
+        "x-owner": "Isaac Hernandez",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/SquarePaymentStatus"
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "checkout_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/payments/square/webhook": {
+      "post": {
+        "operationId": "receiveSquareCheckoutWebhook",
+        "summary": "Verify Square notification and atomically record settled payment",
+        "description": "Square-Version 2026-09-16. Authenticates exact configured notification URL plus raw body with Base64 HMAC-SHA256. Handles payment.created/payment.updated. Retrieves actual Square Payment and Order, verifies merchant/location/order/reference/note/amount/currency and requires COMPLETED plus CAPTURED. Ledger, booking, outbox, checkout status and event deduplication commit atomically. Late money never revives an invalid approval.",
+        "tags": ["Payments"],
+        "x-owner": "Isaac Hernandez",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["received"],
+                      "properties": {
+                        "received": {
+                          "const": true
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Square-HmacSha256-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Untouched Square payment event. The signature covers the configured notification URL and the original bytes."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/payments/square/{checkout_id}/start": {
+      "post": {
+        "operationId": "startSquareCheckout",
+        "summary": "Recheck the emailed capability and hand off to Square",
+        "description": "Same-origin browser request with opaque capability, not an account-cookie mutation. Rechecks current approval, amount and window. Accepts no client price, status or redirect. Does not verify or record payment.",
+        "tags": ["Payments"],
+        "x-owner": "Isaac Hernandez",
+        "security": [],
+        "parameters": [
+          {
+            "name": "checkout_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checked Square hosted URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "meta"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["url"],
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected; see error code and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12935,6 +13480,102 @@
             }
           }
         ]
+      },
+      "SquareCheckoutRequest": {
+        "type": "object",
+        "required": ["purpose", "expected_revision"],
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": ["deposit", "balance"]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "SquareCheckoutLink": {
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "amount_minor",
+          "currency",
+          "status",
+          "url",
+          "expires_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["deposit", "balance"]
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 99999999
+          },
+          "currency": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open"]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://[^/]+/payment/pay\\?checkout=[a-f0-9]{32}$"
+          },
+          "expires_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "SquarePaymentStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "amount_minor",
+          "currency",
+          "purpose",
+          "environment",
+          "can_pay"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "paid", "expired"]
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 100
+          },
+          "currency": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["deposit", "balance"]
+          },
+          "environment": {
+            "type": "string",
+            "enum": ["sandbox", "production"]
+          },
+          "can_pay": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "securitySchemes": {

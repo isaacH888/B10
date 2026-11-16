@@ -21,6 +21,8 @@ import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
 import { CustomerAccount } from "./CustomerAccount.jsx";
 import { OrderConfirmation } from "./OrderConfirmation.jsx";
+import { PaymentReturn } from "./payments/PaymentReturn.jsx";
+import { PaymentPage } from "./payments/PaymentPage.jsx";
 import { RouteScroll } from "./RouteScroll.jsx";
 import {
   AdminSignInLayout,
@@ -51,7 +53,9 @@ function Layout({ children }) {
     pathname === "/" ||
     pathname === "/order" ||
     pathname === "/account" ||
-    pathname === "/order/confirm"
+    pathname === "/order/confirm" ||
+    pathname === "/payment/return" ||
+    pathname === "/payment/pay"
   ) {
     return <PublicLayout>{children}</PublicLayout>;
   }
@@ -393,6 +397,8 @@ export default function App() {
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
             <Route path="/order" element={<CateringPage />} />
             <Route path="/order/confirm" element={<OrderConfirmation />} />
+            <Route path="/payment/return" element={<PaymentReturn />} />
+            <Route path="/payment/pay" element={<PaymentPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/account"

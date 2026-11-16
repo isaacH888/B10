@@ -14,6 +14,7 @@ import {
   EVENT_TIME_ZONE,
 } from "../eventTime.js";
 import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
+import { SquareCheckoutControls } from "../payments/SquareCheckoutControls.jsx";
 
 const base = "/admin/automation";
 const money = (value, currency) =>
@@ -643,6 +644,12 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
           {money(booking.paid_minor, booking.currency)} /{" "}
           {money(booking.remaining_minor, booking.currency)}
         </dd>
+        {booking.overpaid_minor > 0 && (
+          <>
+            <dt>Overpayment to review</dt>
+            <dd>{money(booking.overpaid_minor, booking.currency)}</dd>
+          </>
+        )}
         <dt>Capacity reservation expires</dt>
         <dd>{time(booking.reservation_expires_at)}</dd>
         <dt>Last successful calendar sync</dt>
@@ -654,6 +661,7 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
       </dl>
       {booking.source_order && <OrderSelections order={booking.source_order} />}
       <OrderDecisionControls booking={booking} onSaved={refresh} />
+      <SquareCheckoutControls booking={booking} />
       <fieldset disabled={busy}>
         <legend>Owner actions</legend>
         <div className="actions">
@@ -782,7 +790,9 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
       <ul>
         {detail.payments.map((payment) => (
           <li key={payment.reference}>
-            {payment.provider}: {payment.reference} ·{" "}
+            {payment.provider}
+            {payment.square_environment === "sandbox" ? " (test)" : ""}:{" "}
+            {payment.reference} ·{" "}
             {money(payment.amount_minor, payment.currency)}
           </li>
         ))}

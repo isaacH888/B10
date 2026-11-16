@@ -127,6 +127,8 @@ class OutboxDispatcher:
 
     def dispatch(self, limit=100):
         """Lease committed rows, send outside the transaction, then mark published."""
+        if getattr(self, "checkout", None):
+            self.checkout.enqueue_expired(limit)
         if getattr(self, "requests", None):
             self.requests.reconcile(limit)
         now = instant(self.clock())
@@ -336,6 +338,8 @@ class JobProcessor:
                 tx.save_delivery(current)
 
     def _execute(self, job):
+        if job["kind"] == "square_reconcile":
+            return self.checkout.reconcile(job["booking_id"])
         if job["kind"] in {"request_email", "request_calendar"}:
             return self.requests.execute(job)
         if job["kind"] == "calendar":
@@ -397,6 +401,16 @@ class JobProcessor:
                         booking.get("request_recipient") or self.settings["AUTOMATION_OWNER_EMAIL"]
                     )
                     body += f"Private dashboard: {self.settings['AUTOMATION_DASHBOARD_URL'].rstrip('/')}/{booking['id']}\n"
+            elif kind == "checkout_email":
+                link = self.checkout.email_checkout(payload.get("checkout_id"), booking)
+                if not link:
+                    return False
+                subject = f"Popssibilities {link['purpose']} payment: {reference}"
+                body = (
+                    summary
+                    + f"Pay {money(link['currency'], link['amount_minor'])} securely with Square:\n{link['url']}\n"
+                )
+                body += "This link expires within 24 hours. Contact Popssibilities if you need a new link.\n"
             elif kind == "deposit_request":
                 if "decision_generation" in payload and payload[
                     "decision_generation"
@@ -413,7 +427,12 @@ class JobProcessor:
                     summary
                     + f"Availability is approved. Deposit requested: {money(booking['currency'], booking['deposit_minor'])}.\n"
                 )
-                body += "Arrange payment using the method agreed with Popssibilities. Payment is verified by the owner.\n"
+                if self.settings.get("SQUARE_ENABLED"):
+                    link = self.checkout.create(booking["id"], "deposit", locked=True)
+                    body += f"Pay your remaining deposit of {money(link['currency'], link['amount_minor'])} securely with Square:\n{link['url']}\n"
+                    body += "This link expires within 24 hours and before your capacity reservation ends. Contact Popssibilities if it expires.\n"
+                else:
+                    body += "Arrange payment using the method agreed with Popssibilities. Payment is verified by the owner.\n"
                 if booking.get("customer_message"):
                     body += f"Message from the owner: {booking['customer_message']}\n"
             elif kind == "decision_customer":
