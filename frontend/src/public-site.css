@@ -603,39 +603,125 @@
   min-width: 0;
 }
 
-.customer-signin .auth-card {
-  padding: 1.75rem clamp(1rem, 3vw, 2.2rem);
+:where(.public-home, .customer-signin) .auth-card {
+  background: var(--cream);
+  border-radius: 26px;
+  padding: 30px clamp(20px, 3.5vw, 32px) 32px;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  text-align: center;
+  box-shadow:
+    0 20px 48px -8px rgba(35, 15, 50, 0.32),
+    0 6px 16px rgba(35, 15, 50, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-sizing: border-box;
 }
 
-.customer-signin .auth-card p {
-  font-size: 0.875rem;
+.customer-signin .auth-card h1 {
+  font-family: Anton, Impact, "Arial Narrow", sans-serif;
+  font-weight: 400;
+  font-size: clamp(26px, 3.5vw, 32px);
+  line-height: 1.1;
+  color: var(--red);
+  margin: 0 0 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.customer-signin .auth-card section > p:first-of-type,
+.customer-signin .auth-card > p:first-of-type {
+  font-size: 0.9rem;
+  color: #553e51;
+  line-height: 1.45;
+  margin: 0 0 14px;
+}
+
+.customer-signin .auth-card section > p:last-of-type,
+.customer-signin .auth-card > p:last-of-type {
+  font-size: 0.78rem;
+  color: #786d7b;
+  margin: 14px 0 0;
+  border-top: 1px solid #ebdbe2;
+  padding-top: 10px;
+  line-height: 1.4;
 }
 
 .customer-signin .customer-login-actions {
+  display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.75rem;
-  margin: 1.5rem 0;
+  gap: 10px;
+  margin: 16px 0 14px;
 }
 
 .customer-signin .customer-login-actions .pill {
-  white-space: normal;
-  min-height: 3rem;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 999px;
+  font-family: "DM Sans", Arial, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 20px;
   margin: 0;
+  cursor: pointer;
+  white-space: normal;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+  box-sizing: border-box;
 }
 
-.customer-signin .customer-login-actions .outline {
-  background: transparent;
+.customer-signin .customer-login-actions .pill.red {
+  background: var(--red);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(218, 41, 53, 0.28);
+}
+
+.customer-signin .customer-login-actions .pill.red:hover:not(:disabled) {
+  background: #be2030;
+  box-shadow: 0 6px 20px rgba(218, 41, 53, 0.38);
+  transform: translateY(-1px);
+}
+
+.customer-signin .customer-login-actions .pill.red:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.customer-signin .customer-login-actions .pill.outline {
+  background: #ffffff;
+  color: var(--ink);
+  border: 1.5px solid #d4ccd5;
+  box-shadow: 0 2px 8px rgba(60, 36, 21, 0.05);
+}
+
+.customer-signin .customer-login-actions .pill.outline:hover:not(:disabled) {
+  background: #fdfbf9;
+  border-color: #baaeb8;
+  box-shadow: 0 4px 14px rgba(60, 36, 21, 0.1);
+  transform: translateY(-1px);
+}
+
+.customer-signin .customer-login-actions .pill.outline:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .customer-signin button:disabled {
   cursor: wait;
   opacity: 0.65;
+  transform: none;
 }
 
 .customer-signin .notice {
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 12px 18px;
   margin: 14px 0;
   text-align: left;
   background: #fdf2f2;
@@ -645,6 +731,7 @@
   font-size: 0.875rem;
   line-height: 1.45;
   font-weight: 500;
+  box-shadow: 0 2px 8px rgba(218, 41, 53, 0.06);
 }
 
 .customer-signin .notice p {
@@ -656,7 +743,7 @@
   border: 1px solid currentColor;
   background: transparent;
   color: inherit;
-  border-radius: 100px;
+  border-radius: 999px;
   padding: 6px 14px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -665,7 +752,7 @@
 }
 
 .customer-signin .notice button:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .customer-signin p[role="status"] {
@@ -673,14 +760,15 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 10px 18px;
+  padding: 10px 20px;
   background: #f4edf6;
-  border-radius: 100px;
+  border-radius: 999px;
   color: var(--purple);
   font-size: 0.875rem;
   font-weight: 600;
-  margin: 12px auto;
-  box-shadow: 0 2px 6px rgba(103, 97, 168, 0.08);
+  margin: 16px auto;
+  box-shadow: 0 2px 8px rgba(103, 97, 168, 0.1);
+  border: 1px solid rgba(103, 97, 168, 0.15);
 }
 
 .customer-signin p[role="status"]::before {
@@ -702,101 +790,177 @@
 }
 
 .customer-signin .team-signin {
-  color: #fff;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+  color: #ffffff;
   font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.02em;
+}
+
+.customer-signin .team-signin:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
 }
 
 :where(.public-home, .customer-signin) .auth-body {
-  background: #e6e6e6;
+  background: #fcf8f2;
+  background-image:
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(255, 106, 136, 0.08) 0%,
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 88% 82%,
+      rgba(103, 97, 168, 0.08) 0%,
+      transparent 42%
+    );
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 28px;
+  padding: clamp(16px, 3.5vw, 40px);
+  box-sizing: border-box;
 }
 
 :where(.public-home, .customer-signin) .auth-shell {
-  width: min(1200px, 100%);
+  width: min(1040px, 100%);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 64px -12px rgba(53, 22, 47, 0.18),
+    0 8px 24px -4px rgba(53, 22, 47, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: var(--cream);
+  display: flex;
+  flex-direction: column;
 }
 
 :where(.public-home, .customer-signin) .auth-stripe {
-  height: 38px;
+  height: 32px;
   background: var(--red);
+  width: 100%;
+  flex-shrink: 0;
 }
 
 :where(.public-home, .customer-signin) .auth-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 570px;
+  min-height: 680px;
 }
 
 :where(.public-home, .customer-signin) .auth-visual {
-  background: var(--pink);
+  background: radial-gradient(circle at 50% 50%, #ff829b 0%, var(--pink) 100%);
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
+  padding: 40px 32px;
 }
 
 :where(.public-home, .customer-signin) .back-home {
   position: absolute;
-  top: 20px;
-  left: 25px;
-  font-size: 12px;
+  top: 24px;
+  left: 24px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(53, 22, 47, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 2;
 }
 
+:where(.public-home, .customer-signin) .back-home:hover {
+  background: #ffffff;
+  color: var(--red);
+  transform: translateX(-3px);
+  box-shadow: 0 6px 18px rgba(53, 22, 47, 0.16);
+}
+
 :where(.public-home, .customer-signin) .auth-image {
-  width: 90%;
-  display: grid;
-  place-items: center;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 :where(.public-home, .customer-signin) .auth-image img {
   max-width: 100%;
-  max-height: 470px;
+  width: min(280px, 85%);
+  height: auto;
   object-fit: contain;
+  filter: drop-shadow(0 14px 28px rgba(85, 20, 35, 0.22));
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:where(.public-home, .customer-signin) .auth-image:hover img {
+  transform: scale(1.04);
 }
 
 :where(.public-home, .customer-signin) .auth-panel {
-  background: var(--purple);
+  background: linear-gradient(
+    160deg,
+    #746eb5 0%,
+    var(--purple) 50%,
+    #544e8e 100%
+  );
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  padding: 30px 6%;
-  gap: 12px;
+  padding: 28px 6%;
+  gap: 10px;
+  position: relative;
 }
 
 :where(.public-home, .customer-signin) .welcome {
-  color: #fff;
-  font-size: clamp(37px, 4.5vw, 70px);
+  font-family: Anton, Impact, "Arial Narrow", sans-serif;
+  font-size: clamp(34px, 4vw, 54px);
   letter-spacing: 0.12em;
-  transform: rotate(-5deg);
+  transform: rotate(-3.5deg);
   text-align: center;
-  -webkit-text-stroke: 1px white;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.95);
   color: transparent;
+  line-height: 1;
+  margin-bottom: -2px;
+  user-select: none;
+  text-shadow: 0 4px 16px rgba(35, 15, 50, 0.25);
 }
 
 :where(.public-home, .customer-signin) .sun {
-  font-size: 54px;
+  font-size: 40px;
   color: var(--yellow);
   line-height: 1;
+  display: grid;
+  place-items: center;
+  filter: drop-shadow(0 4px 14px rgba(255, 207, 75, 0.5));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-:where(.public-home, .customer-signin) .auth-card {
-  background: var(--cream);
-  border-radius: 26px;
-  padding: 30px 35px 45px;
-  width: 100%;
-  max-width: 520px;
-  text-align: center;
-}
-
-:where(.public-home, .customer-signin) .auth-card h1 {
-  font-size: 34px;
-  margin: 0 0 22px;
+:where(.public-home, .customer-signin) .auth-panel:hover .sun {
+  transform: rotate(15deg) scale(1.06);
 }
 
 :where(.public-home, .customer-signin) .auth-card .pill {
@@ -840,22 +1004,25 @@
 
   :where(.public-home, .customer-signin) .auth-columns {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   :where(.public-home, .customer-signin) .auth-visual {
-    min-height: 300px;
+    min-height: 220px;
+    padding: 28px 20px;
   }
 
   :where(.public-home, .customer-signin) .auth-image img {
-    max-height: 270px;
+    width: min(200px, 60%);
+    max-height: 180px;
   }
 
   :where(.public-home, .customer-signin) .auth-panel {
-    padding: 35px 5%;
+    padding: 32px 5% 36px;
   }
 
   :where(.public-home, .customer-signin) .welcome {
-    font-size: 48px;
+    font-size: clamp(34px, 8vw, 48px);
   }
 }
 
@@ -882,11 +1049,38 @@
   }
 
   :where(.public-home, .customer-signin) .auth-body {
-    padding: 0;
+    padding: 12px 10px;
+  }
+
+  :where(.public-home, .customer-signin) .auth-shell {
+    border-radius: 20px;
   }
 
   :where(.public-home, .customer-signin) .auth-stripe {
-    height: 22px;
+    height: 20px;
+  }
+
+  :where(.public-home, .customer-signin) .auth-card {
+    padding: 24px 18px 28px;
+    border-radius: 20px;
+  }
+
+  :where(.public-home, .customer-signin) .auth-image img {
+    width: min(160px, 55%);
+    max-height: 140px;
+  }
+
+  :where(.public-home, .customer-signin) .back-home {
+    top: 14px;
+    left: 14px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+  }
+
+  .customer-signin .customer-login-actions .pill {
+    min-height: 48px;
+    font-size: 0.9375rem;
+    padding: 10px 18px;
   }
 }
 
