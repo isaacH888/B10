@@ -135,9 +135,9 @@ function DiagnosticsPage() {
   );
 }
 
-function Notice({ children }) {
+function Notice({ children, className }) {
   return (
-    <div className="notice" role="alert">
+    <div className={`notice ${className || ""}`.trim()} role="alert">
       {children}
     </div>
   );
@@ -367,16 +367,14 @@ function ProtectedPage({
                 403 RESTRICTED ACCESS
               </span>
               <h1 className="error-title">Owner access required</h1>
-              <Notice>
-                <p>
-                  Only an owner with booking access can open this workspace.
-                </p>
-              </Notice>
+              <p className="error-desc">
+                Only an owner with booking access can open this workspace.
+              </p>
               {remaining <= 5 && (
-                <div className="session-expiry-notice">
+                <Notice className="session-expiry-notice">
                   Your session expires in{" "}
                   {remaining ? `${remaining} minutes` : "less than a minute"}.
-                </div>
+                </Notice>
               )}
               <div className="actions error-actions">
                 <Link to="/admin/login" className="pill red">
@@ -571,10 +569,11 @@ function ErrorPreviewPage() {
                   403 RESTRICTED ACCESS
                 </span>
                 <h1 className="error-title">Owner access required</h1>
-                <Notice>
-                  <p>
-                    Only an owner with booking access can open this workspace.
-                  </p>
+                <p className="error-desc">
+                  Only an owner with booking access can open this workspace.
+                </p>
+                <Notice className="session-expiry-notice">
+                  Your session expires in less than a minute.
                 </Notice>
                 <div className="actions error-actions">
                   <Link to="/admin/login" className="pill red">
