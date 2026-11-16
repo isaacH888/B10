@@ -727,11 +727,30 @@
    =========================================================================== */
 
 .cat-shell,
-.cat-shell * {
+.cat-shell *,
+.cat-shell *::before,
+.cat-shell *::after,
+.modal-backdrop,
+.modal-backdrop *,
+.modal-backdrop *::before,
+.modal-backdrop *::after,
+.modal,
+.modal *,
+.modal *::before,
+.modal *::after {
   box-sizing: border-box;
 }
 
 .modal-backdrop {
+  --red: #d82c37;
+  --pink: #f8bfcb;
+  --cream: #fff3d9;
+  --purple: #4b004b;
+  --ink: #3c2415;
+  --gold: #f5af00;
+  --form-border: #e6e2e6;
+  --form-muted: #69616b;
+  font-family: "DM Sans", Arial, sans-serif;
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -743,12 +762,14 @@
   overscroll-behavior: contain;
   background: rgb(26 26 46 / 62%);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   animation: backdrop-fade-in 0.22s ease-out both;
 }
 
 .modal {
   --form-border: #e6e2e6;
   --form-muted: #69616b;
+  font-family: "DM Sans", Arial, sans-serif;
   display: flex;
   width: min(1080px, 100%);
   height: min(800px, calc(100dvh - clamp(40px, 7vh, 96px)));
@@ -956,8 +977,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   padding: 3px 0.5rem 1.5rem 3px;
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: #d1c8d2 transparent;
   scroll-padding-block: 0.5rem;
@@ -1009,13 +1032,19 @@
 }
 
 /* Fields keep their native input behavior and existing accessible labels. */
-.cat-shell fieldset {
+.cat-shell fieldset,
+.modal fieldset,
+.modal-body fieldset,
+fieldset {
   min-width: 0;
   border: 0;
   padding: 0;
   margin: 0;
 }
-.cat-shell legend {
+.cat-shell legend,
+.modal legend,
+.modal-body legend,
+legend {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1028,6 +1057,8 @@
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   margin-bottom: 1.4rem;
 }
 .form-field label,
@@ -1045,7 +1076,9 @@
 .form-field select,
 .form-field textarea {
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   min-height: 48px;
   padding: 0.75rem 0.9rem;
   border: 1px solid #d8d2d9;
@@ -1267,14 +1300,17 @@
   display: flex;
   flex-shrink: 0;
   flex-wrap: wrap;
-  justify-content: flex-end;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem;
-  padding: 1rem 2.25rem 1.25rem;
+  padding: 0.85rem 2rem 1.15rem;
   border-top: 1px solid var(--form-border);
   background: #fff;
+  box-sizing: border-box;
+  width: 100%;
 }
 .draft-hint {
+  width: 100%;
   flex: 1 1 100%;
   margin: 0 0 0.2rem;
   color: var(--form-muted);
@@ -1297,12 +1333,14 @@
 }
 .draft-reset {
   margin-right: auto;
+  flex-shrink: 0;
 }
 .btn-back,
 .btn-next {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   min-height: 48px;
   padding: 0.75rem 1.75rem;
   border: 1px solid var(--form-border);
