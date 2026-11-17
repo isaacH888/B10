@@ -420,8 +420,9 @@ export function AutomationDashboard({ identity, csrfToken }) {
             {items.map((booking) => (
               <tr key={booking.id}>
                 <td className="adm-orders-table__customer">
-                  {booking.source_order?.customer.name ||
-                    booking.customer_email}
+                  {booking.source_order?.customer?.name ||
+                    booking.customer_email ||
+                    "Customer"}
                 </td>
                 <th scope="row">
                   <Link
@@ -728,14 +729,17 @@ function BookingDetail({
             style={{ fontSize: "28px", lineHeight: "1.2" }}
           >
             {(
-              booking.source_order?.customer.name || booking.customer_email
+              booking.source_order?.customer?.name ||
+              booking.customer_email ||
+              booking.reference ||
+              "Booking"
             ).toUpperCase()}{" "}
             ·{" "}
             <span style={{ color: "var(--adm-purple)" }}>
               {booking.reference}
             </span>
           </h3>
-          {booking.source_order?.customer && (
+          {booking.source_order?.customer?.email && (
             <p className="od-created">
               {booking.source_order.customer.email} ·{" "}
               {booking.source_order.customer.phone}
@@ -803,10 +807,11 @@ function BookingDetail({
             <div className="od-section__two-col">
               <div>
                 <p className="od-field-value od-field-value--bold">
-                  {booking.source_order?.customer.name ||
-                    booking.customer_email}
+                  {booking.source_order?.customer?.name ||
+                    booking.customer_email ||
+                    "Customer"}
                 </p>
-                {booking.source_order?.customer && (
+                {booking.source_order?.customer?.email && (
                   <>
                     <p className="od-field-value">
                       {booking.source_order.customer.email}
@@ -866,8 +871,8 @@ function BookingDetail({
               <div>
                 <p className="od-field-label">SHAPE &amp; PREPARATION</p>
                 <p className="od-field-value">
-                  {booking.source_order?.catering_request.popsicle_shape ||
-                    "Standard"}{" "}
+                  {booking.source_order?.catering_request?.popsicle_shape ||
+                    "standard"}{" "}
                   popsicles · {booking.service_type}
                 </p>
                 <p className="od-field-value">
@@ -880,14 +885,15 @@ function BookingDetail({
               <div>
                 <p className="od-field-label">ADD-ONS</p>
                 <p className="od-field-value">
-                  {booking.source_order?.catering_request.add_ons.join(", ") ||
-                    "None"}
+                  {booking.source_order?.catering_request?.add_ons?.join(
+                    ", ",
+                  ) || "None"}
                 </p>
               </div>
               <div>
                 <p className="od-field-label">DRY ICE BLOCKS</p>
                 <p className="od-field-value">
-                  {booking.source_order?.catering_request.dry_ice_blocks ??
+                  {booking.source_order?.catering_request?.dry_ice_blocks ??
                     "Automatic"}
                 </p>
               </div>

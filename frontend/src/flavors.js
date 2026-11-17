@@ -67,6 +67,7 @@ export function validFlavorDraft(rows) {
 }
 
 export function formatFlavorRequests(catering) {
+  if (!catering) return "";
   return [
     ...(catering.flavor_allocations || []).map(
       (row) => `${row.flavor}: ${row.quantity}`,
