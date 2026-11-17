@@ -21,6 +21,7 @@ import { InventoryPage } from "./admin/InventoryPage.jsx";
 import { OrderDetailPage } from "./admin/OrderDetailPage.jsx";
 import { OrdersPage } from "./admin/OrdersPage.jsx";
 import { AdminPasswordLogin } from "./auth/AdminPasswordLogin.jsx";
+import { PasswordRecoveryHelp } from "./auth/PasswordRecoveryHelp.jsx";
 import { BookingWorkspacePage } from "./admin/BookingWorkspacePage.jsx";
 import "./admin/admin-preview.css";
 import { CateringPage } from "./CateringPage.jsx";
@@ -243,6 +244,7 @@ function LoginPage() {
           </button>
         </div>
       )}
+      <PasswordRecoveryHelp />
       <p>
         Account registration and password reset are available on the secure
         sign-in screen.

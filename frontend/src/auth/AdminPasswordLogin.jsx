@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "./AuthContext.jsx";
+import { PasswordRecoveryHelp } from "./PasswordRecoveryHelp.jsx";
 import { ApiError, apiRequest, callbackMessage, errorMessage } from "./api.js";
 import "./admin-login.css";
 
@@ -531,6 +532,7 @@ export function AdminPasswordLogin() {
           </div>
         ))
       )}
+      <PasswordRecoveryHelp team />
       <p className="auth-help-note">
         Need an invitation or help with your authenticator? Contact the account
         owner.
