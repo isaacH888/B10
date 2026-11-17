@@ -12,6 +12,7 @@ import {
   centralTimeToIso,
   centralInputValue,
   EVENT_TIME_ZONE,
+  formatEventTime,
 } from "../eventTime.js";
 import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
 import { EventEndSelect } from "../admin/EventEndSelect.jsx";
@@ -25,9 +26,7 @@ const money = (value, currency) =>
   );
 const time = (value) =>
   value
-    ? new Date(
-        typeof value === "number" ? value * 1000 : value,
-      ).toLocaleString()
+    ? formatEventTime(typeof value === "number" ? value * 1000 : value)
     : "Never";
 
 function Input({ name, label, type = "text", ...props }) {
@@ -531,6 +530,7 @@ export function AutomationDashboard({ identity, csrfToken }) {
           <button
             type="button"
             disabled={
+              busy ||
               connectionLoading ||
               !connection?.status ||
               connection.configured === false
@@ -544,6 +544,7 @@ export function AutomationDashboard({ identity, csrfToken }) {
           <button
             type="button"
             disabled={
+              busy ||
               connectionLoading ||
               !connection?.status ||
               connection.status === "disconnected"
@@ -552,7 +553,11 @@ export function AutomationDashboard({ identity, csrfToken }) {
           >
             Disconnect Google Calendar
           </button>
-          <button type="button" disabled={connectionLoading} onClick={refresh}>
+          <button
+            type="button"
+            disabled={busy || connectionLoading}
+            onClick={refresh}
+          >
             Refresh status
           </button>
         </div>
@@ -1050,13 +1055,8 @@ function BookingDetail({
                 className={`adm-subsection-btn ${
                   activeTab === sub.id ? "adm-subsection-btn--active" : ""
                 }`}
-                onClick={() => {
-                  setActiveTab(sub.id);
-                  const el = document.getElementById(`sec-${sub.id}`);
-                  if (el) {
-                    el.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }
-                }}
+                aria-pressed={activeTab === sub.id}
+                onClick={() => setActiveTab(sub.id)}
               >
                 {sub.label}
               </button>
@@ -1231,6 +1231,7 @@ function BookingDetail({
                   type="button"
                   className="adm-btn adm-btn--primary"
                   disabled={
+                    busy ||
                     connectionLoading ||
                     !connection?.status ||
                     connection.configured === false
@@ -1245,6 +1246,7 @@ function BookingDetail({
                   type="button"
                   className="adm-btn adm-btn--outline"
                   disabled={
+                    busy ||
                     connectionLoading ||
                     !connection?.status ||
                     connection.status === "disconnected"
@@ -1256,7 +1258,7 @@ function BookingDetail({
                 <button
                   type="button"
                   className="adm-btn adm-btn--outline"
-                  disabled={connectionLoading}
+                  disabled={busy || connectionLoading}
                   onClick={refresh}
                 >
                   Refresh status
