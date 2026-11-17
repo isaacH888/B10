@@ -80,6 +80,15 @@ def drain(adapters):
     raise AssertionError("Notifications did not drain")
 
 
+def owner_messages(adapters):
+    """Owner routing is separate from the unconditional customer receipt."""
+    return [
+        message
+        for message in adapters["mail"].messages
+        if message["key"].startswith("request_email:")
+    ]
+
+
 def events(google):
     return [event for event in google.events.values() if event.get("status") != "cancelled"]
 
@@ -89,7 +98,7 @@ def test_submission_emails_configured_inbox_and_creates_one_tentative_event(scen
     enable(scenario)
     order = post_order(client).json["data"]
     # No side effect occurs in the public HTTP transaction.
-    assert not events(google) and adapters["mail"].messages == []
+    assert not events(google) and owner_messages(adapters) == []
     drain(adapters)
     assert len(events(google)) == 1
     event = events(google)[0]
@@ -103,8 +112,8 @@ def test_submission_emails_configured_inbox_and_creates_one_tentative_event(scen
     assert event["summary"].startswith("Pending request")
     assert "/admin/orders/" + order["id"] in event["description"]
     assert "attendees" not in event and event["visibility"] == "private"
-    assert len(adapters["mail"].messages) == 1
-    message = adapters["mail"].messages[0]
+    assert len(owner_messages(adapters)) == 1
+    message = owner_messages(adapters)[0]
     assert message["recipient"] == RECIPIENT
     assert order["event"]["starts_at"] in message["body"]
     assert "owner approval" in message["body"]
@@ -118,7 +127,7 @@ def test_submission_emails_configured_inbox_and_creates_one_tentative_event(scen
             jobs = tx.list_outbox()
         for job in jobs:
             adapters["processor"].process({"job_key": job["key"]})
-    assert len(events(google)) == len(adapters["mail"].messages) == 1
+    assert len(events(google)) == len(owner_messages(adapters)) == 1
     assert app.extensions["orders_memory"]["by_id"][order["id"]]["status"] == "pending_review"
 
 
@@ -131,7 +140,7 @@ def test_old_orders_and_quote_previews_are_not_notified(scenario):
     )
     assert quote.status_code == 200
     drain(adapters)
-    assert events(google) == [] and adapters["mail"].messages == []
+    assert events(google) == [] and owner_messages(adapters) == []
 
 
 def test_handoff_and_verified_deposit_update_the_same_event(scenario):
@@ -202,7 +211,7 @@ def test_owner_intake_before_dispatch_preserves_notification_and_pending_entry(s
     assert response.status_code == 201, response.json
     drain(adapters)
     assert len(events(google)) == 1 and events(google)[0]["status"] == "tentative"
-    assert len(adapters["mail"].messages) == 1
+    assert len(owner_messages(adapters)) == 1
 
 
 def test_cancellation_removes_pending_event_and_preserves_order(scenario):
@@ -228,7 +237,7 @@ def test_google_failure_does_not_lose_order_or_prevent_owner_email(scenario, mon
 
     monkeypatch.setattr(google, "insert_event", fail)
     drain(adapters)
-    assert len(adapters["mail"].messages) == 1
+    assert len(owner_messages(adapters)) == 1
     assert order["id"] in app.extensions["orders_memory"]["by_id"]
     with store.transaction() as tx:
         assert tx.get_request(request_id(order["id"]))["calendar_status"] == "reconnect_required"
@@ -240,7 +249,7 @@ def test_google_failure_does_not_lose_order_or_prevent_owner_email(scenario, mon
     state = parse_qs(urlsplit(authorization["authorization_url"]).query)["state"][0]
     oauth.finish(state, "synthetic-code", owner, "another-session")
     drain(adapters)
-    assert len(events(google)) == 1 and len(adapters["mail"].messages) == 1
+    assert len(events(google)) == 1 and len(owner_messages(adapters)) == 1
 
 
 def test_disable_and_reenable_only_start_new_submissions(scenario):
@@ -252,7 +261,7 @@ def test_disable_and_reenable_only_start_new_submissions(scenario):
     post_order(client)
     enable(scenario)
     drain(adapters)
-    assert events(google) == [] and adapters["mail"].messages == []
+    assert events(google) == [] and owner_messages(adapters) == []
 
 
 def test_changing_inbox_only_routes_new_requests_and_can_be_stopped(scenario):
@@ -276,7 +285,7 @@ def test_changing_inbox_only_routes_new_requests_and_can_be_stopped(scenario):
     recipients = {
         order["id"]: next(
             message["recipient"]
-            for message in adapters["mail"].messages
+            for message in owner_messages(adapters)
             if order["id"] in message["body"]
         )
         for order in (first, second)
@@ -291,7 +300,7 @@ def test_changing_inbox_only_routes_new_requests_and_can_be_stopped(scenario):
         post_order(client, headers={"Idempotency-Key": "request-after-stopping"}).status_code == 201
     )
     drain(adapters)
-    assert len(events(google)) == len(adapters["mail"].messages) == 2
+    assert len(events(google)) == len(owner_messages(adapters)) == 2
 
 
 def test_email_failure_does_not_block_the_calendar_fifo_group(scenario, monkeypatch):
@@ -300,7 +309,7 @@ def test_email_failure_does_not_block_the_calendar_fifo_group(scenario, monkeypa
     post_order(client)
     adapters["dispatcher"].dispatch()
     messages = adapters["queue"].messages
-    assert len({message["group_id"] for message in messages}) == 2
+    assert len({message["group_id"] for message in messages}) == 3
 
     def fail(*args):
         raise OSError("synthetic mail outage")
@@ -331,7 +340,7 @@ def test_exhausted_calendar_retries_are_visible_and_email_remains_sent(scenario,
     drain(adapters)
     with store.transaction() as tx:
         assert tx.get_request(request_id(order["id"]))["calendar_status"] == "failed"
-    assert len(adapters["mail"].messages) == 1
+    assert len(owner_messages(adapters)) == 1
     assert len(adapters["queue"].dead_letters) == 1
 
 
@@ -365,7 +374,7 @@ def test_dispatcher_recovers_submission_after_process_restart(scenario):
     replacement = build_services(app.config, store, app.extensions["orders_memory"])
     drain(replacement)
     assert len(events(google)) == 1
-    assert len(replacement["mail"].messages) == 1 and old["mail"].messages == []
+    assert len(owner_messages(replacement)) == 1 and owner_messages(old) == []
 
 
 def test_work_local_discovers_new_requests_before_consuming_jobs(scenario, monkeypatch, capsys):
@@ -383,8 +392,8 @@ def test_work_local_discovers_new_requests_before_consuming_jobs(scenario, monke
     monkeypatch.setattr(sys, "argv", ["automation.runtime", "work-local"])
     runtime.main()
     assert len(events(google)) == 1
-    assert len(adapters["mail"].messages) == 1
-    assert '"simulated_mail": 1' in capsys.readouterr().out
+    assert len(owner_messages(adapters)) == 1
+    assert '"simulated_mail": 2' in capsys.readouterr().out
 
 
 @pytest.mark.database
@@ -422,7 +431,7 @@ def test_sql_capture_restart_handoff_and_payment_preserve_one_event(scenario, sq
         order = response.json["data"]
         replacement = build_services(app.config, Store(sql_settings))
         drain(replacement)
-        assert len(events(google)) == 1 and len(replacement["mail"].messages) == 1
+        assert len(events(google)) == 1 and len(owner_messages(replacement)) == 1
         original_event = events(google)[0]["id"]
         result = client.post(
             BASE + f"/orders/{order['id']}/booking",

@@ -1,5 +1,18 @@
 # Submitted requests: inbox and Google Calendar
 
+Every new successfully submitted catering request also queues a customer email
+with the subject **Catering Request Received**. The receipt goes to the email
+entered on the request and includes its reference, event details, service and
+quantity. It explains that review is pending and payment follows approval.
+It requires `AUTOMATION_ENABLED` and the dispatcher/worker, but does not depend
+on enabling the optional owner inbox/Google Calendar routing below.
+
+The receipt intent is saved in the same MySQL transaction as the order and quote
+consumption. Submission retries reuse the original order without queuing another
+receipt. Mail provider failures use the existing durable retry and Resend
+idempotency safeguards. Quotes and orders saved before this feature do not send
+receipts. Deploy the receipt-capable worker before the API that queues receipts.
+
 An authenticated owner can route future submitted catering requests to a chosen
 inbox and their connected Google Calendar. Price-only quote previews do not send
 notifications or create events. The public order payload cannot select a mail

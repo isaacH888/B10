@@ -241,7 +241,7 @@ def test_failed_review_rolls_back_the_handoff_and_outbox(intake_app):
     with intake_app.extensions["automation_store"].transaction() as tx:
         assert tx.get_order_link(order["id"]) is None
         assert tx.list_bookings() == []
-        assert tx.list_outbox() == []
+        assert [job["kind"] for job in tx.list_outbox()] == ["request_received"]
 
 
 def test_conditional_email_is_skipped_after_legacy_cancellation(setup):

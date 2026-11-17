@@ -129,7 +129,7 @@ def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app, su
     )
     with intake_app.extensions["automation_store"].transaction() as tx:
         assert len(tx.list_bookings()) == 1
-        assert tx.list_outbox() == []
+        assert [job["kind"] for job in tx.list_outbox()] == ["request_received"]
     booking_path = BASE + "/bookings/" + booking["id"]
     approved = client.post(booking_path + "/approve", json={}, headers=headers)
     assert approved.json["data"]["status"] == "awaiting_deposit"
@@ -217,7 +217,8 @@ def test_failed_link_rolls_back_booking_and_audit_but_keeps_customer_order(intak
     assert result.status_code == 503
     assert client.get(BASE + "/orders").json["data"] == [stored_order(intake_app, order)]
     with intake_app.extensions["automation_store"].transaction() as tx:
-        assert tx.list_bookings() == [] and tx.list_outbox() == []
+        assert tx.list_bookings() == []
+        assert [job["kind"] for job in tx.list_outbox()] == ["request_received"]
     if intake_app.config["DB_USER"]:
         with database.connect(intake_app.config) as connection, connection.cursor() as cursor:
             cursor.execute("SELECT COUNT(*) AS count FROM automation_audit")

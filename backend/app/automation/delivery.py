@@ -10,6 +10,7 @@ from .reminders import instant
 
 UTC = timezone.utc
 MAIL_KINDS = {
+    "request_received",
     "request_email",
     "reminder",
     "confirmation_customer",
@@ -376,6 +377,10 @@ class JobProcessor:
                 tx.save_delivery(current)
 
     def _execute(self, job):
+        if job["kind"] == "request_received":
+            from .receipts import send_receipt
+
+            return send_receipt(self.mail, job)
         if job["kind"] == "square_reconcile":
             return self.checkout.reconcile(job["booking_id"])
         if job["kind"] in {"request_email", "request_calendar"}:

@@ -522,6 +522,7 @@ def _save_in_memory(key, digest, clean):
         if stored is None:
             raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
         order = _build_order_from_quote(clean, stored)
+        _queue_customer_receipt(order)
         _mark_quote_used_memory(clean["quote_id"])
         saved = orders["orders"].setdefault(key, (digest, order))
         if saved[1] is order:
@@ -529,6 +530,26 @@ def _save_in_memory(key, digest, clean):
         if saved[0] != digest:
             raise IdempotencyConflict
         return saved[1]
+
+
+def _queue_customer_receipt(order, cursor=None):
+    """Save delivery intent with the order; external mail happens only in the worker."""
+    if not current_app.config.get("AUTOMATION_ENABLED"):
+        return
+    from .automation.receipts import receipt_job
+
+    job = receipt_job(order)
+    if cursor is not None:
+        data = {**job, "status": "pending", "attempts": 0, "created_at": order["created_at"]}
+        # This is a new order and a new unique job. Use the order's transaction,
+        # without acquiring the automation mutex after taking the quote lock.
+        cursor.execute(
+            "INSERT INTO automation_outbox (job_key,booking_id,status,data) VALUES (%s,%s,%s,%s)",
+            (job["key"], job["booking_id"], "pending", json.dumps(data, separators=(",", ":"))),
+        )
+    else:
+        with current_app.extensions["automation_store"].transaction() as tx:
+            tx.enqueue(**job)
 
 
 def _save_in_database(key, digest, clean):
@@ -612,6 +633,7 @@ def _save_in_database(key, digest, clean):
                 raise QuoteSubmissionError(
                     409, "quote_already_used", "This quote was already used."
                 )
+            _queue_customer_receipt(order, cursor)
         connection.commit()
         return order
     except pymysql.IntegrityError as error:
