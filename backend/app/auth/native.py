@@ -224,14 +224,26 @@ class NativeAdminFlow:
                                 or not self.admin_assured(current)
                                 or current["identity_id"] != identity["id"]
                                 or now >= current["expires_at"]
+                                or now >= row["expires_at"]
                             ):
                                 raise expired()
                             tokens = self.decrypt(current["encrypted_tokens"])
                             tokens["admin_password_at"] = now
-                            if not self.store.update_tokens(
-                                hashed(old_token), self.encrypt(tokens), now
-                            ):
-                                raise expired()
+                            renewed_token, renewed = self.new_session(
+                                "admin",
+                                identity["id"],
+                                hashed(binding),
+                                tokens,
+                                current["auth_time"],
+                                current["assurance"],
+                                current["created_at"],
+                            )
+                            renewed.update(expires_at=current["expires_at"], last_seen=now)
+                            try:
+                                self.store.create_session(renewed)
+                            except (LoginCancelledError, AccessDeniedError):
+                                raise expired() from None
+                            self.store.revoke_session(hashed(old_token), now)
                         self.store.audit(
                             "admin_password_renewed",
                             identity_id=identity["id"],
@@ -240,12 +252,12 @@ class NativeAdminFlow:
                         return (
                             {
                                 "step": "complete",
-                                "csrf_token": self.csrf("admin", old_token),
+                                "csrf_token": self.csrf("admin", renewed_token),
                                 "expires_at": timestamp(previous["expires_at"]),
                             },
                             None,
                             binding,
-                            old_token,
+                            renewed_token,
                         )
             return (
                 *self._native_put(self._native_advance(payload, challenge), binding, row=row),

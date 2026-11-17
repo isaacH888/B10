@@ -644,3 +644,46 @@ def test_failed_password_cannot_renew_device_session(native_app):
     session = next(iter(native_app.test_store.sessions.values()))
     tokens = native_app.extensions["auth_service"].decrypt(session["encrypted_tokens"])
     assert tokens.get("admin_password_at", session["created_at"]) == NOW
+
+
+def test_password_renewal_cannot_complete_after_login_challenge_deadline(native_app, monkeypatch):
+    client = native_app.test_client()
+    login(client)
+    native_app.test_clock["now"] = NOW + 14400
+    transaction = bootstrap(client)
+    provider = native_app.test_providers["admin"]
+    original = provider.native_password
+
+    def delayed(*args):
+        response = original(*args)
+        native_app.test_clock["now"] += 300
+        return response
+
+    monkeypatch.setattr(provider, "native_password", delayed)
+    result = post(
+        client, transaction, email="synthetic@example.invalid", password="synthetic-password"
+    )
+    assert result.status_code == 401
+    assert client.get("/api/v1/admin/session").json["error"]["code"] == "password_required"
+
+
+def test_cancelled_password_renewal_cannot_rotate_or_extend_session(native_app, monkeypatch):
+    client = native_app.test_client()
+    login(client)
+    native_app.test_clock["now"] = NOW + 14400
+    transaction = bootstrap(client)
+    binding = client.get_cookie(cookie_name(native_app.config, "admin", flow=True)).value
+    provider = native_app.test_providers["admin"]
+    original = provider.native_password
+
+    def cancel(*args):
+        result = original(*args)
+        native_app.test_store.cancel_login(digest(binding), "admin", native_app.test_clock["now"])
+        return result
+
+    monkeypatch.setattr(provider, "native_password", cancel)
+    result = post(
+        client, transaction, email="synthetic@example.invalid", password="synthetic-password"
+    )
+    assert result.status_code == 401
+    assert len(native_app.test_store.sessions) == 1
