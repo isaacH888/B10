@@ -8,7 +8,6 @@ import logo from "./assets/logo.png";
 import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
 import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
 import heartPaleta from "./assets/story/heart-paleta-mural.jpg";
-import fruitIllustration from "./assets/illustrations/fruit.svg";
 import "./public-site.css";
 
 const burstPoints = Array.from({ length: 24 }, (_, index) => {
@@ -79,29 +78,21 @@ export function PublicHome() {
           </div>
           <small>A little taste of Houston, Texas.</small>
         </div>
-        <div className="hero-art">
-          <img
-            className="hero-art__accent"
-            src={fruitIllustration}
-            alt=""
-            aria-hidden="true"
-            width="128"
-            height="128"
-          />
-          <img
-            className="hero-art__paletas"
-            src={paletas}
-            srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
-            sizes="(min-width: 1440px) 600px, (min-width: 801px) 48vw, (min-width: 521px) 480px, calc(100vw - 40px)"
-            alt="Three colorful paletas"
-            width="1254"
-            height="1254"
-            fetchPriority="high"
-          />
-          <span className="hero-art__fruit" aria-hidden="true">
-            {"\u{1F353}\u{1F34B}"}
-          </span>
-        </div>
+<div className="hero-art">
+  <img
+    className="hero-art__paletas"
+    src={paletas}
+    srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
+    sizes="(min-width: 1440px) 600px, (min-width: 801px) 48vw, (min-width: 521px) 480px, calc(100vw - 40px)"
+    alt="Three colorful paletas"
+    width="1254"
+    height="1254"
+    fetchPriority="high"
+  />
+  <span className="hero-art__fruit" aria-hidden="true">
+    {"\u{1F353}\u{1F34B}"}
+  </span>
+</div>
       </section>
       <div className="ticker" aria-hidden="true">
         <div className="ticker-track">

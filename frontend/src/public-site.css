@@ -923,12 +923,7 @@
 }
 
 :where(.public-home, .customer-signin) .auth-panel {
-  background: linear-gradient(
-    160deg,
-    #746eb5 0%,
-    var(--purple) 50%,
-    #544e8e 100%
-  );
+  background: #4B004B;
   display: flex;
   align-items: center;
   justify-content: center;
