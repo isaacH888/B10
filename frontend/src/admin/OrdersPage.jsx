@@ -2,6 +2,7 @@ import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import "./admin-dashboard.css";
+import "./admin-theme.css";
 import { fetchOrders } from "./orderApi.js";
 import { downloadOrders } from "./adminApi.js";
 import { useAuth } from "../auth/AuthContext.jsx";
@@ -292,30 +293,50 @@ export function OrdersPage() {
               </div>
 
               <div className="ord-filters-row">
-                <div className="ord-filter-group">
-                  <label htmlFor="ord-from" className="ord-filter-label">
+                <div className="ord-filter-group ord-filter-group--dates">
+                  <span className="ord-filter-label" id="ord-dates-label">
                     EVENT DATES (YOUR LOCAL TIME)
-                  </label>
-                  <input
-                    id="ord-from"
-                    className="ord-select"
-                    type="date"
-                    aria-label="Event date from"
-                    value={fromDate}
-                    onChange={(e) => {
-                      updateFilter("from", e.target.value);
-                    }}
-                  />
-                  <input
-                    className="ord-select"
-                    type="date"
-                    aria-label="Event date through"
-                    min={fromDate}
-                    value={throughDate}
-                    onChange={(e) => {
-                      updateFilter("through", e.target.value);
-                    }}
-                  />
+                  </span>
+                  <div
+                    className="ord-date-range"
+                    role="group"
+                    aria-labelledby="ord-dates-label"
+                  >
+                    <div className="ord-date-input-wrap">
+                      <label htmlFor="ord-from" className="ord-date-label">
+                        From
+                      </label>
+                      <input
+                        id="ord-from"
+                        className="ord-date-input"
+                        type="date"
+                        aria-label="Event date from"
+                        value={fromDate}
+                        onChange={(e) => {
+                          updateFilter("from", e.target.value);
+                        }}
+                      />
+                    </div>
+                    <span className="ord-date-sep" aria-hidden="true">
+                      –
+                    </span>
+                    <div className="ord-date-input-wrap">
+                      <label htmlFor="ord-through" className="ord-date-label">
+                        To
+                      </label>
+                      <input
+                        id="ord-through"
+                        className="ord-date-input"
+                        type="date"
+                        aria-label="Event date through"
+                        min={fromDate}
+                        value={throughDate}
+                        onChange={(e) => {
+                          updateFilter("through", e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="ord-filter-group">
                   <label htmlFor="ord-status" className="ord-filter-label">

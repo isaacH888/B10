@@ -1143,6 +1143,13 @@
   color: #3b003d;
 }
 
+.cal-gcal-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* Month nav row */
 .cal-nav-row {
   display: flex;

@@ -195,7 +195,16 @@
   font-size: 12px;
 }
 .adm-shell .adm-stat-card {
-  padding: 16px 20px;
+  position: relative;
+  padding: 18px 20px;
+  border-left-width: 4px;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.adm-shell .adm-stat-card:hover {
+  box-shadow: 0 4px 14px rgb(26 26 46 / 5%);
+  transform: translateY(-1px);
 }
 .adm-shell .adm-stat-card__label {
   color: var(--adm-muted);
@@ -216,40 +225,104 @@
   color: var(--adm-muted);
   line-height: 1.5;
 }
+.adm-shell .adm-stat-card--pink {
+  border-left-color: #da2935;
+}
+.adm-shell .adm-stat-card--yellow {
+  border-left-color: #f59e0b;
+}
 .adm-shell .adm-stat-card--softpink {
   background: var(--adm-soft);
   border-color: #e7dce9;
+  border-left-color: var(--adm-purple);
 }
 .adm-shell .adm-card--attention {
   background: var(--adm-sidebar);
   padding: 20px 24px;
+}
+.adm-shell .adm-attention-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adm-shell .adm-attention-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eaf5ee;
+  color: #2f6543;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 .adm-shell .adm-attention-list {
   margin-top: 12px;
   gap: 0;
 }
 .adm-shell .adm-attention-item {
-  padding: 12px 0;
+  padding: 0;
   border-bottom: 1px solid var(--adm-border);
 }
 .adm-shell .adm-attention-item:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
+.adm-shell .adm-attention-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px;
+  margin-inline: -8px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+.adm-shell .adm-attention-link-row:hover {
+  background: #f4ecf2;
+}
+.adm-shell .adm-attention-item__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .adm-shell .adm-attention-item__count {
   display: inline-grid;
   place-items: center;
   min-width: 24px;
   height: 24px;
-  margin-right: 5px;
+  padding: 0 4px;
   border-radius: 7px;
   background: #fff;
-  color: var(--adm-purple);
-}
-.adm-shell .adm-attention-item__link {
-  margin-left: 32px;
+  border: 1px solid var(--adm-border);
   color: var(--adm-muted);
   font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+.adm-shell .adm-attention-item__count--active {
+  background: #ffe3ee;
+  border-color: #f7b4ce;
+  color: #b51759;
+}
+.adm-shell .adm-attention-item__label {
+  color: var(--adm-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.adm-shell .adm-attention-item__action {
+  color: var(--adm-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.adm-shell .adm-attention-link-row:hover .adm-attention-item__action {
+  color: var(--adm-purple);
+  text-decoration: underline;
 }
 .adm-shell .adm-event-date {
   border-radius: 10px;
@@ -271,14 +344,55 @@
   color: var(--adm-muted);
   font-size: 10px;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
 }
 .adm-shell .adm-orders-table td {
   padding-block: 14px;
   border-color: var(--adm-border);
   color: var(--adm-ink);
+  vertical-align: middle;
+}
+.adm-shell .adm-orders-table th:last-child,
+.adm-shell .adm-orders-table td:last-child {
+  padding-right: 24px;
 }
 .adm-shell .adm-orders-table tbody tr:hover td {
   background: #fdfafd;
+}
+.adm-shell .adm-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+}
+.adm-shell .adm-orders-table th.adm-orders-table__col-qty,
+.adm-shell .adm-orders-table td.adm-orders-table__col-qty {
+  text-align: right;
+  padding-right: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.adm-shell .adm-table-empty {
+  padding: 0;
+}
+.adm-shell .adm-empty-state {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--adm-muted);
+}
+.adm-shell .adm-empty-state--events {
+  list-style: none;
+  padding: 28px 16px;
+}
+.adm-shell .adm-empty-state__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adm-ink);
+  margin: 0 0 4px;
+}
+.adm-shell .adm-empty-state__sub {
+  font-size: 12px;
+  color: var(--adm-muted);
+  margin: 0;
 }
 .adm-shell :is(.adm-status, .ord-status) {
   display: inline-block;
@@ -290,14 +404,73 @@
     600 11px/1.5 "DM Sans",
     system-ui,
     sans-serif;
+  letter-spacing: 0.02em;
 }
 .adm-shell :is(.adm-status--confirmed, .ord-status--confirmed) {
   background: #eaf5ee;
   color: #2f6543;
 }
+.adm-shell
+  :is(
+    .adm-status--conditionally_confirmed,
+    .ord-status--conditionally_confirmed
+  ) {
+  background: #e8f4fd;
+  color: #1e6091;
+}
 .adm-shell :is(.adm-status--pending, .ord-status--pending) {
   background: var(--adm-warm);
-  color: #765315;
+  color: #855a00;
+}
+.adm-shell :is(.adm-status--awaiting_deposit, .ord-status--awaiting_deposit) {
+  background: #fef3d6;
+  color: #92400e;
+}
+.adm-shell :is(.adm-status--owner_review, .ord-status--owner_review) {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.adm-shell :is(.adm-status--fulfilled, .ord-status--fulfilled) {
+  background: #e6f4ea;
+  color: #137333;
+}
+.adm-shell :is(.adm-status--cancelled, .ord-status--cancelled) {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.adm-shell :is(.adm-status--payment-paid, .ord-status--payment-paid) {
+  background: #eaf5ee;
+  color: #2f6543;
+}
+.adm-shell
+  :is(.adm-status--payment-deposit_paid, .ord-status--payment-deposit_paid) {
+  background: #e8f4fd;
+  color: #1e6091;
+}
+.adm-shell :is(.adm-status--payment-unpaid, .ord-status--payment-unpaid) {
+  background: #fef3d6;
+  color: #92400e;
+}
+.adm-shell :is(.adm-status--calendar-synced, .ord-status--calendar-synced) {
+  background: #eaf5ee;
+  color: #2f6543;
+}
+.adm-shell :is(.adm-status--calendar-pending, .ord-status--calendar-pending) {
+  background: var(--adm-warm);
+  color: #855a00;
+}
+.adm-shell
+  :is(
+    .adm-status--calendar-repair_required,
+    .ord-status--calendar-repair_required
+  ) {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+.adm-shell
+  :is(.adm-status--calendar-not_linked, .ord-status--calendar-not_linked) {
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 /* Filters and forms use the same white fields and focus treatment as checkout. */
@@ -341,6 +514,76 @@
   height: 36px;
   border-radius: 8px;
   background: var(--adm-soft);
+}
+.adm-shell .ord-filters-row {
+  display: grid;
+  grid-template-columns: minmax(310px, 1.35fr) repeat(3, minmax(170px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1080px) {
+  .adm-shell .ord-filters-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .adm-shell .ord-filters-row {
+    grid-template-columns: 1fr;
+  }
+}
+.adm-shell .ord-date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-shell .ord-date-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d8d2d9;
+  border-radius: 10px;
+  height: 44px;
+  padding: 0 8px 0 12px;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.adm-shell .ord-date-input-wrap:focus-within {
+  border-color: var(--adm-purple);
+  outline: 2px solid var(--adm-purple);
+  outline-offset: 1px;
+}
+.adm-shell .ord-date-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--adm-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+  user-select: none;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.adm-shell .ord-date-input {
+  border: none !important;
+  background: transparent !important;
+  height: 100% !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  color: var(--adm-ink) !important;
+  outline: none !important;
+  box-shadow: none !important;
+  flex: 1;
+  min-width: 0;
+}
+.adm-shell .ord-date-sep {
+  color: var(--adm-muted);
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 .adm-shell :is(.inv-filter-btn, .inv-type-btn) {
   background: var(--adm-soft);
@@ -428,22 +671,1188 @@
 .adm-shell :is(.inv-drawer-backdrop, .cal-drawer-backdrop, .od-modal-backdrop) {
   background: rgb(26 26 46 / 45%);
 }
+.adm-shell .adm-booking-workspace .adm-hero-row__heading {
+  font:
+    700 24px/1.3 "Anton",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--adm-purple);
+  margin-bottom: 20px;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard > h2 {
+  font:
+    700 16px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
 .adm-shell .adm-booking-workspace .automation-dashboard :is(fieldset, article),
 .adm-shell .adm-booking-workspace .automation-dashboard > section,
 .adm-shell .adm-booking-workspace .automation-dashboard > .table-scroll {
-  background: #fff;
-  border-color: var(--adm-border);
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
   border-radius: 16px;
+  box-shadow: 0 2px 8px rgb(26 26 46 / 2%);
+  padding: 22px 24px;
+  margin: 20px 0;
+  box-sizing: border-box;
 }
-.adm-shell .adm-booking-workspace .automation-dashboard :is(button, summary) {
-  color: #fff;
+.adm-shell .adm-booking-workspace .adm-add-booking-details {
+  margin: 16px 0 24px;
+}
+.adm-shell .adm-booking-workspace .adm-add-booking-details summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font:
+    700 13px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: #ffffff !important;
+  background: var(--adm-purple) !important;
+  border: 1px solid var(--adm-purple) !important;
+  border-radius: 999px !important;
+  padding: 9px 20px !important;
+  list-style: none;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-add-booking-details
+  summary::-webkit-details-marker {
+  display: none;
+}
+.adm-shell .adm-booking-workspace .adm-add-booking-details summary:hover {
+  background: #390039 !important;
+  border-color: #390039 !important;
+}
+.adm-shell .adm-booking-workspace .adm-add-booking-details[open] summary {
+  margin-bottom: 16px;
+  background: #ffffff !important;
+  color: var(--adm-purple) !important;
+  border-color: rgba(75, 0, 75, 0.3) !important;
+}
+.adm-shell .adm-booking-workspace .adm-add-booking-details[open] summary:hover {
+  background: #f7eff6 !important;
+  border-color: var(--adm-purple) !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-card {
+  background: #ffffff;
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  margin: 10px 0;
+  box-shadow: 0 1px 3px rgb(26 26 46 / 2%);
+  overflow: hidden;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-card:hover {
+  border-color: rgba(75, 0, 75, 0.35);
+  box-shadow: 0 2px 8px rgb(26 26 46 / 4%);
+  background: #faf6f9;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-card:active {
+  background: #f6ecf4 !important;
+  border-color: var(--adm-purple) !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-card[open] {
+  border-color: rgba(75, 0, 75, 0.35);
+  box-shadow: 0 4px 14px rgb(26 26 46 / 6%);
+  background: #ffffff;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-card:focus-within,
+.adm-shell
+  .adm-booking-workspace
+  .adm-order-intake-card:has(.adm-order-intake-summary:focus-visible) {
+  border-color: var(--adm-purple) !important;
+  box-shadow:
+    0 0 0 3px rgba(75, 0, 75, 0.18),
+    0 2px 8px rgb(26 26 46 / 4%) !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-summary {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 16px 20px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  list-style: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: unset !important;
+  transform: none !important;
+  transition: background-color 0.15s ease !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-summary:focus,
+.adm-shell .adm-booking-workspace .adm-order-intake-summary:focus-visible {
+  outline: none !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-order-intake-summary::-webkit-details-marker {
+  display: none !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-summary:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  transform: none !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-order-intake-card[open]
+  .adm-order-intake-summary {
+  background: #fbf8fa !important;
+  border-bottom: 1px solid var(--adm-border) !important;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-summary__main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-title {
+  font:
+    700 15px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-meta {
   font-size: 13px;
+  color: var(--adm-muted);
+  font-weight: 500;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-summary__aside {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f4eff3;
+  color: var(--adm-purple);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-price {
+  font:
+    700 15px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-chevron {
+  font-size: 11px;
+  color: var(--adm-muted);
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-order-intake-card[open]
+  .adm-order-intake-chevron {
+  transform: rotate(180deg);
+  color: var(--adm-purple);
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-content {
+  padding: 18px 20px 22px;
+  background: #ffffff;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-content .adm-detail-grid {
+  margin: 0 0 16px;
+  background: var(--adm-sidebar);
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-fieldset {
+  background: var(--adm-sidebar);
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: 18px 20px 20px;
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-fieldset legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+  font:
+    700 14px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-purple);
+  letter-spacing: -0.01em;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  font:
+    700 16px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard h3 {
+  margin: 0 0 8px;
+  padding: 0;
+  font:
+    700 16px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  > section
+  > p:first-of-type,
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  > fieldset
+  > p:first-of-type,
+.adm-shell .adm-booking-workspace .adm-table-desc {
+  font-size: 13px;
+  color: var(--adm-muted);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.adm-shell .adm-booking-workspace .adm-notifications-fieldset form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+  margin-top: 14px;
+}
+.adm-shell .adm-booking-workspace .adm-notifications-fieldset label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adm-ink);
+  margin: 0;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-notifications-fieldset
+  input[type="email"] {
+  background: #ffffff;
+  border: 1px solid var(--adm-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font:
+    500 14px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  width: 100%;
+  box-sizing: border-box;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-notifications-fieldset
+  input[type="email"]:focus {
+  outline: none;
+  border-color: var(--adm-purple);
+  box-shadow: 0 0 0 3px rgba(75, 0, 75, 0.12);
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-notifications-fieldset
+  button[type="submit"] {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard h4 {
+  font:
+    700 14px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  margin: 0 0 8px;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  :is(button:not(.adm-subsection-btn), .adm-add-booking-details summary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--adm-purple);
+  background: var(--adm-purple);
+  color: #ffffff;
+  font:
+    600 13px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  :is(
+    button:not(.adm-subsection-btn),
+    .adm-add-booking-details summary
+  ):hover:not(:disabled) {
+  background: #380038;
+  border-color: #380038;
+  transform: translateY(-1px);
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  :is(button, .adm-add-booking-details summary):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 .adm-shell .adm-booking-workspace .automation-dashboard [role="alert"] {
-  background: var(--adm-warm);
+  background: #fff8eb;
+  border: 1px solid #fed7aa;
+  border-left: 4px solid #f59e0b;
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #9a3412;
+  font:
+    500 13px/1.5 "DM Sans",
+    system-ui,
+    sans-serif;
+  margin: 12px 0;
 }
-.adm-shell .adm-booking-workspace .automation-dashboard :is(th, td) {
-  border-bottom-color: var(--adm-border);
+.adm-shell .adm-booking-workspace .adm-booking-detail-card {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgb(26 26 46 / 2%);
+  padding: 24px;
+  margin: 20px 0;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.adm-shell .adm-booking-workspace .adm-back-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adm-muted);
+  text-decoration: none;
+}
+.adm-shell .adm-booking-workspace .adm-back-link:hover {
+  color: var(--adm-purple);
+  text-decoration: underline;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  h3.adm-booking-detail-title,
+.adm-shell .adm-booking-workspace .adm-booking-detail-title {
+  margin: 0;
+  padding: 0;
+  font:
+    700 18px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+}
+.adm-shell .adm-booking-workspace .adm-booking-ref {
+  color: var(--adm-purple);
+}
+.adm-shell .adm-booking-workspace .adm-booking-customer-meta {
+  font-size: 13px;
+  color: var(--adm-muted);
+  margin: 4px 0 0;
+  padding: 0;
+  font-weight: 500;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-view-header {
+  margin: 0 0 16px;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-view-header h2 {
+  font:
+    600 13px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--adm-muted);
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard--detail {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard--detail
+  > .adm-booking-detail-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-actions-section {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgb(26 26 46 / 2%);
+  padding: 24px;
+  margin-top: 28px;
+}
+.adm-shell .adm-booking-workspace .od-confirm-banner {
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+.adm-shell .adm-booking-workspace .od-confirm-banner--fulfilled {
+  background: #eaf5ee;
+  border: 1px solid #c3e6cb;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--fulfilled
+  .od-confirm-banner__heading {
+  color: #155724;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--fulfilled
+  .od-confirm-banner__body {
+  color: #1e6030;
+}
+.adm-shell .adm-booking-workspace .od-confirm-banner--confirmed {
+  background: #e8f4fd;
+  border: 1px solid #b8daff;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--confirmed
+  .od-confirm-banner__heading {
+  color: #004085;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--confirmed
+  .od-confirm-banner__body {
+  color: #1e5085;
+}
+.adm-shell .adm-booking-workspace .od-confirm-banner--cancelled {
+  background: #fdf2f2;
+  border: 1px solid #f8b4b4;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--cancelled
+  .od-confirm-banner__heading {
+  color: #9b1c1c;
+}
+.adm-shell
+  .adm-booking-workspace
+  .od-confirm-banner--cancelled
+  .od-confirm-banner__body {
+  color: #771d1d;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-actions-section
+  fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-actions-section
+  .adm-action-card {
+  background: #faf7f9;
+  border: 1px solid var(--adm-border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  margin: 16px 0;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-actions-section
+  .adm-action-card:first-child {
+  margin-top: 0;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-actions-section
+  .adm-action-card:last-child {
+  margin-bottom: 0;
+}
+.adm-shell .adm-booking-workspace .adm-calendar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.adm-shell .adm-booking-workspace .adm-calendar-status-box {
+  background: #ffffff;
+  border: 1px solid var(--adm-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.adm-shell .adm-booking-workspace .adm-calendar-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--adm-ink);
+}
+.adm-shell .adm-booking-workspace .adm-calendar-status-label {
+  font-weight: 700;
+  color: var(--adm-muted);
+  min-width: 120px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.adm-shell .adm-booking-workspace .adm-calendar-status-value {
+  font-weight: 600;
+  color: var(--adm-ink);
+}
+.adm-shell .adm-booking-workspace .adm-calendar-note {
+  font-size: 12px;
+  color: var(--adm-muted);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.adm-shell .adm-booking-workspace .adm-calendar-error {
+  font-size: 13px;
+  color: #9b1c1c;
+  background: #fdf2f2;
+  border: 1px solid #f8b4b4;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 4px 0 0;
+}
+.adm-shell .adm-booking-workspace .adm-action-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.adm-shell .adm-booking-workspace .adm-actions-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.adm-shell .adm-booking-workspace .adm-actions-heading {
+  font:
+    700 16px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 0;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-subsection-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: #f4eff3;
+  border: 1px solid var(--adm-border);
+  border-radius: 999px;
+  margin: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-subsection-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: var(--adm-ink) !important;
+  font:
+    600 13px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none !important;
+  transform: none !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-subsection-btn:hover {
+  background: rgba(75, 0, 75, 0.08) !important;
+  border-color: transparent !important;
+  color: var(--adm-purple) !important;
+  transform: none !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-subsection-btn.adm-subsection-btn--active,
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-subsection-btn.adm-subsection-btn--active:hover {
+  background: var(--adm-purple) !important;
+  color: #ffffff !important;
+  border-color: var(--adm-purple) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(75, 0, 75, 0.28) !important;
+  transform: none !important;
+}
+.adm-shell .adm-booking-workspace .adm-action-card {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin: 16px 0;
+  box-shadow: 0 1px 4px rgba(26, 26, 46, 0.04);
+}
+.adm-shell .adm-booking-workspace .adm-action-card h4 {
+  font:
+    700 15px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  margin: 0 0 4px;
+}
+.adm-shell .adm-booking-workspace .adm-card__desc {
+  font-size: 13px;
+  color: var(--adm-muted);
+  line-height: 1.45;
+  margin: 0 0 16px;
+}
+.adm-shell .adm-booking-workspace .adm-action-btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-action-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-action-header-row > div {
+  flex: 1 1 240px;
+}
+.adm-shell .adm-booking-workspace .adm-action-header-row .adm-card__desc {
+  margin-bottom: 0;
+}
+.adm-shell .adm-booking-workspace .adm-reschedule-form {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--adm-border);
+}
+.adm-shell .adm-booking-workspace .adm-form-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-action-card--danger {
+  border-color: #f8b4b4;
+}
+.adm-shell .adm-booking-workspace .adm-danger-text {
+  color: #9b1c1c !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-btn--danger-outline {
+  background: #ffffff !important;
+  border-color: #f8b4b4 !important;
+  color: #9b1c1c !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-btn--danger-outline:hover {
+  background: #fdf2f2 !important;
+  border-color: #dc2626 !important;
+  color: #dc2626 !important;
+}
+.adm-shell .adm-booking-workspace .adm-danger-confirm-box {
+  background: #fdf2f2;
+  border: 1px solid #f8b4b4;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 16px;
+}
+.adm-shell .adm-booking-workspace .adm-danger-confirm-box p {
+  color: #9b1c1c;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+.adm-shell .adm-booking-workspace .adm-danger-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-inline-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-inline-fields label {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-action-card--fulfilled {
+  background: #fdfdfd;
+  border-color: #b7e1cd;
+}
+.adm-shell .adm-booking-workspace .adm-action-card--fulfilled h4 {
+  color: #137333;
+}
+.adm-breadcrumb-trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-breadcrumb-trail__link {
+  color: var(--adm-purple);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+.adm-breadcrumb-trail__link:hover {
+  text-decoration: underline;
+}
+.adm-breadcrumb-trail__sep {
+  color: var(--adm-muted);
+}
+.adm-breadcrumb-trail__current {
+  color: var(--adm-ink);
+  font-weight: 500;
+}
+.adm-workspace-back-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adm-purple);
+  margin-bottom: 8px;
+  text-decoration: none;
+}
+.adm-workspace-back-link:hover {
+  text-decoration: underline;
+}
+.adm-shell .adm-booking-workspace .adm-inline-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-inline-fieldset label {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-collapsible-card {
+  cursor: pointer;
+}
+.adm-shell .adm-booking-workspace .adm-collapsible-summary {
+  font:
+    700 14px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-purple) !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 4px 0 !important;
+  min-height: auto !important;
+  cursor: pointer;
+  display: block;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-collapsible-card[open]
+  .adm-collapsible-summary {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--adm-border) !important;
+  padding-bottom: 10px !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .adm-collapsible-card--danger
+  .adm-collapsible-summary {
+  color: #9b1c1c !important;
+}
+.adm-shell .adm-booking-workspace .adm-danger-box {
+  background: #fdf2f2;
+  border: 1px solid #f8b4b4;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 10px;
+}
+.adm-shell .adm-booking-workspace .adm-danger-box p {
+  color: #9b1c1c;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-btn--danger {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-btn--danger:hover {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-btn--outline {
+  background: #ffffff !important;
+  border-color: var(--adm-border) !important;
+  color: var(--adm-ink) !important;
+}
+.adm-shell
+  .adm-booking-workspace
+  .automation-dashboard
+  .adm-btn--outline:hover {
+  background: #f7eff6 !important;
+  border-color: var(--adm-purple) !important;
+  color: var(--adm-purple) !important;
+}
+.adm-shell .adm-booking-workspace .automation-dashboard .adm-btn--primary {
+  background: var(--adm-purple) !important;
+  border-color: var(--adm-purple) !important;
+  color: #ffffff !important;
+}
+.adm-shell .adm-booking-workspace .adm-form-card,
+.adm-shell .adm-booking-workspace .adm-history-card,
+.adm-shell .adm-booking-workspace .adm-jobs-card {
+  margin: 18px 0;
+  padding: 20px 22px;
+}
+.adm-shell .adm-booking-workspace .adm-empty-note {
+  color: var(--adm-muted);
+  font-size: 13px;
+  margin: 8px 0;
+}
+.adm-shell .adm-booking-workspace .adm-payment-history-list,
+.adm-shell .adm-booking-workspace .adm-jobs-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.adm-shell .adm-booking-workspace .adm-payment-history-list li,
+.adm-shell .adm-booking-workspace .adm-jobs-list li {
+  padding: 10px 14px;
+  background: var(--adm-sidebar);
+  border: 1px solid var(--adm-border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--adm-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .adm-paid-amount {
+  font-weight: 700;
+  color: #2f6543;
+}
+.adm-shell .adm-booking-workspace .adm-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px 24px;
+  margin: 16px 0;
+  padding: 20px 24px;
+  background: var(--adm-sidebar);
+  border: 1px solid var(--adm-border);
+  border-radius: 14px;
+}
+.adm-shell .adm-booking-workspace .adm-booking-detail-card .adm-detail-grid {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 16px 0 0;
+  margin: 16px 0 0;
+  border-top: 1px solid var(--adm-border);
+}
+.adm-shell .adm-booking-workspace .adm-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.adm-shell .adm-booking-workspace .adm-detail-item dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-detail-item dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--adm-ink);
+  line-height: 1.45;
+  word-break: break-word;
+}
+.adm-shell .adm-booking-workspace .adm-detail-item--alert dt,
+.adm-shell .adm-booking-workspace .adm-detail-item--alert dd {
+  color: #9b1c1c;
+}
+.adm-shell .adm-booking-workspace .od-review {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 2px 8px rgb(26 26 46 / 2%);
+}
+.adm-shell .adm-booking-workspace .adm-actions-section .od-review {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+}
+.adm-shell .adm-booking-workspace .adm-actions-section .od-review fieldset {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.adm-shell .adm-booking-workspace .adm-actions-section .od-review legend {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--adm-muted);
+  margin: 0 0 4px;
+  padding: 0;
+}
+.adm-shell .adm-booking-workspace .od-review-inline-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .adm-shell .adm-booking-workspace .od-review-inline-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.adm-shell .adm-booking-workspace .od-review h2 {
+  font:
+    700 18px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  margin: 0 0 6px;
+}
+.adm-shell .adm-booking-workspace .od-review > p {
+  color: var(--adm-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.adm-shell .adm-booking-workspace .od-review fieldset {
+  background: var(--adm-sidebar);
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: 16px 20px 20px;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.adm-shell .adm-booking-workspace .od-review label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--adm-ink);
+}
+.adm-shell .adm-booking-workspace .od-review legend {
+  float: left;
+  width: 100%;
+  font:
+    700 13px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--adm-purple);
+  padding: 0;
+  margin: 0 0 10px;
+}
+.adm-shell .adm-booking-workspace .od-review textarea,
+.adm-shell .adm-booking-workspace .od-review input {
+  background: #ffffff;
+  border: 1px solid var(--adm-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font:
+    500 14px/1.4 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  width: 100%;
+  box-sizing: border-box;
+}
+.adm-shell .adm-booking-workspace .od-review textarea {
+  min-height: 76px;
+  resize: vertical;
+  margin: 0;
+}
+.adm-shell .adm-booking-workspace .od-review textarea:focus,
+.adm-shell .adm-booking-workspace .od-review input:focus {
+  outline: none;
+  border-color: var(--adm-purple);
+  box-shadow: 0 0 0 3px rgba(75, 0, 75, 0.12);
+}
+.adm-shell .adm-booking-workspace .od-review .actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.adm-shell .adm-booking-workspace .od-review .actions .adm-btn--primary {
+  background: var(--adm-purple);
+  color: #ffffff;
+  border-color: var(--adm-purple);
+}
+.adm-shell .adm-booking-workspace .od-review .actions .adm-btn--outline {
+  background: #ffffff;
+  color: var(--adm-purple);
+  border-color: rgba(75, 0, 75, 0.3);
+}
+.adm-shell .adm-booking-workspace .od-review .actions .adm-btn--outline:hover {
+  background: #f7eff6;
+  border-color: var(--adm-purple);
+}
+.adm-shell .adm-booking-workspace .table-scroll {
+  padding: 0;
+  overflow: hidden;
+}
+.adm-shell .adm-booking-workspace .table-scroll table {
+  margin: 0;
+  border-collapse: collapse;
+  width: 100%;
+}
+.sr-only,
+.adm-shell .adm-booking-workspace .table-scroll caption.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border-width: 0 !important;
+}
+.adm-shell .adm-booking-workspace .table-scroll caption {
+  text-align: left;
+  padding: 0 0 16px;
+  font:
+    700 16px/1.3 "DM Sans",
+    system-ui,
+    sans-serif;
+  color: var(--adm-ink);
+  letter-spacing: -0.01em;
+  border-bottom: none;
+}
+.adm-shell .adm-booking-workspace .table-scroll th {
+  padding: 12px 16px;
+  color: var(--adm-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--adm-sidebar);
+  border-bottom: 1px solid var(--adm-border);
+}
+.adm-shell .adm-booking-workspace .table-scroll td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--adm-border);
+  color: var(--adm-ink);
+  font-size: 13px;
+}
+.adm-shell .adm-booking-workspace .table-scroll tbody tr:hover td {
+  background: #fdfafd;
 }
 
 @media (max-width: 720px) {

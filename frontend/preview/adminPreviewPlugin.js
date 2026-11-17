@@ -30,6 +30,13 @@ function filterOrders(records, params) {
 
 export function adminPreviewPlugin() {
   const sample = createSampleData();
+  const sampleNotifications = {
+    enabled: false,
+    recipient: "shouryamacha2@gmail.com",
+    calendar_id: null,
+    email_mode: "simulated",
+    requests: [],
+  };
   return {
     name: "local-admin-sample-preview",
     apply: "serve",
@@ -49,12 +56,63 @@ export function adminPreviewPlugin() {
           response.setHeader("Content-Type", "application/json");
           response.end(JSON.stringify({ error: { code, message } }));
         };
+        const path = url.pathname.slice("/api/v1".length);
+        const intakeBookingMatch =
+          /^\/admin\/automation\/orders\/([^/]+)\/booking$/.exec(path);
+        if (request.method === "POST" && intakeBookingMatch) {
+          const record = sample.records.find(
+            ({ order }) => order.id === intakeBookingMatch[1],
+          );
+          if (record) {
+            record.booking = {
+              id: `preview_booking_${sample.records.length + 1}`,
+              reference: `PREVIEW-${String(sample.records.length + 1).padStart(3, "0")}`,
+              status: "pending",
+              revision: 1,
+              start: record.order.event.starts_at,
+              end: record.order.event.ends_at,
+              timezone: "America/Chicago",
+              venue: "100 Example Street, Houston, TX",
+              service_type: record.order.catering_request.service_type,
+              quantity: record.order.catering_request.quantity,
+              currency: "USD",
+              total_minor: record.order.pricing.total_cents,
+              deposit_minor: record.order.pricing.deposit_due_cents,
+              paid_minor: 0,
+              remaining_minor: record.order.pricing.total_cents,
+              overpaid_minor: 0,
+              payment_status: "unpaid",
+              calendar_status: "pending",
+              source_order: record.order,
+            };
+            return send(record.booking, 201);
+          }
+        }
+        if (
+          request.method === "POST" &&
+          path === "/admin/automation/requests"
+        ) {
+          let body = "";
+          request.on("data", (chunk) => {
+            body += chunk;
+          });
+          request.on("end", () => {
+            try {
+              const data = JSON.parse(body || "{}");
+              if (data.recipient !== undefined)
+                sampleNotifications.recipient = data.recipient;
+              if (data.enabled !== undefined)
+                sampleNotifications.enabled = Boolean(data.enabled);
+            } catch {}
+            return send(sampleNotifications);
+          });
+          return;
+        }
         // This server never proxies API requests, accepts credentials, sets an
         // auth cookie, or writes to the real application's database/providers.
         if (request.method !== "GET") {
           return fail("preview_read_only", previewMessage, 403);
         }
-        const path = url.pathname.slice("/api/v1".length);
         if (path === "/admin/session") {
           const expires = new Date(Date.now() + 3600000).toISOString();
           return send({
@@ -129,7 +187,15 @@ export function adminPreviewPlugin() {
             configured: false,
             setup_message: "Sample preview. Google Calendar is not connected.",
           });
-        if (path === "/admin/automation/orders") return send([]);
+        if (path === "/admin/automation/orders") {
+          const pendingOrders = sample.records
+            .filter(({ booking }) => !booking)
+            .map(({ order }) => order);
+          return send(pendingOrders);
+        }
+        if (path === "/admin/automation/requests") {
+          return send(sampleNotifications);
+        }
         if (path === "/admin/automation/bookings")
           return send(
             sample.records.flatMap(({ booking }) => (booking ? [booking] : [])),

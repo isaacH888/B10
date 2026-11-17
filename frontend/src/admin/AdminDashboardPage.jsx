@@ -38,7 +38,14 @@ function UpcomingEventsCard({ events, total }) {
 
       <ul className="adm-event-list" role="list">
         {events.length === 0 && (
-          <li>No confirmed events in the next 30 days.</li>
+          <li className="adm-empty-state adm-empty-state--events">
+            <p className="adm-empty-state__title">
+              No confirmed events in the next 30 days.
+            </p>
+            <p className="adm-empty-state__sub">
+              Confirmed catering bookings will appear on this schedule.
+            </p>
+          </li>
         )}
         {events.map((event, index) => (
           <li key={event.id} className="adm-event-row">
@@ -79,28 +86,58 @@ function UpcomingEventsCard({ events, total }) {
 }
 
 function AttentionCard({ items }) {
+  const totalAttention = items.reduce(
+    (sum, item) => sum + (typeof item.count === "number" ? item.count : 0),
+    0,
+  );
+
   return (
     <section
       className="adm-card adm-card--yellow adm-card--attention"
       aria-labelledby="attention-heading"
     >
-      <h2 className="adm-card__title" id="attention-heading">
-        NEEDS A LITTLE LOVE
-      </h2>
+      <div className="adm-attention-header">
+        <h2 className="adm-card__title" id="attention-heading">
+          NEEDS A LITTLE LOVE
+        </h2>
+        {totalAttention === 0 && (
+          <span className="adm-attention-status-pill">All caught up</span>
+        )}
+      </div>
 
       <ul className="adm-attention-list" role="list">
-        {items.map((item) => (
-          <li key={item.id} className="adm-attention-item">
-            <p className="adm-attention-item__count-label">
-              <span className="adm-attention-item__count">{item.count}</span>
-              {"  "}
-              {item.label}
-            </p>
-            <Link to={item.href} className="adm-attention-item__link">
-              {item.link}
-            </Link>
-          </li>
-        ))}
+        {items.map((item) => {
+          const hasCount =
+            typeof item.count === "number"
+              ? item.count > 0
+              : Boolean(item.count);
+          return (
+            <li key={item.id} className="adm-attention-item">
+              <Link
+                to={item.href}
+                className={`adm-attention-link-row ${
+                  hasCount ? "adm-attention-link-row--active" : ""
+                }`}
+              >
+                <div className="adm-attention-item__main">
+                  <span
+                    className={`adm-attention-item__count ${
+                      hasCount ? "adm-attention-item__count--active" : ""
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                  <span className="adm-attention-item__label">
+                    {item.label}
+                  </span>
+                </div>
+                <span className="adm-attention-item__action" aria-hidden="true">
+                  {item.link}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -134,14 +171,25 @@ function RecentOrdersTable({ orders }) {
               <th scope="col">ORDER</th>
               <th scope="col">EVENT DATE</th>
               <th scope="col">SERVICE</th>
-              <th scope="col">QTY</th>
+              <th scope="col" className="adm-orders-table__col-qty">
+                QTY
+              </th>
               <th scope="col">STATUS</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 && (
               <tr>
-                <td colSpan={6}>No customer orders yet.</td>
+                <td colSpan={6} className="adm-table-empty">
+                  <div className="adm-empty-state">
+                    <p className="adm-empty-state__title">
+                      No customer orders yet.
+                    </p>
+                    <p className="adm-empty-state__sub">
+                      Recent online orders and catering requests will show here.
+                    </p>
+                  </div>
+                </td>
               </tr>
             )}
             {orders.map((order) => (
@@ -157,7 +205,7 @@ function RecentOrdersTable({ orders }) {
                 </td>
                 <td>{order.date}</td>
                 <td>{order.service}</td>
-                <td>{order.qty}</td>
+                <td className="adm-orders-table__col-qty">{order.qty}</td>
                 <td>
                   <span
                     className={`adm-status adm-status--${order.orderStatus}`}

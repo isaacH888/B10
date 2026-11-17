@@ -17,7 +17,32 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState("");
   const status = booking?.status || order?.status;
-  if (["cancelled", "fulfilled"].includes(status)) return null;
+  if (status === "fulfilled") {
+    return (
+      <div
+        className="adm-card adm-action-card adm-action-card--fulfilled"
+        role="status"
+      >
+        <h4>Booking Fulfilled</h4>
+        <p className="adm-card__desc">
+          This event catering request has been fulfilled. All items and services
+          have been delivered and completed. No further decision or review
+          actions are required.
+        </p>
+      </div>
+    );
+  }
+  if (status === "cancelled") {
+    return (
+      <div className="adm-card adm-action-card" role="status">
+        <h4>Booking Cancelled</h4>
+        <p className="adm-card__desc">
+          This booking has been cancelled and requires no review decision. You
+          can reopen it under the Manage Booking tab if needed.
+        </p>
+      </div>
+    );
+  }
   const confirmed = status === "confirmed";
 
   async function decide(event) {
@@ -91,7 +116,7 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
             />
           </label>
           {!confirmed && (
-            <>
+            <div className="od-review-inline-fields">
               <label>
                 Customer contract link (optional, HTTPS)
                 <input
@@ -110,7 +135,7 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
                   onChange={(event) => setEnd(event.target.value)}
                 />
               </label>
-            </>
+            </div>
           )}
           <div className="actions">
             {!confirmed && (
