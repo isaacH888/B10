@@ -357,11 +357,13 @@ def _quote_row_from_tuple(row):
 
 def _load_quote(quote_id, cursor=None):
     if cursor is not None:
+        # Serialize quote consumption without locking the immutable ownership row.
+        # The runtime account only needs SELECT/INSERT on customer_quote_accounts.
         cursor.execute(
             "SELECT q.id, q.expires_at, q.delivery_distance_miles, q.total_minor, q.payload_json,"
             " q.is_used, a.identity_id FROM quotes q"
             " LEFT JOIN customer_quote_accounts a ON a.quote_id = q.id"
-            " WHERE q.id = %s FOR UPDATE",
+            " WHERE q.id = %s FOR UPDATE OF q",
             (quote_id,),
         )
         row = cursor.fetchone()
