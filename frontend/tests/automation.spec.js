@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { savedOrder } from "./order-fixtures.js";
 
 const csrf = "synthetic-owner-csrf";
 const prefix = "/api/v1/admin/automation";
@@ -684,3 +685,64 @@ test.describe("booking display follows the event's Central timezone", () => {
     await expect(event).toContainText("Jun 12, 2027, 4:00 PM CDT");
   });
 });
+
+for (const width of [320, 375, 768, 1280]) {
+  test(`customer intake keeps event-time fields readable at ${width}px`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 950 });
+    await mock(page);
+    const order = savedOrder();
+    order.customer.name = "Layout Customer";
+    order.event.starts_at = "2027-06-12T19:00:00Z";
+    order.event.ends_at = null;
+    await page.route(`**${prefix}/orders`, (route) =>
+      route.fulfill({ json: { data: [order] } }),
+    );
+    await page.goto("/admin/automation");
+    await page
+      .getByText(`Layout Customer · ${order.id}`, { exact: true })
+      .click();
+    const form = page.getByRole("group", {
+      name: "Prepare customer order for booking",
+      exact: true,
+    });
+    const end = form.getByRole("combobox", {
+      name: "Confirmed event end (Houston/Central time)",
+      exact: true,
+    });
+    await expect(end).toBeVisible();
+    const field = await form.boundingBox();
+    const control = await end.boundingBox();
+    expect(control.width).toBeGreaterThan(Math.min(field.width * 0.6, 320));
+    expect(control.x).toBeGreaterThanOrEqual(field.x);
+    expect(control.x + control.width).toBeLessThanOrEqual(
+      field.x + field.width,
+    );
+    await end.selectOption("custom");
+    const customEnd = form.getByLabel(
+      "Custom event end (Houston/Central time)",
+      { exact: true },
+    );
+    await customEnd.fill("2027-06-12T16:30");
+    const customControl = await customEnd.boundingBox();
+    expect(customControl.width).toBeGreaterThan(
+      Math.min(field.width * 0.6, 320),
+    );
+    expect(customControl.x + customControl.width).toBeLessThanOrEqual(
+      field.x + field.width,
+    );
+    const start = await form.locator(".event-end-select__start").boundingBox();
+    expect(start.x + start.width).toBeLessThanOrEqual(field.x + field.width);
+    await expect(
+      form.getByLabel("Order contract link (optional, HTTPS)"),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await form.screenshot({
+      path: info.outputPath(`intake-fields-${width}.png`),
+      animations: "disabled",
+    });
+  });
+}

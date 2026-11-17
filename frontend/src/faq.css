@@ -42,7 +42,7 @@
 
 .faq-page__eyebrow {
   margin: 0 0 14px;
-  color: #a11f32;
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -124,7 +124,7 @@
 }
 
 .faq-item__number {
-  color: #a11f32;
+  color: var(--brand-text);
   font-size: 12px;
   font-weight: 800;
 }

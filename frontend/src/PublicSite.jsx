@@ -2,13 +2,12 @@ import { Link, useLocation } from "react-router-dom";
 import StoryGallery from "./StoryGallery.jsx";
 import { PublicHeader, PublicFooter, BackToTop } from "./PublicChrome.jsx";
 import FlavorMenu from "./FlavorMenu.jsx";
-import paletas from "./assets/paletas-hero.webp";
-import paletasSmall from "./assets/paletas-hero-768.webp";
+import paletas from "./assets/paletas-flavors.webp";
+import paletasSmall from "./assets/paletas-flavors-640.webp";
 import logo from "./assets/logo.png";
 import outdoorCart from "./assets/story/audrey-outdoor-cart.jpg";
 import sharingPaletas from "./assets/story/audrey-sharing-paletas.jpg";
 import heartPaleta from "./assets/story/heart-paleta-mural.jpg";
-import fruitIllustration from "./assets/illustrations/fruit.svg";
 import "./public-site.css";
 
 const burstPoints = Array.from({ length: 24 }, (_, index) => {
@@ -81,21 +80,13 @@ export function PublicHome() {
         </div>
         <div className="hero-art">
           <img
-            className="hero-art__accent"
-            src={fruitIllustration}
-            alt=""
-            aria-hidden="true"
-            width="128"
-            height="128"
-          />
-          <img
             className="hero-art__paletas"
             src={paletas}
-            srcSet={`${paletasSmall} 768w, ${paletas} 1254w`}
+            srcSet={`${paletasSmall} 640w, ${paletas} 1086w`}
             sizes="(min-width: 1440px) 600px, (min-width: 801px) 48vw, (min-width: 521px) 480px, calc(100vw - 40px)"
-            alt="Three colorful paletas"
-            width="1254"
-            height="1254"
+            alt="Three colorful Popssibilities paletas"
+            width="1086"
+            height="1448"
             fetchPriority="high"
           />
           <span className="hero-art__fruit" aria-hidden="true">

@@ -69,6 +69,15 @@ proxy or real authentication cookies. Normal development and production admin
 routes still require sign-in. Run its browser checks with
 `npx playwright test --config playwright.admin-preview.config.js` from `frontend/`.
 
+The populated preview includes 48 fictional customer orders, 41 linked bookings,
+18 inventory items, stock history, sample payment records and notification jobs.
+Dates move with the current Houston date, including past events and the next
+month. Pending requests, deposits, conditional approvals, confirmed events,
+owner review, fulfilled events and cancellations share the same data across
+screens. Dashboard totals and flavor reservations are calculated from those
+records. Prices and provider activity are illustrative; refreshing the preview
+does not contact customers, take payments or connect Google Calendar.
+
 Use `VITE_API_BASE_URL=/api/v1`; Vite proxies requests to Flask and preserves login cookies.
 Cognito callbacks must use `http://localhost:5173/api/v1/<area>/callback`, not port 5000.
 See [authentication setup](authentication-deployment.md) before enabling AUTH_ENABLED.

@@ -17,7 +17,7 @@
   font-weight: 400;
   font-size: clamp(26px, 3.5vw, 32px);
   line-height: 1.1;
-  color: var(--red);
+  color: var(--brand-text);
   margin: 0 0 6px;
   letter-spacing: 0.02em;
   text-transform: uppercase;

@@ -20,13 +20,14 @@
 .error-view,
 .session-loading-view {
   --red: #da2935;
+  --brand-text: #4b004b;
   --pink: #f7c2ce;
   --cream: #fff3d8;
   --purple: #6761a8;
   --ink: #35162f;
   --yellow: #ffcf4b;
-  --blue: #293eaa;
-  --blue-hover: #1e2e82;
+  --blue: #4b004b;
+  --blue-hover: #360036;
   --nav-pink: #ff59a5;
   --site-gutter: clamp(1.25rem, 4.5vw, 5rem);
   --site-header-height: 148px;
@@ -47,7 +48,7 @@
   --purple: #4b004b;
   --ink: #1a1a2e;
   --yellow: #ffcc4b;
-  --blue: #293ca2;
+  --blue: #4b004b;
 }
 
 .public-site {
@@ -222,7 +223,7 @@ html {
   background: var(--red);
   color: #ffffff;
   border: 2px solid #ffffff;
-  box-shadow: 0 4px 14px rgba(41, 62, 170, 0.25);
+  box-shadow: 0 4px 14px rgba(75, 0, 75, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -247,12 +248,12 @@ html {
 .back-to-top-btn:hover {
   background: var(--blue);
   transform: translateY(-3px);
-  box-shadow: 0 6px 18px rgba(41, 62, 170, 0.35);
+  box-shadow: 0 6px 18px rgba(75, 0, 75, 0.35);
 }
 
 .back-to-top-btn:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(41, 62, 170, 0.25);
+  box-shadow: 0 2px 8px rgba(75, 0, 75, 0.25);
 }
 
 @media (max-width: 600px) {
