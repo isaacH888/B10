@@ -136,7 +136,7 @@ test("owner verifies a half deposit while the remaining balance and Calendar sta
     .fill("Checked settled Square transaction in merchant account");
   await page.getByRole("button", { name: "Record verified payment" }).click();
   await expect(
-    page.getByText("confirmed / deposit_paid / pending", { exact: true }),
+    page.getByText("confirmed / deposit paid / pending", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("$50.01 / $50.00", {

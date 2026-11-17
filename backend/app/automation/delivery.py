@@ -10,6 +10,7 @@ from .reminders import instant
 
 UTC = timezone.utc
 MAIL_KINDS = {
+    "payment_receipt",
     "request_received",
     "request_email",
     "reminder",
@@ -412,7 +413,25 @@ class JobProcessor:
             if booking.get("source_order_id"):
                 summary += f"Customer order: {booking['source_order_id']}\n"
             recipient = booking["customer_email"]
-            if kind == "reminder":
+            if kind == "payment_receipt":
+                with self.store.transaction() as tx:
+                    payment = tx.get_payment(payload.get("reference", ""))
+                if not payment or payment["booking_id"] != booking["id"]:
+                    return False
+                purpose = "deposit" if payload.get("purpose") == "deposit" else "balance"
+                subject = f"Popssibilities {purpose} payment receipt: {reference}"
+                body = (
+                    f"Thank you! We received your {purpose} payment.\n"
+                    f"Booking: {reference}\n"
+                    f"Amount received: {money(payment['currency'], payment['amount_minor'])}\n"
+                    f"Transaction reference: {payment['reference']}\n"
+                    f"Payment status: {booking['payment_status'].replace('_', ' ').capitalize()}\n"
+                    f"Remaining balance: {remaining}\n"
+                    "Keep this email as your payment receipt.\n"
+                )
+                if booking["status"] in {"cancelled", "owner_review"}:
+                    body += "Your payment is recorded. Contact Popssibilities to review your booking status.\n"
+            elif kind == "reminder":
                 items = self.reminders.outstanding(booking, payload)
                 if not items:
                     return False

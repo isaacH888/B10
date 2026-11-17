@@ -177,7 +177,7 @@ test("return URL cannot declare payment success", async ({ page }) => {
     page.getByText("We’re waiting for Square", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Payment received" }),
+    page.getByRole("heading", { name: "Deposit paid" }),
   ).toHaveCount(0);
 });
 
@@ -187,7 +187,7 @@ test("verified payment return is public and displays amount", async ({
   await paymentStatus(page, "paid");
   await page.goto(`/payment/return?checkout=${id}`);
   await expect(
-    page.getByRole("heading", { name: "Payment received" }),
+    page.getByRole("heading", { name: "Deposit paid" }),
   ).toBeVisible();
   await expect(
     page.getByText("Your deposit payment of $50.01 has been verified.", {

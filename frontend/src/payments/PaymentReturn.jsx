@@ -54,7 +54,9 @@ export function PaymentReturn() {
       <div className="confirmation-intro">
         <h1 id="payment-title">
           {paid
-            ? "Payment received"
+            ? payment.purpose === "deposit"
+              ? "Deposit paid"
+              : "Balance paid"
             : cancelled
               ? "Checkout cancelled"
               : "Payment status"}
@@ -72,8 +74,8 @@ export function PaymentReturn() {
             style: "currency",
             currency: payment.currency,
           }).format(payment.amount_minor / 100)}{" "}
-          has been verified. Check your booking confirmation email or contact
-          Popssibilities for your booking status.
+          has been verified. Your payment receipt will be emailed to you.
+          Contact Popssibilities for your booking status.
         </p>
       ) : payment?.status === "failed" ? (
         <p>

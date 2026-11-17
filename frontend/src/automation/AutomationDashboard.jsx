@@ -424,7 +424,7 @@ export function AutomationDashboard({ identity, csrfToken }) {
                   </Link>
                 </th>
                 <td>{booking.status}</td>
-                <td>{booking.payment_status}</td>
+                <td>{booking.payment_status.replaceAll("_", " ")}</td>
                 <td>{money(booking.remaining_minor, booking.currency)}</td>
                 <td>{booking.calendar_status}</td>
               </tr>
@@ -628,7 +628,7 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
       <dl>
         <dt>Booking / payment / calendar</dt>
         <dd>
-          {booking.status} / {booking.payment_status} /{" "}
+          {booking.status} / {booking.payment_status.replaceAll("_", " ")} /{" "}
           {booking.calendar_status}
         </dd>
         <dt>Event</dt>

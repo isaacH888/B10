@@ -169,6 +169,9 @@ def test_server_priced_deposit_then_balance_requires_verified_square_payment():
             5000,
         )
         assert len([j for j in tx.list_outbox() if j["kind"] == "confirmation_customer"]) == 1
+        assert result["payment_status"] == "deposit_paid"
+        receipts = [j for j in tx.list_outbox() if j["kind"] == "payment_receipt"]
+        assert len(receipts) == 1 and receipts[0]["payload"]["purpose"] == "deposit"
     balance = service.create(booking["id"], "balance")
     assert balance["amount_minor"] == 5000
     gateway.settle(balance["id"])

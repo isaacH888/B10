@@ -62,6 +62,7 @@ def test_deposit_rounded_up_confirms_with_balance_and_atomic_outbox(setup):
     with store.transaction() as tx:
         kinds = {j["kind"] for j in tx.list_outbox()}
         assert kinds == {
+            "payment_receipt",
             "deposit_request",
             "calendar",
             "confirmation_customer",

@@ -3,6 +3,7 @@
 import re
 import time
 from datetime import datetime, timezone
+from hashlib import sha256
 from urllib.parse import urlsplit
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -480,7 +481,17 @@ class BookingService:
             raise DomainError(
                 "Payment reference was already verified", 409, "payment_reference_conflict"
             )
+        receipt_purpose = (
+            "deposit" if booking.get("paid_minor", 0) < booking["deposit_minor"] else "balance"
+        )
         self._money(tx, booking)
+        self._enqueue(
+            tx,
+            booking,
+            "payment_receipt",
+            {"reference": payment["reference"], "purpose": receipt_purpose},
+            key="payment_receipt:" + sha256(payment["reference"].encode()).hexdigest(),
+        )
         kinds = ()
         if (
             booking["status"] != "cancelled"

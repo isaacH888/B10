@@ -70,6 +70,29 @@ def setup(kind="confirmation_customer", **changes):
     return store, queue, mail, calendar, now, worker, dispatcher
 
 
+def test_verified_payment_receipt_is_sent_once_without_reconfirming_booking():
+    store, _, mail, _, _, worker, _ = setup(kind="payment_receipt", payment_status="deposit_paid")
+    with store.transaction() as tx:
+        tx.add_payment(
+            {
+                "reference": "square:verified-deposit",
+                "booking_id": "b1",
+                "amount_minor": 5001,
+                "currency": "USD",
+            }
+        )
+        job = tx.get_outbox("job1")
+        job["payload"] = {"reference": "square:verified-deposit", "purpose": "deposit"}
+        tx.save_outbox(job)
+    worker.process({"job_key": "job1"})
+    worker.process({"job_key": "job1"})
+    (message,) = mail.messages
+    assert "deposit payment receipt" in message["subject"]
+    assert "USD 50.01" in message["body"]
+    assert "Deposit paid" in message["body"]
+    assert "square:verified-deposit" in message["body"]
+
+
 def test_duplicate_delivery_sends_one_customer_summary_and_contract():
     store, queue, mail, _, _, worker, dispatcher = setup()
     assert dispatcher.dispatch() == 1

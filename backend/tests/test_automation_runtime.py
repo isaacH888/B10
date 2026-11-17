@@ -155,8 +155,11 @@ def test_assembled_booking_outbox_calendar_mail_and_reminders_converge():
     events = [event for event in google.events.values() if event.get("status") != "cancelled"]
     assert len(events) == 1
     original_event_id = events[0]["id"]
-    assert len(services["mail"].messages) == 2
-    assert "https://example.invalid/contract" in services["mail"].messages[0]["body"]
+    assert len(services["mail"].messages) == 3
+    assert any(
+        "https://example.invalid/contract" in message["body"]
+        for message in services["mail"].messages
+    )
     assert len(services["scheduler"].schedules) == 1
     old_payload = next(iter(services["scheduler"].schedules.values()))["payload"]
     domain.reschedule(
@@ -173,7 +176,7 @@ def test_assembled_booking_outbox_calendar_mail_and_reminders_converge():
     assert [event["id"] for event in events] == [original_event_id]
     assert events[0]["start"]["dateTime"].startswith("2030-02-21")
     services["processor"].process(old_payload)
-    assert len(services["mail"].messages) == 2
+    assert len(services["mail"].messages) == 3
     domain.verify_payment(
         booking["id"],
         {

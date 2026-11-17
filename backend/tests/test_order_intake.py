@@ -143,6 +143,7 @@ def test_customer_order_enters_owner_workflow_losslessly_and_once(intake_app, su
     assert confirmed.status_code == 200 and confirmed.json["data"]["status"] == "confirmed"
     detail = client.get(booking_path).json["data"]
     assert {job["kind"] for job in detail["jobs"]} == {
+        "payment_receipt",
         "deposit_request",
         "calendar",
         "confirmation_customer",
