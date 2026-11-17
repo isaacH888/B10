@@ -778,6 +778,7 @@
 }
 .adm-shell .adm-booking-workspace .adm-order-intake-summary {
   display: flex !important;
+  flex-wrap: wrap;
   align-items: center !important;
   justify-content: space-between !important;
   gap: 16px !important;
@@ -817,6 +818,7 @@
 }
 .adm-shell .adm-booking-workspace .adm-order-intake-summary__main {
   display: flex;
+  flex: 1 1 16rem;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
@@ -836,6 +838,9 @@
 }
 .adm-shell .adm-booking-workspace .adm-order-intake-summary__aside {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 14px;
   flex-shrink: 0;
@@ -883,11 +888,18 @@
   padding: 16px 20px;
 }
 .adm-shell .adm-booking-workspace .adm-order-intake-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
   background: var(--adm-sidebar);
   border: 1px solid var(--adm-border);
   border-radius: 12px;
   padding: 18px 20px 20px;
   margin: 0;
+}
+.adm-shell .adm-booking-workspace .adm-order-intake-fieldset > button {
+  align-self: flex-start;
 }
 .adm-shell .adm-booking-workspace .adm-order-intake-fieldset legend {
   float: left;
@@ -1968,6 +1980,21 @@
 }
 
 @media (max-width: 720px) {
+  .adm-shell
+    .adm-booking-workspace
+    .automation-dashboard
+    > section[aria-labelledby="customer-intake-heading"] {
+    padding: 16px 12px;
+  }
+  .adm-shell .adm-booking-workspace .adm-order-intake-content {
+    padding: 12px;
+  }
+  .adm-shell
+    .adm-booking-workspace
+    .automation-dashboard
+    .adm-order-intake-fieldset {
+    padding: 16px 12px;
+  }
   .adm-shell .adm-nav--shared {
     width: 100%;
     border-right: 0;

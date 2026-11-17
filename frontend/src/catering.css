@@ -521,7 +521,7 @@
   background: #fff3d9;
   font-family: "Anton", sans-serif;
   font-size: 2.3rem;
-  color: var(--red);
+  color: var(--purple);
   line-height: 1;
 }
 .cat-how__step h3 {
@@ -607,7 +607,7 @@
 .cat-how__pricing-value {
   font-family: "Anton", sans-serif;
   font-size: 1.85rem;
-  color: var(--red);
+  color: var(--purple);
   line-height: 1.1;
   margin-bottom: 0.35rem;
 }

@@ -4,8 +4,10 @@ const previewMessage = "This preview uses sample data. Changes are disabled.";
 
 function filterOrders(records, params) {
   return records.filter(({ order, booking }) => {
-    const status = booking?.status || "pending";
-    const total = order.pricing.total_cents;
+    const status =
+      booking?.status ||
+      (order.status === "pending_review" ? "pending" : order.status);
+    const total = booking?.total_minor ?? order.pricing.total_cents;
     const paid = booking?.paid_minor || 0;
     const payment = !paid ? "unpaid" : paid >= total ? "paid" : "partial";
     const q = (params.get("q") || "").toLowerCase();
@@ -20,23 +22,17 @@ function filterOrders(records, params) {
       (!params.get("service_type") ||
         order.catering_request.service_type === params.get("service_type")) &&
       (!params.get("event_from") ||
-        Date.parse(order.event.starts_at) >=
+        Date.parse(booking?.start || order.event.starts_at) >=
           Date.parse(params.get("event_from"))) &&
       (!params.get("event_to") ||
-        Date.parse(order.event.starts_at) < Date.parse(params.get("event_to")))
+        Date.parse(booking?.start || order.event.starts_at) <
+          Date.parse(params.get("event_to")))
     );
   });
 }
 
 export function adminPreviewPlugin() {
   const sample = createSampleData();
-  const sampleNotifications = {
-    enabled: false,
-    recipient: "preview@example.invalid",
-    calendar_id: null,
-    email_mode: "simulated",
-    requests: [],
-  };
   return {
     name: "local-admin-sample-preview",
     apply: "serve",
@@ -56,12 +52,12 @@ export function adminPreviewPlugin() {
           response.setHeader("Content-Type", "application/json");
           response.end(JSON.stringify({ error: { code, message } }));
         };
-        const path = url.pathname.slice("/api/v1".length);
         // This server never proxies API requests, accepts credentials, sets an
         // auth cookie, or writes to the real application's database/providers.
         if (request.method !== "GET") {
           return fail("preview_read_only", previewMessage, 403);
         }
+        const path = url.pathname.slice("/api/v1".length);
         if (path === "/admin/session") {
           const expires = new Date(Date.now() + 3600000).toISOString();
           return send({
@@ -102,17 +98,36 @@ export function adminPreviewPlugin() {
         if (path === "/admin/dashboard") return send(sample.dashboard);
         if (path === "/admin/inventory")
           return send({ items: sample.inventory });
-        if (/^\/admin\/inventory\/[^/]+\/history$/.test(path))
-          return send({ history: [], page: 1, page_size: 25, total: 0 });
-        if (/^\/admin\/inventory\/bookings\/[^/]+\/allocations$/.test(path))
-          return send({ allocations: [], items: sample.inventory });
+        const historyMatch = /^\/admin\/inventory\/([^/]+)\/history$/.exec(
+          path,
+        );
+        if (historyMatch) {
+          const history = sample.history[historyMatch[1]];
+          if (!history)
+            return fail("not_found", "Sample inventory item not found.", 404);
+          const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+          return send({
+            history: history.slice((page - 1) * 25, page * 25),
+            page,
+            page_size: 25,
+            total: history.length,
+          });
+        }
+        const allocationsMatch =
+          /^\/admin\/inventory\/bookings\/([^/]+)\/allocations$/.exec(path);
+        if (allocationsMatch) {
+          if (!sample.bookingDetails[allocationsMatch[1]])
+            return fail("not_found", "Sample booking not found.", 404);
+          return send({ items: sample.allocations[allocationsMatch[1]] || [] });
+        }
         if (path === "/admin/calendar") {
           const year = Number(url.searchParams.get("year"));
           const month = Number(url.searchParams.get("month"));
           const events = sample.events.filter((event) => {
-            const date = new Date(event.start);
             return (
-              date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
+              event.status !== "cancelled" &&
+              event.start.slice(0, 7) ===
+                `${year}-${String(month).padStart(2, "0")}`
             );
           });
           return send({
@@ -136,15 +151,14 @@ export function adminPreviewPlugin() {
             configured: false,
             setup_message: "Sample preview. Google Calendar is not connected.",
           });
-        if (path === "/admin/automation/orders") {
-          const pendingOrders = sample.records
-            .filter(({ booking }) => !booking)
-            .map(({ order }) => order);
-          return send(pendingOrders);
-        }
-        if (path === "/admin/automation/requests") {
-          return send(sampleNotifications);
-        }
+        if (path === "/admin/automation/requests")
+          return send(sample.notifications);
+        if (path === "/admin/automation/orders")
+          return send(
+            sample.records
+              .filter(({ booking }) => !booking)
+              .map(({ order }) => order),
+          );
         if (path === "/admin/automation/bookings")
           return send(
             sample.records.flatMap(({ booking }) => (booking ? [booking] : [])),
@@ -153,17 +167,9 @@ export function adminPreviewPlugin() {
           path,
         );
         if (bookingMatch) {
-          const booking = sample.records.find(
-            (record) => record.booking?.id === bookingMatch[1],
-          )?.booking;
-          return booking
-            ? send({
-                booking,
-                payments: [],
-                work: [],
-                events: [],
-                allocations: [],
-              })
+          const detail = sample.bookingDetails[bookingMatch[1]];
+          return detail
+            ? send(detail)
             : fail("not_found", "Sample booking not found.", 404);
         }
         const orderMatch = /^\/admin\/orders\/([^/]+?)(\/export)?$/.exec(path);

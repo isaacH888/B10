@@ -76,8 +76,8 @@
 }
 .flavor-menu__list li:hover {
   transform: translateX(8px);
-  color: var(--red);
-  border-bottom-color: var(--red);
+  color: var(--brand-text);
+  border-bottom-color: var(--brand-text);
 }
 .flavor-menu__list span {
   color: var(--red-ink);
@@ -89,7 +89,7 @@
 }
 .flavor-menu__list li:hover span {
   transform: scale(1.2);
-  color: var(--red);
+  color: var(--brand-text);
   font-weight: 900;
 }
 

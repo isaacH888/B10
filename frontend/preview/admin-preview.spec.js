@@ -19,29 +19,52 @@ test("sample admin screens work without login, cookies, or real API responses", 
   ).toContainText("Sample data");
   await expect(
     page.getByRole("region", { name: "New catering requests", exact: true }),
-  ).toContainText("3");
+  ).toContainText("7");
   const nav = page.getByRole("navigation", { name: "Admin pages" });
   await nav.getByRole("link", { name: "Orders", exact: true }).click();
-  const firstOrder = page
-    .getByRole("row")
-    .filter({ hasText: "preview_order_001" });
+  await page
+    .getByRole("searchbox", { name: "Search orders" })
+    .fill("Elena Cruz");
+  const firstOrder = page.getByRole("row", {
+    name: /Sample Elena Cruz preview_order_001/,
+  });
   await expect(firstOrder).toBeVisible();
   await firstOrder.getByRole("link", { name: "View details ↗" }).click();
   await expect(
-    page.getByRole("heading").filter({ hasText: "preview_order_001" }),
-  ).toContainText(/Sample Elena Cruz/i);
+    page.getByRole("heading", {
+      name: /SAMPLE ELENA CRUZ.*preview_order_001/i,
+    }),
+  ).toBeVisible();
   await nav.getByRole("link", { name: "Calendar", exact: true }).click();
+  const { data: record } = await (
+    await page.request.get("/api/v1/admin/orders/preview_order_003")
+  ).json();
+  const currentMonth = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    month: "2-digit",
+  }).format(new Date());
+  if (record.order.event.starts_at.slice(5, 7) !== currentMonth)
+    await page.getByRole("button", { name: "Next month", exact: true }).click();
   await page
     .getByRole("button", {
       name: "Sample Avery Morgan, Full Service, 250 paletas, confirmed",
     })
     .click();
-  await expect(page.getByRole("dialog")).toContainText("100 Example Street");
+  await expect(page.getByRole("dialog")).toContainText("300 Example Lane");
   await page.getByRole("button", { name: "Close event details" }).click();
   await nav.getByRole("link", { name: "Inventory", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "View details for Mango", exact: true }),
+    page
+      .getByRole("button", { name: "View details for Mango Lime", exact: true })
+      .first(),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "View details for Mango Lime", exact: true })
+    .first()
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Sample freezer restock.",
+  );
   await expect(context.cookies()).resolves.toEqual([]);
   expect(errors).toEqual([]);
   expect(apiResponses.length).toBeGreaterThan(5);
@@ -49,6 +72,81 @@ test("sample admin screens work without login, cookies, or real API responses", 
     expect(response.headers()["x-admin-preview"]).toBe("sample-data");
     expect(response.headers()["set-cookie"]).toBeUndefined();
   }
+});
+
+test("populated demo stays consistent across orders, dashboard, bookings and inventory", async ({
+  request,
+}) => {
+  const read = async (path) =>
+    (await (await request.get(`/api/v1${path}`)).json()).data;
+  const [orders, dashboard, inventory, bookings, intake] = await Promise.all([
+    read("/admin/orders?page_size=100"),
+    read("/admin/dashboard"),
+    read("/admin/inventory"),
+    read("/admin/automation/bookings"),
+    read("/admin/automation/orders"),
+  ]);
+  expect(orders.total).toBe(48);
+  expect(bookings).toHaveLength(41);
+  expect(inventory.items).toHaveLength(18);
+  expect(intake).toHaveLength(dashboard.requests);
+  for (const name of ["Elena Cruz", "Morgan Davis", "Mia Anderson"]) {
+    const approved = orders.items.find(
+      ({ order }) => order.customer.name === `Sample ${name}`,
+    );
+    expect(approved.booking.status).toBe("awaiting_deposit");
+    expect(approved.booking.paid_minor).toBe(0);
+    expect(approved.booking.customer_message).toContain(
+      "availability is approved",
+    );
+    expect(intake.some((order) => order.id === approved.order.id)).toBe(false);
+    const approvedDetail = await read(
+      `/admin/automation/bookings/${approved.booking.id}`,
+    );
+    expect(approvedDetail.jobs[0].kind).toBe("deposit_request");
+    expect(approvedDetail.jobs[0].delivery.status).toBe("simulated");
+  }
+  expect(dashboard.recent_orders).toHaveLength(5);
+  const secondPage = await read("/admin/orders?page=2");
+  expect(secondPage.items).toHaveLength(23);
+  const pending = await read("/admin/orders?status=pending");
+  expect(pending.total).toBe(dashboard.requests);
+  const balance = bookings
+    .filter((booking) => booking.status === "confirmed")
+    .reduce((sum, booking) => sum + booking.remaining_minor, 0);
+  expect(dashboard.balances[0].remaining_cents).toBe(balance);
+  expect(dashboard.low_stock).toBe(
+    inventory.items.filter((item) => item.available < item.minimum).length,
+  );
+  expect(dashboard.reserved_units).toBe(
+    inventory.items.reduce((sum, item) => sum + item.reserved, 0),
+  );
+  for (const event of dashboard.upcoming) {
+    expect(event.status).toBe("confirmed");
+    expect(Date.parse(event.start)).toBeLessThan(
+      Date.parse(dashboard.window_end),
+    );
+  }
+  const booking = bookings.find(
+    (item) => item.status === "confirmed" && item.paid_minor > 0,
+  );
+  const detail = await read(`/admin/automation/bookings/${booking.id}`);
+  expect(
+    detail.payments.reduce((sum, payment) => sum + payment.amount_minor, 0),
+  ).toBe(booking.paid_minor);
+  expect(detail.jobs).not.toHaveLength(0);
+  const allocation = await read(
+    `/admin/inventory/bookings/${booking.id}/allocations`,
+  );
+  expect(allocation.items.reduce((sum, item) => sum + item.quantity, 0)).toBe(
+    booking.quantity,
+  );
+  const history = await read(
+    `/admin/inventory/${inventory.items[0].id}/history`,
+  );
+  expect(history.history).toHaveLength(2);
+  const notifications = await read("/admin/automation/requests");
+  expect(notifications.email_mode).toBe("simulated");
 });
 
 test("preview blocks mutations and never falls through to real services", async ({
