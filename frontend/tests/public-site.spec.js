@@ -278,11 +278,17 @@ test("Audrey's gallery rotates in view and supports pausing and choosing photos"
   await expect(
     gallery.getByRole("group", { name: "Choose a photo" }).getByRole("button"),
   ).toHaveCount(3);
-  await expect(gallery).toBeInViewport();
+  // Fonts can shift the anchor position after navigation. Keep enough of the
+  // gallery visible to satisfy its 25% autoplay threshold before timing it.
+  await page.evaluate(() => document.fonts.ready);
+  await gallery.scrollIntoViewIfNeeded();
+  await expect(gallery).toBeInViewport({ ratio: 0.25 });
   await page.mouse.move(0, 0);
   await expect(photo(1)).toHaveAttribute("aria-current", "true");
 
-  await page.clock.fastForward(5600);
+  // Let rendering and IntersectionObserver callbacks run as time advances;
+  // jumping directly can happen before the gallery schedules its first timer.
+  await page.clock.runFor(5600);
   await expect(photo(2)).toHaveAttribute("aria-current", "true");
   await gallery.hover();
   await page.clock.fastForward(11000);
