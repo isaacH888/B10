@@ -1,10 +1,13 @@
 """Saved-data dashboard and timezone-aware Calendar feed, independent of Google availability."""
 
+import csv
+import io
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pymysql
-from flask import Blueprint, current_app, g, jsonify, request
+from flask import Blueprint, Response, current_app, g, jsonify, request
 
 from . import database
 from .admin_orders import (
@@ -16,6 +19,7 @@ from .admin_orders import (
     _memory_page,
     _owner,
     _sql_page,
+    _status,
     _unavailable,
     timestamp,
 )
@@ -270,4 +274,238 @@ def dashboard():
             "storage": "database" if persistent else "memory",
         },
         meta={"request_id": g.request_id},
+    )
+
+
+def _clean_cell(value):
+    if value is None:
+        return ""
+    text = str(value)
+    if re.match(r"^[\s]*[=+@-]", text):
+        return "'" + text
+    return text
+
+
+def dashboard_report_csv():
+    now = current_app.config.get("ADMIN_CLOCK", lambda: datetime.now(timezone.utc))()
+    query = dict(q="", status="", payment_status="", service_type="", page=1, page_size=25)
+    persistent = database_configured(current_app.config)
+    counts, balances = aggregate()
+    recent, _ = _sql_page(query) if persistent else _memory_page(query)
+    upcoming = [
+        event
+        for event in events_between(now, now + timedelta(days=30), confirmed_only=True)
+        if event["status"] == "confirmed"
+    ]
+    low, reserved = None, None
+    if persistent:
+        from .inventory import ITEMS, item_view
+
+        try:
+            with database.connect(current_app.config) as connection, connection.cursor() as cursor:
+                cursor.execute(ITEMS + " WHERE i.active=1")
+                items = [item_view(row) for row in cursor.fetchall()]
+                low = sum(item["available"] < item["minimum"] for item in items)
+                reserved = sum(item["reserved"] for item in items)
+        except Exception:
+            pass
+
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+
+    # Header / Title
+    writer.writerow([_clean_cell("ADMIN DASHBOARD - GENERAL INFORMATION REPORT")])
+    writer.writerow([_clean_cell("Generated At (UTC)"), _clean_cell(now.isoformat())])
+    writer.writerow(
+        [_clean_cell("Storage Mode"), _clean_cell("database" if persistent else "memory")]
+    )
+    writer.writerow([])
+
+    # Section 1: KPI Metrics
+    writer.writerow([_clean_cell("--- KEY OPERATIONAL METRICS ---")])
+    writer.writerow([_clean_cell("Metric"), _clean_cell("Value"), _clean_cell("Notes")])
+    writer.writerow(
+        [
+            _clean_cell("New Catering Requests"),
+            _clean_cell(counts.get("pending", 0)),
+            _clean_cell("Awaiting availability review"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Upcoming Confirmed Events"),
+            _clean_cell(len(upcoming)),
+            _clean_cell("Scheduled in next 30 days"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Upcoming Paletas Required"),
+            _clean_cell(sum(event["quantity"] for event in upcoming)),
+            _clean_cell("Total units for next 30 days"),
+        ]
+    )
+
+    formatted_balances = "None"
+    if balances:
+        formatted_balances = " / ".join(
+            f"{b['currency']} {b['remaining_cents']/100:.2f}" for b in balances
+        )
+    writer.writerow(
+        [
+            _clean_cell("Outstanding Balances"),
+            _clean_cell(formatted_balances),
+            _clean_cell("Remaining on confirmed bookings"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Awaiting Deposits"),
+            _clean_cell(counts.get("awaiting_deposit", 0)),
+            _clean_cell("Requests approved, deposit pending"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Bookings Needing Review"),
+            _clean_cell(counts.get("owner_review", 0)),
+            _clean_cell("Special attention required"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Low-Stock Flavor Items"),
+            _clean_cell(low if low is not None else "N/A"),
+            _clean_cell("Available below minimum threshold"),
+        ]
+    )
+    writer.writerow(
+        [
+            _clean_cell("Reserved Flavor Units"),
+            _clean_cell(reserved if reserved is not None else "N/A"),
+            _clean_cell("Units allocated to bookings"),
+        ]
+    )
+    writer.writerow([])
+
+    # Section 2: Upcoming Confirmed Events
+    writer.writerow([_clean_cell("--- UPCOMING CONFIRMED EVENTS (NEXT 30 DAYS) ---")])
+    writer.writerow(
+        [
+            _clean_cell("Event / Ref ID"),
+            _clean_cell("Customer"),
+            _clean_cell("Email"),
+            _clean_cell("Phone"),
+            _clean_cell("Start Time"),
+            _clean_cell("End Time"),
+            _clean_cell("Timezone"),
+            _clean_cell("Service Type"),
+            _clean_cell("Quantity"),
+            _clean_cell("Venue / Location"),
+            _clean_cell("Status"),
+            _clean_cell("Total Amount"),
+            _clean_cell("Paid Amount"),
+            _clean_cell("Remaining Balance"),
+        ]
+    )
+    if not upcoming:
+        writer.writerow(
+            [_clean_cell("No upcoming confirmed events scheduled in the next 30 days.")]
+        )
+    else:
+        for ev in upcoming:
+            curr = ev.get("currency", "USD")
+            total_str = f"{curr} {ev['total_cents']/100:.2f}" if "total_cents" in ev else ""
+            paid_str = f"{curr} {ev['paid_cents']/100:.2f}" if "paid_cents" in ev else ""
+            rem_str = f"{curr} {ev['remaining_cents']/100:.2f}" if "remaining_cents" in ev else ""
+            writer.writerow(
+                [
+                    _clean_cell(ev.get("reference") or ev.get("id")),
+                    _clean_cell(ev.get("customer")),
+                    _clean_cell(ev.get("email")),
+                    _clean_cell(ev.get("phone")),
+                    _clean_cell(ev.get("start")),
+                    _clean_cell(ev.get("end")),
+                    _clean_cell(ev.get("timezone")),
+                    _clean_cell(ev.get("service_type")),
+                    _clean_cell(ev.get("quantity")),
+                    _clean_cell(ev.get("venue")),
+                    _clean_cell(ev.get("status")),
+                    _clean_cell(total_str),
+                    _clean_cell(paid_str),
+                    _clean_cell(rem_str),
+                ]
+            )
+    writer.writerow([])
+
+    # Section 3: Recent Orders Snapshot
+    writer.writerow([_clean_cell("--- RECENT ORDERS & CATERING REQUESTS ---")])
+    writer.writerow(
+        [
+            _clean_cell("Order ID"),
+            _clean_cell("Customer Name"),
+            _clean_cell("Customer Email"),
+            _clean_cell("Customer Phone"),
+            _clean_cell("Event Date / Start"),
+            _clean_cell("Service Type"),
+            _clean_cell("Quantity"),
+            _clean_cell("Order Status"),
+            _clean_cell("Total Amount"),
+            _clean_cell("Deposit Status"),
+        ]
+    )
+    if not recent:
+        writer.writerow([_clean_cell("No recent orders recorded.")])
+    else:
+        for rec in recent:
+            order, booking = rec.get("order"), rec.get("booking")
+            if not order:
+                continue
+            cust = order.get("customer", {})
+            event = order.get("event", {})
+            cat = order.get("catering_request", {})
+            pricing = order.get("pricing", {})
+            dep = order.get("deposit", {})
+            status = _status(rec)
+            start = booking.get("start") if booking else event.get("starts_at")
+            curr = pricing.get("currency", "USD")
+            total_amt = (
+                f"{curr} {pricing.get('total_cents', 0)/100:.2f}" if "total_cents" in pricing else ""
+            )
+            writer.writerow(
+                [
+                    _clean_cell(order.get("id")),
+                    _clean_cell(cust.get("name")),
+                    _clean_cell(cust.get("email")),
+                    _clean_cell(cust.get("phone")),
+                    _clean_cell(start),
+                    _clean_cell(booking.get("service_type") if booking else cat.get("service_type")),
+                    _clean_cell(booking.get("quantity") if booking else cat.get("quantity")),
+                    _clean_cell(status),
+                    _clean_cell(total_amt),
+                    _clean_cell(dep.get("status")),
+                ]
+            )
+
+    return stream.getvalue()
+
+
+@overview.get("/admin/dashboard/export")
+@require_admin("bookings:read")
+def export_dashboard():
+    _owner()
+    try:
+        csv_data = dashboard_report_csv()
+    except (pymysql.MySQLError, OSError, ValueError):
+        return _unavailable()
+
+    timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"admin_report_{timestamp_str}.csv"
+    return Response(
+        csv_data,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
     )

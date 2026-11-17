@@ -96,6 +96,107 @@ export function adminPreviewPlugin() {
             503,
           );
         if (path === "/admin/dashboard") return send(sample.dashboard);
+        if (path === "/admin/dashboard/export") {
+          const cell = (value) =>
+            `"${String(value ?? "").replaceAll('"', '""')}"`;
+          const csv = [
+            ["ADMIN DASHBOARD - GENERAL INFORMATION REPORT (SAMPLE PREVIEW)"],
+            ["Generated At (UTC)", new Date().toISOString()],
+            ["Storage Mode", "preview-sample-data"],
+            [],
+            ["--- KEY OPERATIONAL METRICS ---"],
+            ["Metric", "Value", "Notes"],
+            [
+              "New Catering Requests",
+              sample.dashboard.requests,
+              "Awaiting availability review",
+            ],
+            [
+              "Upcoming Confirmed Events",
+              sample.dashboard.upcoming_count,
+              "Scheduled in next 30 days",
+            ],
+            [
+              "Upcoming Paletas Required",
+              sample.dashboard.upcoming_quantity,
+              "Total units for next 30 days",
+            ],
+            [
+              "Outstanding Balances",
+              sample.dashboard.balances
+                ?.map(
+                  (b) =>
+                    `${b.currency} ${(b.remaining_cents / 100).toFixed(2)}`,
+                )
+                .join(" / ") || "None",
+              "Remaining on confirmed bookings",
+            ],
+            [
+              "Awaiting Deposits",
+              sample.dashboard.awaiting_deposit,
+              "Requests approved, deposit pending",
+            ],
+            [
+              "Bookings Needing Review",
+              sample.dashboard.owner_review,
+              "Special attention required",
+            ],
+            [
+              "Low-Stock Flavor Items",
+              sample.dashboard.low_stock ?? "N/A",
+              "Available below minimum threshold",
+            ],
+            [],
+            ["--- UPCOMING CONFIRMED EVENTS (NEXT 30 DAYS) ---"],
+            [
+              "Event / Ref ID",
+              "Customer",
+              "Start Time",
+              "Service Type",
+              "Quantity",
+              "Venue",
+              "Status",
+            ],
+            ...(sample.dashboard.upcoming || []).map((ev) => [
+              ev.id,
+              ev.customer,
+              ev.start,
+              ev.service_type,
+              ev.quantity,
+              ev.venue,
+              ev.status,
+            ]),
+            [],
+            ["--- RECENT ORDERS & CATERING REQUESTS ---"],
+            [
+              "Order ID",
+              "Customer Name",
+              "Event Date / Start",
+              "Service Type",
+              "Quantity",
+              "Status",
+            ],
+            ...(sample.dashboard.recent_orders || []).map((rec) => {
+              const order = rec.order || rec;
+              return [
+                order.id,
+                order.customer?.name,
+                order.event?.starts_at || "",
+                order.catering_request?.service_type || "",
+                order.catering_request?.quantity || "",
+                order.status,
+              ];
+            }),
+          ]
+            .map((row) => row.map(cell).join(","))
+            .join("\r\n");
+          response.setHeader("Content-Type", "text/csv; charset=utf-8");
+          response.setHeader(
+            "Content-Disposition",
+            'attachment; filename="admin_dashboard_report_preview.csv"',
+          );
+          return response.end(csv);
+        }
         if (path === "/admin/inventory")
           return send({ items: sample.inventory });
         const historyMatch = /^\/admin\/inventory\/([^/]+)\/history$/.exec(

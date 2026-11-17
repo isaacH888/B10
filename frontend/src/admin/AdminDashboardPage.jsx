@@ -1,7 +1,7 @@
 import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
-import { fetchDashboard } from "./adminApi.js";
+import { downloadDashboardReport, fetchDashboard } from "./adminApi.js";
 import { Link, useNavigate } from "react-router-dom";
 import "./admin-dashboard.css";
 
@@ -115,15 +115,13 @@ function AttentionCard({ items }) {
             <li key={item.id} className="adm-attention-item">
               <Link
                 to={item.href}
-                className={`adm-attention-link-row ${
-                  hasCount ? "adm-attention-link-row--active" : ""
-                }`}
+                className={`adm-attention-link-row ${hasCount ? "adm-attention-link-row--active" : ""
+                  }`}
               >
                 <div className="adm-attention-item__main">
                   <span
-                    className={`adm-attention-item__count ${
-                      hasCount ? "adm-attention-item__count--active" : ""
-                    }`}
+                    className={`adm-attention-item__count ${hasCount ? "adm-attention-item__count--active" : ""
+                      }`}
                   >
                     {item.count}
                   </span>
@@ -240,8 +238,23 @@ export function AdminDashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState(null);
   const hasData = useRef(false);
   const latestRequest = useRef(0);
+
+  async function handleExportReport() {
+    setExportBusy(true);
+    setExportError(null);
+    try {
+      await downloadDashboardReport();
+    } catch (failure) {
+      setExportError(failure.message || "Could not export report.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
   const load = useCallback(async () => {
     const version = ++latestRequest.current;
     if (!hasData.current) setLoading(true);
@@ -272,76 +285,76 @@ export function AdminDashboardPage() {
   );
   const cards = data
     ? [
-        {
-          id: "catering-requests",
-          label: "New catering requests",
-          value: data.requests,
-          sub: "Awaiting availability review",
-          color: "pink",
-        },
-        {
-          id: "upcoming-events",
-          label: "Upcoming events",
-          value: data.upcoming_count,
-          sub: `Next 30 days · ${data.upcoming_quantity} paletas`,
-          color: "yellow",
-        },
-        {
-          id: "outstanding-balances",
-          label: "Outstanding balances",
-          value: data.balances.length
-            ? data.balances
-                .map((b) =>
-                  new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: b.currency,
-                  }).format(b.remaining_cents / 100),
-                )
-                .join(" / ")
-            : "None",
-          sub: "Remaining on confirmed bookings",
-          color: "softpink",
-        },
-        {
-          id: "low-stock",
-          label: "Low-stock items",
-          value: data.low_stock ?? "Unavailable",
-          sub: "Available below minimum",
-          color: "pink",
-        },
-      ]
+      {
+        id: "catering-requests",
+        label: "New catering requests",
+        value: data.requests,
+        sub: "Awaiting availability review",
+        color: "pink",
+      },
+      {
+        id: "upcoming-events",
+        label: "Upcoming events",
+        value: data.upcoming_count,
+        sub: `Next 30 days · ${data.upcoming_quantity} paletas`,
+        color: "yellow",
+      },
+      {
+        id: "outstanding-balances",
+        label: "Outstanding balances",
+        value: data.balances.length
+          ? data.balances
+            .map((b) =>
+              new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: b.currency,
+              }).format(b.remaining_cents / 100),
+            )
+            .join(" / ")
+          : "None",
+        sub: "Remaining on confirmed bookings",
+        color: "softpink",
+      },
+      {
+        id: "low-stock",
+        label: "Low-stock items",
+        value: data.low_stock ?? "Unavailable",
+        sub: "Available below minimum",
+        color: "pink",
+      },
+    ]
     : [];
   const attention = data
     ? [
-        {
-          id: "requests",
-          count: data.requests,
-          label: "Requests awaiting approval",
-          link: "Review requests →",
-          href: "/admin/orders?status=pending",
-        },
-        {
-          id: "deposits",
-          count: data.awaiting_deposit,
-          label: "Awaiting deposits",
-          link: "Check payments →",
-          href: "/admin/orders?status=awaiting_deposit",
-        },
-        {
-          id: "review",
-          count: data.owner_review,
-          label: "Bookings needing owner review",
-          link: "Review bookings →",
-          href: "/admin/automation",
-        },
-        {
-          id: "stock",
-          count: data.low_stock ?? "Unavailable",
-          label: "Low-stock items",
-          link: "Update inventory →",
-          href: "/admin/inventory",
-        },
-      ]
+      {
+        id: "requests",
+        count: data.requests,
+        label: "Requests awaiting approval",
+        link: "Review requests →",
+        href: "/admin/orders?status=pending",
+      },
+      {
+        id: "deposits",
+        count: data.awaiting_deposit,
+        label: "Awaiting deposits",
+        link: "Check payments →",
+        href: "/admin/orders?status=awaiting_deposit",
+      },
+      {
+        id: "review",
+        count: data.owner_review,
+        label: "Bookings needing owner review",
+        link: "Review bookings →",
+        href: "/admin/automation",
+      },
+      {
+        id: "stock",
+        count: data.low_stock ?? "Unavailable",
+        label: "Low-stock items",
+        link: "Update inventory →",
+        href: "/admin/inventory",
+      },
+    ]
     : [];
   const today = new Date();
   const dateStr = today.toLocaleDateString("en-US", {
@@ -358,6 +371,14 @@ export function AdminDashboardPage() {
       <div className="adm-main">
         <AdminPageHeader title="Dashboard">
           <AdminRefreshStatus {...refreshState} />
+          <button
+            type="button"
+            className="adm-btn adm-btn--outline"
+            onClick={handleExportReport}
+            disabled={exportBusy || loading || Boolean(error)}
+          >
+            {exportBusy ? "Exporting…" : "Export report (CSV)"}
+          </button>
         </AdminPageHeader>
 
         <div className="adm-content">
@@ -374,56 +395,88 @@ export function AdminDashboardPage() {
               className="adm-btn adm-btn--primary"
               onClick={() => navigate("/admin/orders")}
             >
-              Review orders ↗
-            </button>
+          Review orders ↗
+        </button>
+      </div>
+
+      {exportError && (
+        <div
+          role="alert"
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #f87171",
+            color: "#991b1b",
+            borderRadius: "8px",
+            padding: "0.75rem 1rem",
+            marginBottom: "1rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>{exportError}</span>
+          <button
+            type="button"
+            onClick={() => setExportError(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: "bold",
+              color: "#991b1b",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {loading && <p role="status">Loading dashboard…</p>}
+      {error && (
+        <p role="alert">
+          Could not load dashboard.{" "}
+          <button onClick={refreshState.refresh}>Try again</button>
+        </p>
+      )}
+      {!loading && !error && data && (
+        <>
+          {/* Stat cards */}
+          <div className="adm-stats-grid" aria-label="At-a-glance stats">
+            {cards.map((card) => (
+              <StatCard key={card.id} {...card} />
+            ))}
           </div>
 
-          {loading && <p role="status">Loading dashboard…</p>}
-          {error && (
-            <p role="alert">
-              Could not load dashboard.{" "}
-              <button onClick={refreshState.refresh}>Try again</button>
+          {/* Middle row: events + attention */}
+          <div className="adm-mid-row">
+            <UpcomingEventsCard
+              events={data.upcoming}
+              total={data.upcoming_count}
+            />
+            <AttentionCard items={attention} />
+          </div>
+
+          {/* Recent orders */}
+          <RecentOrdersTable orders={data.recent_orders} />
+
+          {/* Footer note + action */}
+          <div className="adm-content__footer">
+            <p className="adm-content__footer-note">
+              Stock is reserved through explicit flavor allocations for
+              confirmed bookings.
             </p>
-          )}
-          {!loading && !error && data && (
-            <>
-              {/* Stat cards */}
-              <div className="adm-stats-grid" aria-label="At-a-glance stats">
-                {cards.map((card) => (
-                  <StatCard key={card.id} {...card} />
-                ))}
-              </div>
-
-              {/* Middle row: events + attention */}
-              <div className="adm-mid-row">
-                <UpcomingEventsCard
-                  events={data.upcoming}
-                  total={data.upcoming_count}
-                />
-                <AttentionCard items={attention} />
-              </div>
-
-              {/* Recent orders */}
-              <RecentOrdersTable orders={data.recent_orders} />
-
-              {/* Footer note + action */}
-              <div className="adm-content__footer">
-                <p className="adm-content__footer-note">
-                  Stock is reserved through explicit flavor allocations for
-                  confirmed bookings.
-                </p>
-                <button
-                  type="button"
-                  className="adm-btn adm-btn--outline"
-                  onClick={() => navigate("/admin/inventory")}
-                >
-                  Update inventory ↗
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+            <button
+              type="button"
+              className="adm-btn adm-btn--outline"
+              onClick={() => navigate("/admin/inventory")}
+            >
+              Update inventory ↗
+            </button>
+          </div>
+        </>
+      )}
     </div>
+      </div >
+    </div >
   );
 }

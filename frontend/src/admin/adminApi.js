@@ -219,3 +219,32 @@ export async function downloadOrders(filters = {}, id = null) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export async function downloadDashboardReport() {
+  const response = await fetch("/api/v1/admin/dashboard/export", {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "text/csv" },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const error = new ApiError(
+      response.status,
+      body?.error?.code || "request_failed",
+    );
+    error.message =
+      body?.error?.message || "Dashboard report could not be exported.";
+    throw error;
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const disposition = response.headers.get("Content-Disposition");
+  const filenameMatch = disposition && disposition.match(/filename="?([^"]+)"?/);
+  link.download = filenameMatch ? filenameMatch[1] : "admin_dashboard_report.csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
