@@ -913,17 +913,16 @@ def _list_in_database(status, event_from, event_to, page, page_size, identity_id
                 params + (page_size, (page - 1) * page_size),
             )
             rows = cursor.fetchall()
-        return [
-            _admin_view(
-                _with_state(
-                    json.loads(body),
-                    order_status,
-                    deposit_status,
-                    json.loads(booking_json) if booking_json else None,
-                )
+        items = []
+        for body, order_status, deposit_status, booking_json in rows:
+            booking = json.loads(booking_json) if booking_json else None
+            order = _admin_view(
+                _with_state(json.loads(body), order_status, deposit_status, booking)
             )
-            for body, order_status, deposit_status, booking_json in rows
-        ], total
+            if identity_id is not None:
+                order["payment"] = _customer_payment(booking)
+            items.append(order)
+        return items, total
     finally:
         connection.close()
 
@@ -943,6 +942,8 @@ def _list_in_memory(status, event_from, event_to, page, page_size, identity_id=N
         booking = bookings.get(order["id"])
         if booking is not None:
             order = _with_state(order, *booking_order_state(booking), booking=booking)
+        if identity_id is not None:
+            order = {**order, "payment": _customer_payment(booking)}
         starts_at = _effective_event_start(order, booking)
         if (
             (status is None or order["status"] == status)
@@ -952,6 +953,49 @@ def _list_in_memory(status, event_from, event_to, page, page_size, identity_id=N
             matches.append(order)
     offset = (page - 1) * page_size
     return matches[offset : offset + page_size], len(matches)
+
+
+def _customer_payment(booking):
+    checkout = current_app.extensions.get("square_checkout")
+    return checkout.customer_deposit_offer(booking) if checkout else None
+
+
+def customer_booking_id(order_id, identity_id):
+    """Resolve an owned order to its booking; contact email never grants access."""
+    if not _valid_order_id(order_id):
+        raise AuthError("not_found", "The requested resource was not found.", 404)
+    if database_configured(current_app.config):
+        try:
+            connection = pymysql.connect(**connection_options(current_app.config))
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT a.order_id, l.booking_id FROM customer_order_accounts a"
+                        " LEFT JOIN automation_order_links l ON l.order_id = a.order_id"
+                        " WHERE a.order_id = %s AND a.identity_id = %s",
+                        (order_id, identity_id),
+                    )
+                    row = cursor.fetchone()
+            finally:
+                connection.close()
+        except (pymysql.MySQLError, OSError):
+            raise AuthError(
+                "service_unavailable", "Order details are temporarily unavailable.", 503
+            ) from None
+        if row is None:
+            raise AuthError("not_found", "The requested resource was not found.", 404)
+        return row[1]
+    orders = current_app.extensions["orders_memory"]
+    with orders["lock"]:
+        owned = orders["owners"].get(order_id) == identity_id
+    if not owned:
+        raise AuthError("not_found", "The requested resource was not found.", 404)
+    store = current_app.extensions.get("automation_store")
+    if store is None:
+        return None
+    with store.transaction() as tx:
+        link = tx.get_order_link(order_id)
+    return link["booking_id"] if link else None
 
 
 # --------------------------------------------------------------------------- #
@@ -1088,6 +1132,7 @@ def list_customer_orders():
         "deposit",
         "created_at",
         "updated_at",
+        "payment",
     )
     return jsonify(
         data={

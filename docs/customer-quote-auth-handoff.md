@@ -8,7 +8,11 @@ also enforce customer authentication, same-origin requests and CSRF on the serve
 Quotes and submitted orders belong to the verified account identity, independently
 of the contact email. My Account → My Orders reads `GET /api/v1/customer/orders`
 and shows that account's submitted requests, current booking status and verified
-deposit amounts. Unsubmitted quotes do not appear in this list. Existing guest
+deposit amounts. Once availability is approved, **Pay deposit** opens Square's
+secure checkout for the unpaid deposit. It is unavailable before approval, after
+cancellation/payment or when the reservation/payment window has expired. The
+server checks account ownership and the current approval, revision and amount;
+Square's verified webhook updates payment status. Unsubmitted quotes do not appear in this list. Existing guest
 orders are not automatically assigned to matching email addresses.
 
 ## Hosting work for Shourya
@@ -53,6 +57,14 @@ hosted credentials, Google configuration or the hosted database.
    sign back in and open My Orders. Update its booking through the existing owner
    workflow and confirm the customer sees the new status. A different account must
    not see or submit against the first account's records. Do not collect real payments.
+
+6. For Pay deposit, configure Square and its webhook/worker processing using the
+   existing [Square runbook](square-checkout.md), initially in Sandbox. This uses
+   the existing `0013_square_checkout.sql` and `0014_customer_order_accounts.sql`;
+   it needs no additional migration. Test owner approval → Pay deposit → Square
+   Sandbox → verified webhook → updated My Orders. Test cancellation, conditional
+   approval, expiry and another customer's account as well. Production credentials
+   and real payment activation remain a separate hosting task.
 
 Full configuration and deployment recovery procedures remain in
 [authentication deployment](authentication-deployment.md) and

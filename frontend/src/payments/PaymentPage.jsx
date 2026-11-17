@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../auth/api.js";
+import { squareDestination } from "./squareDestination.js";
 
 export function PaymentPage() {
   const [params] = useSearchParams();
@@ -43,20 +44,9 @@ export function PaymentPage() {
         headers: { "Content-Type": "application/json" },
         body: "{}",
       });
-      const destination = new URL(result.url);
-      const hosts =
-        payment.environment === "sandbox"
-          ? ["sandbox.square.link", "connect.squareupsandbox.com"]
-          : ["square.link", "checkout.square.site"];
-      if (
-        destination.protocol !== "https:" ||
-        destination.username ||
-        destination.password ||
-        !hosts.includes(destination.hostname) ||
-        (destination.port && destination.port !== "443")
-      )
-        throw new Error("invalid_destination");
-      window.location.assign(destination.href);
+      window.location.assign(
+        squareDestination(result.url, payment.environment),
+      );
     } catch (failure) {
       setError(
         failure.serverMessage ||
@@ -124,6 +114,9 @@ export function PaymentPage() {
       )}
       {!payment && !error && <p>Loading payment details…</p>}
       {error && <p role="alert">{error}</p>}
+      <p>
+        <Link to="/account?view=orders">Back to My Orders</Link>
+      </p>
       <p>
         <Link to="/">Return to Popssibilities</Link>
       </p>

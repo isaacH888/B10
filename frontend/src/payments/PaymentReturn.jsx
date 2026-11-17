@@ -111,6 +111,9 @@ export function PaymentReturn() {
         </button>
       )}
       <p>
+        <Link to="/account?view=orders">Back to My Orders</Link>
+      </p>
+      <p>
         <Link to="/">Return to Popssibilities</Link>
       </p>
     </section>

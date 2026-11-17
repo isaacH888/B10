@@ -2,6 +2,16 @@
 
 Square is the selected payment provider. The owner approves availability first. The deposit email includes a Popssibilities payment link for the unpaid part of the required 50% deposit. That page checks the current amount, reservation and approval before sending the customer to Square's hosted checkout. A completed, server-verified Square payment confirms the booking while its approved reservation is valid. The booking workspace can also create and email the remaining balance on a confirmed booking, including after the event.
 
+Signed-in customers can also use **My Account → My Orders → Pay deposit** after
+the owner confirms availability. Order-history polling exposes read-only payment
+eligibility; it never creates Square links. The customer action resolves ownership
+from the account identity and the order's saved booking link, then reuses the same
+server-priced checkout service as emailed links. It accepts only the displayed
+booking revision. Changed approvals/prices, partial payments and expired windows
+are checked again before the Square handoff. Conditional approval, denial, a paid
+deposit and disabled Square do not enable payment. Payment return pages link back
+to My Orders; returning from Square alone never marks the deposit paid.
+
 Partial verified payments reduce the amount requested. The application never adds a processing surcharge. This integration supports USD card payments and eligible Apple Pay/Google Pay card wallets. Tipping, shipping, automatic discounts/taxes, Cash App Pay, Afterpay and bank transfers are disabled in the generated checkout. Card details stay with Square. Square sends its receipt to the email supplied during checkout; the booking workflow sends confirmation to the booking customer. Refunds, disputes and chargebacks are handled in Square, preserving the original payment ledger.
 
 ## Private configuration
@@ -52,6 +62,7 @@ Responses use the existing `{data, meta}` / `{error}` envelopes and `Cache-Contr
 | Endpoint | Access and behavior |
 | --- | --- |
 | `GET /api/v1/admin/automation/square` | Owner session; enabled state and Sandbox/production environment only. |
+| `POST /api/v1/customer/orders/<order-id>/checkout` | Owning customer session, same-origin CSRF and current `expected_revision`. Calculates the unpaid approved deposit on the server and returns the checked Square URL/environment. Creates no payment ledger entry and queues no extra email. |
 | `POST /api/v1/admin/automation/bookings/<id>/checkout` | Fresh owner session and CSRF; JSON `purpose: deposit|balance`, `expected_revision: integer`. Returns the application's payment URL, amount and deadline, and queues one email. |
 | `GET /api/v1/payments/square/<opaque-id>` | Public capability; current amount/status/environment and `can_pay`, without identity or card information. |
 | `POST /api/v1/payments/square/<opaque-id>/start` | Same-origin public capability; JSON `{}`. Rechecks booking/amount/window and returns the Square hosted URL. No ledger mutation. |

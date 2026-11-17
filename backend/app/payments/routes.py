@@ -1,9 +1,11 @@
 """Owner Checkout creation and a public signature-authenticated Square webhook."""
 
-from flask import Blueprint, current_app, request
+from flask import Blueprint, current_app, g, request
 
+from ..auth.guards import require_customer
 from ..automation.domain import DomainError
 from ..automation.routes import actor, owner_only, payload, response
+from ..orders import customer_booking_id
 
 payments = Blueprint("payments", __name__)
 
@@ -44,6 +46,38 @@ def create_checkout(booking_id):
 @payments.get("/payments/square/<checkout_id>")
 def checkout_status(checkout_id):
     return response(checkout().public_status(checkout_id))
+
+
+@payments.post("/customer/orders/<order_id>/checkout")
+@require_customer
+def customer_deposit_checkout(order_id):
+    body = payload()
+    if (
+        set(body) != {"expected_revision"}
+        or type(body.get("expected_revision")) is not int
+        or body["expected_revision"] < 1
+    ):
+        raise DomainError("Send the current expected_revision only.", 422)
+    booking_id = customer_booking_id(order_id, g.principal["identity_id"])
+    if booking_id is None:
+        raise DomainError(
+            "Your request must be approved before you can pay a deposit.", 409, "approval_required"
+        )
+    service = checkout()
+    link = service.create(
+        booking_id,
+        "deposit",
+        expected_revision=body["expected_revision"],
+        actor="customer:" + g.principal["identity_id"],
+    )
+    # Reuse the existing checked handoff, including a second approval/amount/window
+    # check if the owner changed the booking while Square created the link.
+    return response(
+        {
+            **service.start(link["id"]),
+            "environment": service.settings["SQUARE_ENVIRONMENT"],
+        }
+    )
 
 
 @payments.post("/payments/square/<checkout_id>/start")

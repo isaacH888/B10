@@ -28,6 +28,41 @@ class CheckoutService:
         if not self.enabled:
             raise DomainError("Square Checkout is not configured yet.", 503, "square_unavailable")
 
+    def customer_deposit_offer(self, booking):
+        """Read-only eligibility; never create a Square link while listing orders."""
+        offer = {
+            "status": "awaiting_approval",
+            "can_pay": False,
+            "amount_due_cents": 0,
+            "currency": "USD",
+            "environment": self.settings.get("SQUARE_ENVIRONMENT", "sandbox")
+            if self.enabled
+            else None,
+            "revision": booking.get("revision") if booking else None,
+        }
+        if booking is None:
+            return offer
+        deposit = booking.get("deposit_minor", 0)
+        offer["amount_due_cents"] = max(0, deposit - booking.get("paid_minor", 0))
+        if booking["status"] == "cancelled":
+            offer["status"] = "cancelled"
+        elif deposit > 0 and offer["amount_due_cents"] == 0:
+            offer["status"] = "paid"
+        elif booking["status"] == "awaiting_deposit":
+            now = self.bookings._now()
+            if (booking.get("reservation_expires_at") or 0) < now + 60 or instant(
+                booking["start"]
+            ).timestamp() < now + 60:
+                offer["status"] = "expired"
+            else:
+                try:
+                    offer["amount_due_cents"] = self.due(booking, "deposit", now)
+                    offer["status"] = "deposit_due"
+                    offer["can_pay"] = self.enabled and type(offer["revision"]) is int
+                except DomainError:
+                    offer["status"] = "unavailable"
+        return offer
+
     @staticmethod
     def due(booking, purpose, now):
         if purpose == "deposit":

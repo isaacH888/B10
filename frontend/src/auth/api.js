@@ -34,6 +34,7 @@ export async function apiRequest(path, options = {}) {
             path.startsWith("/catering/address/") ||
             path === "/quotes" ||
             path === "/orders" ||
+            /^\/customer\/orders\/[^/]+\/checkout$/.test(path) ||
             /^\/admin\/automation\/bookings\/[^/]+\/checkout$/.test(path)) &&
           options.method === "POST"
         ? 20000

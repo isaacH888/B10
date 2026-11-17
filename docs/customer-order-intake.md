@@ -129,6 +129,12 @@ and internal workflow fields, and is available under **My Account → My Orders*
 The page refreshes while visible every 30 seconds and on focus, and supports
 manual refresh. Submission replays are also bound to the account identity.
 
+When Square is configured, the account list includes read-only deposit eligibility.
+Owner approval enables Pay deposit; an owned-order checkout action revalidates the
+booking revision, approval, reservation and unpaid amount before opening Square.
+The existing verified Square webhook supplies payment status. See the
+[Square checkout runbook](square-checkout.md); no additional migration is required.
+
 `POST /quotes` saves the quote's expiry, request/event payload, distance and price.
 Order submission requires a priced, unused quote within its 15-minute lifetime;
 the saved total and pricing snapshot supply the order's price. Surrounding text

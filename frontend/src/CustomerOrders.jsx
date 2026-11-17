@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { apiRequest } from "./auth/api.js";
 import { useAuth } from "./auth/AuthContext.jsx";
 import { formatEventTime, EVENT_TIME_ZONE } from "./eventTime.js";
+import { CustomerDepositAction } from "./payments/CustomerDepositAction.jsx";
 
 const statuses = {
   pending_review: "Under review",
@@ -94,7 +95,9 @@ export function CustomerOrders() {
           <div className="account-order-heading">
             <h3>{order.event.type}</h3>
             <span className="account-order-status">
-              {statuses[order.status] || order.status}
+              {order.payment?.status === "deposit_due"
+                ? "Approved · deposit due"
+                : statuses[order.status] || order.status}
             </span>
           </div>
           <p className="account-order-reference">Request ID: {order.id}</p>
@@ -134,6 +137,10 @@ export function CustomerOrders() {
               </dd>
             </div>
           </dl>
+          <CustomerDepositAction
+            order={order}
+            onRefresh={() => setRetry((value) => value + 1)}
+          />
         </article>
       ))}
       {result && result.total > result.page_size && (

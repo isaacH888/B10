@@ -10782,7 +10782,7 @@
       "get": {
         "operationId": "listCustomerOrders",
         "summary": "List the signed-in customer’s orders",
-        "description": "Filters by the verified session identity before counting or paging. Contact email does not grant access. Existing guest orders without an account link remain private. Administrative notes, workflow internals and payment links are omitted.",
+        "description": "Filters by the verified session identity before counting or paging. Contact email does not grant access. Existing guest orders without an account link remain private. Administrative notes, workflow internals and payment links are omitted. Includes read-only deposit eligibility when booking automation is configured; listing does not create Square links.",
         "tags": ["Customer"],
         "security": [
           {
@@ -10938,6 +10938,223 @@
         },
         "x-owner": "Anh Hyunh",
         "x-implemented": true
+      }
+    },
+    "/customer/orders/{order_id}/checkout": {
+      "post": {
+        "operationId": "createCustomerDepositCheckout",
+        "summary": "Open Square checkout for an owned approved deposit",
+        "x-owner": "Anh Hyunh",
+        "x-implemented": true,
+        "tags": ["Customer"],
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
+        "description": "Requires the owning customer session, exact Origin and CSRF token. Accepts only the displayed booking revision; the server resolves the linked booking and calculates the unpaid deposit from verified payments. Rechecks approval, reservation, revision and Square handoff eligibility. Reuses a matching checkout on retry and does not queue duplicate email. No customer amounts, purpose, booking IDs or payment-success declarations are accepted. Only the existing verified webhook can record Square payment.",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerDepositCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "Quantity must be at least 50.",
+                    "fields": [
+                      {
+                        "field": "catering_request.quantity",
+                        "message": "Minimum quantity is 50."
+                      }
+                    ],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "503": {
+            "description": "A required service is temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "service_unavailable",
+                    "message": "A required service is temporarily unavailable.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Delay in seconds when available."
+              },
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found in the signed-in account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Approval, booking revision, deposit amount or payment window no longer permits this checkout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The checked Square checkout handoff for the unpaid approved deposit. No money is recorded by this action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerDepositCheckoutResponse"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -13907,7 +14124,8 @@
           "pricing",
           "deposit",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "payment"
         ],
         "properties": {
           "id": {
@@ -13943,6 +14161,16 @@
             "minLength": 1,
             "maxLength": 40,
             "format": "date-time"
+          },
+          "payment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CustomerDepositOffer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -13974,6 +14202,88 @@
               "total": {
                 "type": "integer",
                 "minimum": 0
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
+          }
+        }
+      },
+      "CustomerDepositOffer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "can_pay",
+          "amount_due_cents",
+          "currency",
+          "environment",
+          "revision"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_approval",
+              "deposit_due",
+              "paid",
+              "cancelled",
+              "expired",
+              "unavailable"
+            ]
+          },
+          "can_pay": {
+            "type": "boolean"
+          },
+          "amount_due_cents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "environment": {
+            "type": ["string", "null"],
+            "enum": ["sandbox", "production", null]
+          },
+          "revision": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          }
+        },
+        "description": "Read-only deposit eligibility. It creates no Square resources. Conditional approvals, cancellations, expired reservations, paid deposits and disabled Square never enable payment."
+      },
+      "CustomerDepositCheckoutRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["expected_revision"],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "CustomerDepositCheckoutResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["url", "environment"],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Server-validated Square hosted checkout URL."
+              },
+              "environment": {
+                "type": "string",
+                "enum": ["sandbox", "production"]
               }
             }
           },

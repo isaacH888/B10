@@ -158,6 +158,16 @@
   justify-content: space-between;
   gap: 1rem;
 }
+.account-order-payment {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--account-border);
+}
+.account-order-payment p {
+  color: var(--account-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
 .account-orders-toolbar > p {
   color: var(--account-muted);
   line-height: 1.6;
