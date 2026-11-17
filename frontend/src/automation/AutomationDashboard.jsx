@@ -1090,7 +1090,7 @@ function BookingDetail({
           <section
             id="sec-payments"
             className="adm-subsection"
-            aria-label="Payments and Square checkout"
+            aria-label="Payments management"
           >
             <SquareCheckoutControls booking={booking} />
 
