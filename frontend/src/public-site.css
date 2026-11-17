@@ -1120,7 +1120,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px var(--site-gutter);
+  padding: 48px var(--site-gutter, 24px);
+  box-sizing: border-box;
+}
+
+.session-error-view {
+  min-height: 100vh;
+  background: #fcf8f2;
+  background-image:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(255, 106, 136, 0.08) 0%,
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 85% 80%,
+      rgba(103, 97, 168, 0.06) 0%,
+      transparent 40%
+    );
 }
 
 #root > .session-error-view,
@@ -1129,19 +1146,20 @@
 }
 
 .error-card {
-  background: var(--cream);
+  background: #ffffff;
   border-radius: 28px;
   padding: 48px 36px;
   max-width: 580px;
   width: 100%;
   text-align: center;
-  box-shadow: 0 12px 36px rgba(53, 22, 47, 0.08);
-  border: 2px solid rgba(103, 97, 168, 0.14);
+  box-shadow: 0 16px 44px rgba(53, 22, 47, 0.09);
+  border: 1.5px solid rgba(103, 97, 168, 0.16);
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .error-card::before {
@@ -1153,9 +1171,9 @@
   height: 6px;
   background: linear-gradient(
     90deg,
-    var(--red) 0%,
-    var(--yellow) 50%,
-    var(--purple) 100%
+    var(--red, #da2935) 0%,
+    var(--yellow, #ffcf4b) 50%,
+    var(--purple, #6761a8) 100%
   );
 }
 
@@ -1164,21 +1182,16 @@
 }
 
 .error-card__art {
-  width: 120px;
-  height: 120px;
+  width: auto;
+  height: 160px;
+  max-width: 140px;
   object-fit: contain;
-  filter: drop-shadow(0 6px 12px rgba(53, 22, 47, 0.1));
-  animation: error-wobble 3s ease-in-out infinite;
+  filter: drop-shadow(0 8px 18px rgba(53, 22, 47, 0.14));
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes error-wobble {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(-3deg) translateY(-4px);
-  }
+.error-card:hover .error-card__art {
+  transform: rotate(-3deg) scale(1.04);
 }
 
 .error-badge {
@@ -1285,7 +1298,7 @@
 }
 
 .error-actions .pill.red {
-  background: var(--red);
+  background: var(--red, #da2935);
   color: #ffffff;
   border: none;
 }
@@ -1304,7 +1317,7 @@
 .error-actions .pill.outline {
   background: #ffffff;
   border: 2px solid rgba(103, 97, 168, 0.35);
-  color: var(--purple);
+  color: var(--purple, #6761a8);
 }
 
 .error-actions .pill.outline:hover {
@@ -1377,8 +1390,8 @@
     border-radius: 20px;
   }
   .error-card__art {
-    width: 96px;
-    height: 96px;
+    height: 120px;
+    max-width: 100px;
   }
 }
 

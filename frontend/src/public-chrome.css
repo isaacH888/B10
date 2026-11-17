@@ -14,6 +14,7 @@
   font-display: swap;
 }
 
+:root,
 .public-site,
 .customer-signin,
 .error-view,
@@ -29,6 +30,10 @@
   --nav-pink: #ff59a5;
   --site-gutter: clamp(1.25rem, 4.5vw, 5rem);
   --site-header-height: 148px;
+}
+
+.public-site,
+.customer-signin {
   font-family: "DM Sans", Arial, sans-serif;
   color: var(--ink);
   background: var(--cream);

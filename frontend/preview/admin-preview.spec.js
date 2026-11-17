@@ -19,17 +19,17 @@ test("sample admin screens work without login, cookies, or real API responses", 
   ).toContainText("Sample data");
   await expect(
     page.getByRole("region", { name: "New catering requests", exact: true }),
-  ).toContainText("1");
+  ).toContainText("3");
   const nav = page.getByRole("navigation", { name: "Admin pages" });
   await nav.getByRole("link", { name: "Orders", exact: true }).click();
-  const firstOrder = page.getByRole("row", { name: /^preview_order_001 / });
+  const firstOrder = page
+    .getByRole("row")
+    .filter({ hasText: "preview_order_001" });
   await expect(firstOrder).toBeVisible();
   await firstOrder.getByRole("link", { name: "View details ↗" }).click();
   await expect(
-    page.getByRole("heading", {
-      name: /preview_order_001.*SAMPLE ELENA CRUZ/i,
-    }),
-  ).toBeVisible();
+    page.getByRole("heading").filter({ hasText: "preview_order_001" }),
+  ).toContainText(/Sample Elena Cruz/i);
   await nav.getByRole("link", { name: "Calendar", exact: true }).click();
   await page
     .getByRole("button", {
@@ -60,6 +60,8 @@ test("preview blocks mutations and never falls through to real services", async 
     "/admin/inventory",
     "/admin/login",
     "/admin/automation/google/connect",
+    "/admin/automation/requests",
+    "/admin/automation/orders/preview_order_001/booking",
   ]) {
     const response = await request.post(`/api/v1${path}`, { data: {} });
     expect(response.status()).toBe(403);

@@ -10,6 +10,28 @@ const template =
   ].examples.synthetic.value.data;
 
 export function createSampleData() {
+  return createPopulatedSampleData();
+}
+
+export function createEmptySampleData() {
+  const dashboard = {
+    requests: 0,
+    awaiting_deposit: 0,
+    owner_review: 0,
+    balances: [],
+    low_stock: 0,
+    reserved_units: 0,
+    upcoming_count: 0,
+    upcoming_quantity: 0,
+    upcoming: [],
+    recent_orders: [],
+    window_end: new Date().toISOString(),
+    storage: "preview",
+  };
+  return { records: [], inventory: [], events: [], dashboard };
+}
+
+export function createPopulatedSampleData() {
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth() + 1;
@@ -22,6 +44,8 @@ export function createSampleData() {
     ["Taylor Brooks", "owner_review", 75, 25, "delivery"],
     ["Casey Nguyen", "fulfilled", 80, 9, "full_service"],
     ["Riley Patel", "confirmed", 200, 27, "delivery"],
+    ["Marcus Vance", "pending", 80, 22, "delivery"],
+    ["Sofia Reyes", "pending", 120, 29, "full_service"],
   ];
   const records = customers.map(
     ([name, status, quantity, day, service], index) => {
@@ -82,8 +106,15 @@ export function createSampleData() {
               paid_minor: paid,
               remaining_minor: quantity * 400 - paid,
               overpaid_minor: 0,
-              payment_status: paid ? "deposit_paid" : "unpaid",
-              calendar_status: status === "confirmed" ? "synced" : "pending",
+              payment_status:
+                status === "fulfilled"
+                  ? "paid"
+                  : paid
+                    ? "deposit_paid"
+                    : "unpaid",
+              calendar_status: ["confirmed", "fulfilled"].includes(status)
+                ? "synced"
+                : "pending",
               source_order: order,
             };
       return { order, booking };
@@ -132,7 +163,7 @@ export function createSampleData() {
   }));
   const upcoming = events.filter((event) => event.status === "confirmed");
   const dashboard = {
-    requests: 1,
+    requests: records.filter(({ booking }) => !booking).length,
     awaiting_deposit: 1,
     owner_review: 1,
     balances: [{ currency: "USD", remaining_cents: 50000 }],

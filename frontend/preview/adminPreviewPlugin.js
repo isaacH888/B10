@@ -30,6 +30,13 @@ function filterOrders(records, params) {
 
 export function adminPreviewPlugin() {
   const sample = createSampleData();
+  const sampleNotifications = {
+    enabled: false,
+    recipient: "preview@example.invalid",
+    calendar_id: null,
+    email_mode: "simulated",
+    requests: [],
+  };
   return {
     name: "local-admin-sample-preview",
     apply: "serve",
@@ -49,12 +56,12 @@ export function adminPreviewPlugin() {
           response.setHeader("Content-Type", "application/json");
           response.end(JSON.stringify({ error: { code, message } }));
         };
+        const path = url.pathname.slice("/api/v1".length);
         // This server never proxies API requests, accepts credentials, sets an
         // auth cookie, or writes to the real application's database/providers.
         if (request.method !== "GET") {
           return fail("preview_read_only", previewMessage, 403);
         }
-        const path = url.pathname.slice("/api/v1".length);
         if (path === "/admin/session") {
           const expires = new Date(Date.now() + 3600000).toISOString();
           return send({
@@ -129,7 +136,15 @@ export function adminPreviewPlugin() {
             configured: false,
             setup_message: "Sample preview. Google Calendar is not connected.",
           });
-        if (path === "/admin/automation/orders") return send([]);
+        if (path === "/admin/automation/orders") {
+          const pendingOrders = sample.records
+            .filter(({ booking }) => !booking)
+            .map(({ order }) => order);
+          return send(pendingOrders);
+        }
+        if (path === "/admin/automation/requests") {
+          return send(sampleNotifications);
+        }
         if (path === "/admin/automation/bookings")
           return send(
             sample.records.flatMap(({ booking }) => (booking ? [booking] : [])),

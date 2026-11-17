@@ -16,6 +16,7 @@ import {
 import { OrderDecisionControls } from "../admin/OrderDecisionControls.jsx";
 import { EventEndSelect } from "../admin/EventEndSelect.jsx";
 import { SquareCheckoutControls } from "../payments/SquareCheckoutControls.jsx";
+import "../admin/order-detail.css";
 
 const base = "/admin/automation";
 const money = (value, currency) =>
@@ -50,19 +51,23 @@ function eventPayload(form) {
 function EventFields({ booking = {} }) {
   return (
     <>
-      <Input
-        name="start"
-        label="Event start (Houston/Central time)"
-        type="datetime-local"
-        defaultValue={centralInputValue(booking.start)}
-      />
-      <Input
-        name="end"
-        label="Event end (Houston/Central time)"
-        type="datetime-local"
-        defaultValue={centralInputValue(booking.end)}
-      />
-      <p>All event times use Houston/Central time.</p>
+      <div className="adm-inline-fields">
+        <Input
+          name="start"
+          label="Event start (Houston/Central time)"
+          type="datetime-local"
+          defaultValue={centralInputValue(booking.start)}
+        />
+        <Input
+          name="end"
+          label="Event end (Houston/Central time)"
+          type="datetime-local"
+          defaultValue={centralInputValue(booking.end)}
+        />
+      </div>
+      <p className="adm-field-hint">
+        All event times use Houston/Central time.
+      </p>
       <Input
         name="venue"
         label="Venue"
@@ -192,6 +197,43 @@ export function AutomationDashboard({ identity, csrfToken }) {
         <p>Only the owner can operate booking automation.</p>
       </section>
     );
+
+  if (bookingId) {
+    return (
+      <section className="automation-dashboard automation-dashboard--detail">
+        <div className="adm-booking-detail-view-header">
+          <h2>Catering automation</h2>
+        </div>
+
+        {error && <p role="alert">{error}</p>}
+        {!loaded && <p role="status">Loading booking details…</p>}
+
+        {detail ? (
+          <BookingDetail
+            key={`${detail.booking.id}:${detail.booking.revision}`}
+            detail={detail}
+            busy={busy}
+            mutate={mutate}
+            refresh={refresh}
+            connection={connection}
+            connectionLoading={connectionLoading}
+            connectionError={connectionError}
+          />
+        ) : loaded && !error ? (
+          <div className="adm-empty-state">
+            <p className="adm-empty-state__title">Booking not found.</p>
+            <p className="adm-empty-state__sub">
+              This booking may have been removed or the ID is invalid.
+            </p>
+            <Link to="/admin/automation" className="adm-btn adm-btn--outline">
+              ← Back to all bookings
+            </Link>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className="automation-dashboard">
       <h2>Catering automation</h2>
@@ -205,47 +247,40 @@ export function AutomationDashboard({ identity, csrfToken }) {
       </p>
       {error && <p role="alert">{error}</p>}
       {!loaded && <p role="status">Loading bookings…</p>}
-      <fieldset disabled={busy}>
-        <legend>Google Calendar connection</legend>
-        <p role={connectionLoading ? "status" : undefined}>
-          Connection:{" "}
-          {connectionLoading ? "Loading…" : connection?.status || "Unavailable"}
+
+      <section aria-labelledby="customer-intake-heading">
+        <h3 id="customer-intake-heading">Customer order intake</h3>
+        <p>
+          Review submitted orders and confirm the event end time. You can
+          include a contract link if available. Creating a booking keeps the
+          customer's saved selections and price. Approve availability
+          separately.
         </p>
-        {connectionError && <p role="alert">{connectionError}</p>}
-        {connection?.setup_message && <p>{connection.setup_message}</p>}
-        {connection?.calendar_id && <p>Calendar: {connection.calendar_id}</p>}
-        {connection?.last_error && <p>{connection.last_error}</p>}
-        <div className="actions">
-          <button
-            type="button"
-            disabled={
-              connectionLoading ||
-              !connection?.status ||
-              connection.configured === false
-            }
-            onClick={() => mutate("/google/connect")}
-          >
-            {connection?.status === "connected"
-              ? "Reconnect Google Calendar"
-              : "Connect Google Calendar"}
-          </button>
-          <button
-            type="button"
-            disabled={
-              connectionLoading ||
-              !connection?.status ||
-              connection.status === "disconnected"
-            }
-            onClick={() => mutate("/google/disconnect")}
-          >
-            Disconnect Google Calendar
-          </button>
-          <button type="button" disabled={connectionLoading} onClick={refresh}>
-            Refresh status
-          </button>
-        </div>
-      </fieldset>
-      <fieldset disabled={busy}>
+        {ordersError && (
+          <p role="alert">Could not load customer orders. {ordersError}</p>
+        )}
+        {loaded && !ordersError && !orders.length && (
+          <div className="adm-empty-state">
+            <p className="adm-empty-state__title">
+              No customer orders awaiting intake.
+            </p>
+            <p className="adm-empty-state__sub">
+              Submitted customer orders ready for date confirmation will appear
+              here.
+            </p>
+          </div>
+        )}
+        {orders.map((order) => (
+          <CustomerOrder
+            key={order.id}
+            order={order}
+            busy={busy}
+            mutate={mutate}
+          />
+        ))}
+      </section>
+
+      <fieldset disabled={busy} className="adm-notifications-fieldset">
         <legend>Incoming request notifications</legend>
         <p>
           Email each new submitted request to your business inbox and add a
@@ -361,79 +396,81 @@ export function AutomationDashboard({ identity, csrfToken }) {
           </>
         )}
       </fieldset>
-      <section aria-labelledby="customer-intake-heading">
-        <h3 id="customer-intake-heading">Customer order intake</h3>
-        <p>
-          Review submitted orders and confirm the event end time. You can
-          include a contract link if available. Creating a booking keeps the
-          customer's saved selections and price. Approve availability
-          separately.
-        </p>
-        {ordersError && (
-          <p role="alert">Could not load customer orders. {ordersError}</p>
-        )}
-        {loaded && !ordersError && !orders.length && (
-          <p>No customer orders awaiting intake.</p>
-        )}
-        {orders.map((order) => (
-          <CustomerOrder
-            key={order.id}
-            order={order}
-            busy={busy}
-            mutate={mutate}
-          />
-        ))}
-      </section>
-      {detail && (
-        <BookingDetail
-          key={`${detail.booking.id}:${detail.booking.revision}`}
-          detail={detail}
-          busy={busy}
-          mutate={mutate}
-          refresh={refresh}
-        />
-      )}
+
       <div
-        className="table-scroll"
+        className="table-scroll adm-table-wrap"
         role="region"
         aria-label="Catering bookings"
         tabIndex={0}
       >
-        <table>
+        <table className="adm-orders-table">
           <caption>Catering bookings</caption>
           <thead>
             <tr>
-              <th>Customer</th>
-              <th>Reference</th>
-              <th>Booking</th>
-              <th>Payment</th>
-              <th>Remaining</th>
-              <th>Calendar</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Reference</th>
+              <th scope="col">Booking</th>
+              <th scope="col">Payment</th>
+              <th scope="col" className="adm-orders-table__col-qty">
+                Remaining
+              </th>
+              <th scope="col">Calendar</th>
             </tr>
           </thead>
           <tbody>
             {items.map((booking) => (
               <tr key={booking.id}>
-                <td>
-                  {booking.source_order?.customer.name ||
-                    booking.customer_email}
+                <td className="adm-orders-table__customer">
+                  {booking.source_order?.customer?.name ||
+                    booking.customer_email ||
+                    "Customer"}
                 </td>
-                <th>
-                  <Link to={`/admin/bookings/${booking.id}`}>
+                <th scope="row">
+                  <Link
+                    to={`/admin/bookings/${booking.id}`}
+                    className="adm-card__link"
+                  >
                     {booking.reference}
                   </Link>
                 </th>
-                <td>{booking.status}</td>
-                <td>{booking.payment_status.replaceAll("_", " ")}</td>
-                <td>{money(booking.remaining_minor, booking.currency)}</td>
-                <td>{booking.calendar_status}</td>
+                <td>
+                  <span className={`adm-status adm-status--${booking.status}`}>
+                    {booking.status}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    className={`adm-status adm-status--payment-${booking.payment_status}`}
+                  >
+                    {booking.payment_status.replaceAll("_", " ")}
+                  </span>
+                </td>
+                <td className="adm-orders-table__col-qty">
+                  {money(booking.remaining_minor, booking.currency)}
+                </td>
+                <td>
+                  <span
+                    className={`adm-status adm-status--calendar-${booking.calendar_status}`}
+                  >
+                    {booking.calendar_status}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {loaded && !error && !items.length && <p>No bookings yet.</p>}
+        {loaded && !error && !items.length && (
+          <div className="adm-empty-state">
+            <p className="adm-empty-state__title">No bookings yet.</p>
+            <p className="adm-empty-state__sub">
+              New customer bookings and approved catering requests will appear
+              here.
+            </p>
+          </div>
+        )}
       </div>
-      <details>
+
+      <details className="adm-add-booking-details">
         <summary>Add a catering booking</summary>
         <form onSubmit={create}>
           <fieldset disabled={busy}>
@@ -479,6 +516,47 @@ export function AutomationDashboard({ identity, csrfToken }) {
           </fieldset>
         </form>
       </details>
+
+      <fieldset disabled={busy}>
+        <legend>Google Calendar connection</legend>
+        <p role={connectionLoading ? "status" : undefined}>
+          Connection:{" "}
+          {connectionLoading ? "Loading…" : connection?.status || "Unavailable"}
+        </p>
+        {connectionError && <p role="alert">{connectionError}</p>}
+        {connection?.setup_message && <p>{connection.setup_message}</p>}
+        {connection?.calendar_id && <p>Calendar: {connection.calendar_id}</p>}
+        {connection?.last_error && <p>{connection.last_error}</p>}
+        <div className="actions">
+          <button
+            type="button"
+            disabled={
+              connectionLoading ||
+              !connection?.status ||
+              connection.configured === false
+            }
+            onClick={() => mutate("/google/connect")}
+          >
+            {connection?.status === "connected"
+              ? "Reconnect Google Calendar"
+              : "Connect Google Calendar"}
+          </button>
+          <button
+            type="button"
+            disabled={
+              connectionLoading ||
+              !connection?.status ||
+              connection.status === "disconnected"
+            }
+            onClick={() => mutate("/google/disconnect")}
+          >
+            Disconnect Google Calendar
+          </button>
+          <button type="button" disabled={connectionLoading} onClick={refresh}>
+            Refresh status
+          </button>
+        </div>
+      </fieldset>
     </section>
   );
 }
@@ -599,8 +677,29 @@ function BookingInventory({ booking, refresh }) {
   );
 }
 
-function BookingDetail({ detail, busy, mutate, refresh }) {
+const BOOKING_ACTION_TABS = [
+  { id: "all", label: "All" },
+  { id: "decision", label: "Review Request" },
+  { id: "payments", label: "Payments & Square" },
+  { id: "flavors", label: "Flavor Stock" },
+  { id: "calendar", label: "Google Calendar" },
+  { id: "manage", label: "Manage Booking" },
+  { id: "jobs", label: "Automation Jobs" },
+];
+
+function BookingDetail({
+  detail,
+  busy,
+  mutate,
+  refresh,
+  connection,
+  connectionLoading,
+  connectionError,
+}) {
   const [formError, setFormError] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
   const booking = detail.booking;
   const path = `/bookings/${booking.id}`;
   const revision = { expected_revision: booking.revision };
@@ -619,247 +718,887 @@ function BookingDetail({ detail, busy, mutate, refresh }) {
     };
   }
   return (
-    <article aria-label={`Booking ${booking.reference}`}>
-      <h3>
-        {booking.source_order?.customer.name || booking.customer_email} ·{" "}
-        {booking.reference}
-      </h3>
-      {formError && <p role="alert">{formError}</p>}
-      <dl>
-        <dt>Booking / payment / calendar</dt>
-        <dd>
-          {booking.status} / {booking.payment_status.replaceAll("_", " ")} /{" "}
-          {booking.calendar_status}
-        </dd>
-        <dt>Event</dt>
-        <dd>
-          {time(booking.start)} to {time(booking.end)} · {booking.timezone} ·{" "}
-          {booking.venue}
-        </dd>
-        <dt>Service and count</dt>
-        <dd>
-          {booking.service_type}, {booking.quantity} popsicles; count{" "}
-          {booking.count_finalized ? "finalized" : "not finalized"}
-        </dd>
-        <dt>Deposit required</dt>
-        <dd>{money(booking.deposit_minor, booking.currency)}</dd>
-        <dt>Verified payments / remaining</dt>
-        <dd>
-          {money(booking.paid_minor, booking.currency)} /{" "}
-          {money(booking.remaining_minor, booking.currency)}
-        </dd>
-        {booking.overpaid_minor > 0 && (
-          <>
-            <dt>Overpayment to review</dt>
-            <dd>{money(booking.overpaid_minor, booking.currency)}</dd>
-          </>
-        )}
-        <dt>Capacity reservation expires</dt>
-        <dd>{time(booking.reservation_expires_at)}</dd>
-        <dt>Last successful calendar sync</dt>
-        <dd>{time(booking.last_synced_at || booking.last_sync_at)}</dd>
-        <dt>Calendar error</dt>
-        <dd>{booking.calendar_error || "None"}</dd>
-        <dt>Owner review</dt>
-        <dd>{booking.owner_review_reason || "None"}</dd>
-      </dl>
-      {booking.source_order && <OrderSelections order={booking.source_order} />}
-      <OrderDecisionControls booking={booking} onSaved={refresh} />
-      <SquareCheckoutControls booking={booking} />
-      <fieldset disabled={busy}>
-        <legend>Owner actions</legend>
-        <div className="actions">
-          <button type="button" onClick={() => mutate(`${path}/retry`)}>
-            Retry calendar sync
-          </button>
-          <button type="button" onClick={() => mutate(`${path}/repair`)}>
-            Repair missing event or calendar mapping
-          </button>
-        </div>
-        {booking.status !== "cancelled" && (
-          <form
-            onSubmit={submit("final-count", (form) => ({
-              quantity: Number(form.get("quantity")),
-            }))}
+    <article
+      aria-label={`Booking ${booking.reference}`}
+      className="adm-booking-detail-card"
+    >
+      {/* Heading & customer info row */}
+      <div className="od-heading-row" style={{ marginBottom: "16px" }}>
+        <div>
+          <h3
+            className="od-heading"
+            style={{ fontSize: "28px", lineHeight: "1.2" }}
           >
-            <Input
-              name="quantity"
-              label="Final popsicle quantity"
-              type="number"
-              min="50"
-              step="1"
-              defaultValue={booking.quantity}
-            />
-            <button>Set final popsicle count</button>
-          </form>
-        )}
-        <form
-          onSubmit={submit("payments", (form) => ({
-            reference: form.get("reference"),
-            amount_minor: Number(form.get("amount_minor")),
-            currency: booking.currency,
-            provider: form.get("provider"),
-            verification_details: form.get("verification_details"),
-          }))}
-        >
-          <h4>Verify an external payment</h4>
-          <p>
-            Check the provider's actual transaction record. Screenshots and
-            payment redirects do not verify payment. Verification is audited.
-          </p>
-          <Input
-            name="reference"
-            label="Unique provider transaction reference"
-            maxLength={160}
-          />
-          <Input
-            name="provider"
-            label="Provider"
-            placeholder="Square, PayPal, or Venmo"
-          />
-          <Input
-            name="amount_minor"
-            label={`Verified amount (${booking.currency} minor units)`}
-            type="number"
-            min="1"
-            step="1"
-          />
-          <Input
-            name="verification_details"
-            label="Verification details from provider records"
-            minLength={10}
-            maxLength={2000}
-          />
-          <button>Record verified payment</button>
-        </form>
-        <details>
-          <summary>Reschedule event</summary>
-          <form onSubmit={submit("reschedule", eventPayload)}>
-            <EventFields booking={booking} />
-            <button>Reserve new time and reschedule</button>
-          </form>
-        </details>
-        {booking.status !== "cancelled" ? (
-          <details>
-            <summary>Cancel booking</summary>
-            <p>
-              Payment history is retained. Handle any refund separately with the
-              payment provider.
+            {(
+              booking.source_order?.customer?.name ||
+              booking.customer_email ||
+              booking.reference ||
+              "Booking"
+            ).toUpperCase()}{" "}
+            ·{" "}
+            <span style={{ color: "var(--adm-purple)" }}>
+              {booking.reference}
+            </span>
+          </h3>
+          {booking.source_order?.customer?.email && (
+            <p className="od-created">
+              {booking.source_order.customer.email} ·{" "}
+              {booking.source_order.customer.phone}
             </p>
-            <button
-              type="button"
-              onClick={() => mutate(`${path}/cancel`, revision)}
-            >
-              Cancel this booking
-            </button>
-          </details>
-        ) : (
-          <form
-            onSubmit={submit("reopen", (form) => {
-              if (booking.end_unspecified && !form.get("end"))
-                throw new Error("Choose the event end time before reopening.");
-              return {
-                reason: form.get("reason"),
-                ...(form.get("contract_url")
-                  ? { contract_url: form.get("contract_url") }
-                  : {}),
-                ...(form.get("end")
-                  ? { end: new Date(form.get("end")).toISOString() }
-                  : {}),
-              };
-            })}
+          )}
+        </div>
+      </div>
+
+      {/* 3 Status Cards row matching Order Details */}
+      <div
+        className="od-status-row"
+        aria-label="Booking status overview"
+        style={{ marginBottom: "20px" }}
+      >
+        <div className="od-status-card od-status-card--pink">
+          <p className="od-status-card__label">BOOKING STATUS</p>
+          <p className="od-status-card__value">
+            {booking.status === "awaiting_deposit"
+              ? "AWAITING DEPOSIT"
+              : booking.status?.replace("_", " ")?.toUpperCase()}
+          </p>
+          <p className="od-status-card__sub">
+            {booking.quantity} paletas · {booking.service_type}
+          </p>
+        </div>
+        <div className="od-status-card od-status-card--softpink">
+          <p className="od-status-card__label">PAYMENT STATUS</p>
+          <p className="od-status-card__value">
+            {booking.payment_status?.replace("_", " ")?.toUpperCase()}
+          </p>
+          <p className="od-status-card__sub">
+            {money(booking.paid_minor, booking.currency)} paid /{" "}
+            {money(booking.remaining_minor, booking.currency)} remaining
+          </p>
+        </div>
+        <div
+          className={`od-status-card od-status-card--${
+            booking.calendar_status === "synced" ? "pink" : "yellow"
+          }`}
+        >
+          <p className="od-status-card__label">CALENDAR SYNC STATUS</p>
+          <p className="od-status-card__value">
+            {booking.calendar_status?.replace("_", " ")?.toUpperCase()}
+          </p>
+          <p className="od-status-card__sub">
+            {booking.last_synced_at || booking.last_sync_at
+              ? `Synced ${time(booking.last_synced_at || booking.last_sync_at)}`
+              : "Pending initial sync"}
+          </p>
+        </div>
+      </div>
+
+      {/* Two-column layout matching Order Details */}
+      <div className="od-columns">
+        {/* Left column */}
+        <div className="od-col-left">
+          {/* Customer & Event */}
+          <section
+            className="adm-card adm-card--outlined od-section"
+            aria-labelledby="bk-customer-heading"
           >
-            <Input name="reason" label="Reason for reopening" minLength={10} />
-            {!booking.contract_url && (
-              <Input
-                name="contract_url"
-                label="Customer contract link before reopening (optional, HTTPS)"
-                type="url"
-                required={false}
-                pattern="https://.*"
-              />
-            )}
-            {booking.end_unspecified && (
-              <EventEndSelect
-                name="end"
-                label="Event end before reopening (Houston/Central time)"
-                start={booking.start}
-                required
-              />
-            )}
-            <button>Reopen and check capacity</button>
-          </form>
-        )}
-      </fieldset>
-      <BookingInventory booking={booking} refresh={refresh} />
-      <h4>Verified payment history</h4>
-      <ul>
-        {detail.payments.map((payment) => (
-          <li key={payment.reference}>
-            {payment.provider}
-            {payment.square_environment === "sandbox" ? " (test)" : ""}:{" "}
-            {payment.reference} ·{" "}
-            {money(payment.amount_minor, payment.currency)}
-          </li>
-        ))}
-      </ul>
-      <h4>Automation jobs</h4>
-      <ul>
-        {(detail.jobs || []).map((job) => (
-          <li key={job.key}>
-            {job.kind}: {job.delivery?.status || job.status}
-            {(job.delivery?.error || job.delivery?.last_error) && (
-              <> · {job.delivery.error || job.delivery.last_error}</>
-            )}
-            {["failed", "dead_letter"].includes(job.delivery?.status) && (
-              <button
-                disabled={busy}
-                type="button"
-                onClick={() =>
-                  mutate(`/jobs/${encodeURIComponent(job.key)}/retry`)
-                }
+            <h2 className="od-section__title" id="bk-customer-heading">
+              CUSTOMER &amp; EVENT
+            </h2>
+            <div className="od-section__two-col">
+              <div>
+                <p className="od-field-value od-field-value--bold">
+                  {booking.source_order?.customer?.name ||
+                    booking.customer_email ||
+                    "Customer"}
+                </p>
+                {booking.source_order?.customer?.email && (
+                  <>
+                    <p className="od-field-value">
+                      {booking.source_order.customer.email}
+                    </p>
+                    <p className="od-field-value">
+                      {booking.source_order.customer.phone}
+                    </p>
+                  </>
+                )}
+                <div style={{ marginTop: "14px" }}>
+                  <p className="od-field-label">EVENT LOCATION</p>
+                  <p className="od-field-value">
+                    {booking.venue || "Venue not specified"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <p className="od-field-label">
+                  {(booking.service_type || "Catering").toUpperCase()}
+                </p>
+                <p className="od-field-value">
+                  {time(booking.start)} to {time(booking.end)}
+                </p>
+                <p className="od-field-value">Time zone: {booking.timezone}</p>
+                {booking.source_order?.event && (
+                  <div style={{ marginTop: "14px" }}>
+                    <p className="od-field-label">EVENT TYPE &amp; NOTES</p>
+                    <p className="od-field-value">
+                      {booking.source_order.event.type} ·{" "}
+                      {booking.source_order.event.notes || "None"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* The Paleta Plan */}
+          <section
+            className="od-section od-section--softpink"
+            aria-labelledby="bk-paleta-heading"
+          >
+            <h2 className="od-section__title" id="bk-paleta-heading">
+              THE PALETA PLAN
+            </h2>
+            <div className="od-section__two-col">
+              <div>
+                <p className="od-field-value od-field-value--large">
+                  {booking.quantity} PALETAS
+                </p>
+                <p className="od-field-value">
+                  {formatFlavorRequests(
+                    booking.source_order?.catering_request,
+                  ) || "Standard flavor selection"}
+                </p>
+              </div>
+              <div>
+                <p className="od-field-label">SHAPE &amp; PREPARATION</p>
+                <p className="od-field-value">
+                  {booking.source_order?.catering_request?.popsicle_shape ||
+                    "standard"}{" "}
+                  popsicles · {booking.service_type}
+                </p>
+                <p className="od-field-value">
+                  Count{" "}
+                  {booking.count_finalized ? "finalized" : "not finalized"}
+                </p>
+              </div>
+            </div>
+            <div className="od-section__two-col" style={{ marginTop: "12px" }}>
+              <div>
+                <p className="od-field-label">ADD-ONS</p>
+                <p className="od-field-value">
+                  {booking.source_order?.catering_request?.add_ons?.join(
+                    ", ",
+                  ) || "None"}
+                </p>
+              </div>
+              <div>
+                <p className="od-field-label">DRY ICE BLOCKS</p>
+                <p className="od-field-value">
+                  {booking.source_order?.catering_request?.dry_ice_blocks ??
+                    "Automatic"}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Special alerts / instructions if any */}
+          {(booking.calendar_error || booking.owner_review_reason) && (
+            <section
+              className="adm-card adm-card--outlined od-section"
+              aria-labelledby="bk-alerts-heading"
+              style={{ borderColor: "#f8b4b4", background: "#fdf2f2" }}
+            >
+              <h2
+                className="od-section__title"
+                id="bk-alerts-heading"
+                style={{ color: "#9b1c1c", fontSize: "16px" }}
               >
-                Replay {job.kind}
-              </button>
+                ATTENTION REQUIRED
+              </h2>
+              {booking.calendar_error && (
+                <div style={{ marginTop: "8px" }}>
+                  <p className="od-field-label" style={{ color: "#9b1c1c" }}>
+                    CALENDAR ERROR
+                  </p>
+                  <p className="od-field-value" style={{ color: "#771d1d" }}>
+                    {booking.calendar_error}
+                  </p>
+                </div>
+              )}
+              {booking.owner_review_reason && (
+                <div style={{ marginTop: "8px" }}>
+                  <p className="od-field-label" style={{ color: "#9b1c1c" }}>
+                    OWNER REVIEW REASON
+                  </p>
+                  <p className="od-field-value" style={{ color: "#771d1d" }}>
+                    {booking.owner_review_reason}
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div className="od-col-right">
+          {/* Pricing */}
+          <section
+            className="od-section od-section--pink"
+            aria-labelledby="bk-pricing-heading"
+          >
+            <h2 className="od-section__title" id="bk-pricing-heading">
+              PRICING &amp; BALANCE
+            </h2>
+            {booking.source_order?.pricing && (
+              <div className="od-pricing-row od-pricing-row--total">
+                <span>Quoted total</span>
+                <span>
+                  {money(
+                    booking.source_order.pricing.total_cents,
+                    booking.source_order.pricing.currency,
+                  )}
+                </span>
+              </div>
             )}
-          </li>
-        ))}
-      </ul>
+            <div className="od-pricing-row">
+              <span className="od-field-label-sm">Required deposit</span>
+              <span className="od-field-label-sm">
+                {money(booking.deposit_minor, booking.currency)}
+              </span>
+            </div>
+            <div className="od-pricing-row">
+              <span>Verified payments</span>
+              <span>{money(booking.paid_minor, booking.currency)}</span>
+            </div>
+            <div className="od-pricing-divider" />
+            <div className="od-pricing-row od-pricing-row--total">
+              <span>Remaining balance</span>
+              <span>{money(booking.remaining_minor, booking.currency)}</span>
+            </div>
+            {booking.overpaid_minor > 0 && (
+              <div
+                className="od-pricing-row"
+                style={{ color: "#9b1c1c", fontWeight: 700 }}
+              >
+                <span>Overpayment to review</span>
+                <span>{money(booking.overpaid_minor, booking.currency)}</span>
+              </div>
+            )}
+            {booking.reservation_expires_at && (
+              <div
+                className="od-pricing-row"
+                style={{ fontSize: "12px", opacity: 0.85 }}
+              >
+                <span>Reservation expires</span>
+                <span>{time(booking.reservation_expires_at)}</span>
+              </div>
+            )}
+            <div
+              className="od-pricing-row"
+              style={{ fontSize: "12px", opacity: 0.85 }}
+            >
+              <span>Calendar sync</span>
+              <span>
+                {booking.last_synced_at || booking.last_sync_at
+                  ? time(booking.last_synced_at || booking.last_sync_at)
+                  : "Pending initial sync"}
+              </span>
+            </div>
+          </section>
+
+          {/* Payment & Status Overview */}
+          <section
+            className="adm-card adm-card--outlined od-section"
+            aria-labelledby="bk-payments-summary-heading"
+          >
+            <h2 className="od-section__title" id="bk-payments-summary-heading">
+              PAYMENTS OVERVIEW
+            </h2>
+            <p className="od-field-value od-field-value--bold">
+              {`${money(booking.paid_minor, booking.currency)} / ${money(booking.remaining_minor, booking.currency)}`}
+            </p>
+            <p className="od-field-value">
+              {`${booking.status} / ${booking.payment_status.replaceAll("_", " ")} / ${booking.calendar_status}`}
+            </p>
+            {detail.payments.length > 0 ? (
+              <p className="od-field-value" style={{ marginTop: "10px" }}>
+                {detail.payments.length} verified payment record(s). Check
+                Payments &amp; Square below to record or manage payments.
+              </p>
+            ) : (
+              <p className="od-field-value" style={{ marginTop: "10px" }}>
+                No verified payments recorded yet. Required deposit:{" "}
+                {money(booking.deposit_minor, booking.currency)}.
+              </p>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* Actions Section with Segmented Action Pills */}
+      <div className="adm-actions-section">
+        <div className="adm-actions-nav-bar">
+          <h4 className="adm-actions-heading">Booking Actions</h4>
+          <nav
+            className="adm-subsection-nav"
+            aria-label="Booking action sections"
+          >
+            {BOOKING_ACTION_TABS.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                className={`adm-subsection-btn ${
+                  activeTab === sub.id ? "adm-subsection-btn--active" : ""
+                }`}
+                onClick={() => {
+                  setActiveTab(sub.id);
+                  const el = document.getElementById(`sec-${sub.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+              >
+                {sub.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {formError && <p role="alert">{formError}</p>}
+
+        {/* Action 1: Review Request */}
+        {(activeTab === "all" || activeTab === "decision") && (
+          <section
+            id="sec-decision"
+            className="adm-subsection"
+            aria-label="Review and decision"
+          >
+            <OrderDecisionControls booking={booking} onSaved={refresh} />
+          </section>
+        )}
+
+        {/* Action 2: Payments & Square */}
+        {(activeTab === "all" || activeTab === "payments") && (
+          <section
+            id="sec-payments"
+            className="adm-subsection"
+            aria-label="Payments management"
+          >
+            <SquareCheckoutControls booking={booking} />
+
+            <form
+              className="adm-card adm-form-card"
+              onSubmit={submit("payments", (form) => ({
+                reference: form.get("reference"),
+                amount_minor: Number(form.get("amount_minor")),
+                currency: booking.currency,
+                provider: form.get("provider"),
+                verification_details: form.get("verification_details"),
+              }))}
+            >
+              <fieldset disabled={busy}>
+                <h4>Verify an external payment</h4>
+                <p>
+                  Check the provider's actual transaction record. Screenshots
+                  and payment redirects do not verify payment. Verification is
+                  audited.
+                </p>
+                <Input
+                  name="reference"
+                  label="Unique provider transaction reference"
+                  maxLength={160}
+                />
+                <Input
+                  name="provider"
+                  label="Provider"
+                  placeholder="Square, PayPal, or Venmo"
+                />
+                <Input
+                  name="amount_minor"
+                  label={`Verified amount (${booking.currency} minor units)`}
+                  type="number"
+                  min="1"
+                  step="1"
+                />
+                <Input
+                  name="verification_details"
+                  label="Verification details from provider records"
+                  minLength={10}
+                  maxLength={2000}
+                />
+                <button>Record verified payment</button>
+              </fieldset>
+            </form>
+
+            <div className="adm-card adm-history-card">
+              <h4>Verified payment history</h4>
+              {detail.payments.length === 0 ? (
+                <p className="adm-empty-note">
+                  No verified payments recorded yet.
+                </p>
+              ) : (
+                <ul className="adm-payment-history-list">
+                  {detail.payments.map((payment) => (
+                    <li key={payment.reference}>
+                      <strong>{payment.provider}</strong>
+                      {payment.square_environment === "sandbox"
+                        ? " (test)"
+                        : ""}
+                      : <code>{payment.reference}</code> ·{" "}
+                      <span className="adm-paid-amount">
+                        {money(payment.amount_minor, payment.currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Action 3: Flavor Stock */}
+        {(activeTab === "all" || activeTab === "flavors") && (
+          <section
+            id="sec-flavors"
+            className="adm-subsection"
+            aria-label="Flavor allocations"
+          >
+            <BookingInventory booking={booking} refresh={refresh} />
+          </section>
+        )}
+
+        {/* Action 4: Google Calendar */}
+        {(activeTab === "all" || activeTab === "calendar") && (
+          <section
+            id="sec-calendar"
+            className="adm-subsection adm-calendar-panel"
+            aria-label="Google Calendar connection"
+          >
+            {/* Card 1: Google Account Connection */}
+            <div className="adm-card adm-action-card">
+              <h4>Google Calendar connection</h4>
+              <p className="adm-card__desc">
+                Connect your business Google account to authorize calendar
+                access and manage your primary booking calendar.
+              </p>
+
+              <div className="adm-calendar-status-box">
+                <div className="adm-calendar-status-row">
+                  <span className="adm-calendar-status-label">
+                    Account Status:
+                  </span>
+                  <span
+                    role={connectionLoading ? "status" : undefined}
+                    className={`adm-status ${
+                      connection?.status === "connected"
+                        ? "adm-status--confirmed"
+                        : "adm-status--pending"
+                    }`}
+                  >
+                    Connection:{" "}
+                    {connectionLoading
+                      ? "Loading…"
+                      : connection?.status || "Unavailable"}
+                  </span>
+                </div>
+                {connection?.calendar_id && (
+                  <div className="adm-calendar-status-row">
+                    <span className="adm-calendar-status-label">Calendar:</span>
+                    <span className="adm-calendar-status-value">
+                      {connection.calendar_id}
+                    </span>
+                  </div>
+                )}
+                {connection?.setup_message && (
+                  <p className="adm-calendar-note">
+                    {connection.setup_message}
+                  </p>
+                )}
+                {connectionError && (
+                  <p role="alert" className="adm-calendar-error">
+                    {connectionError}
+                  </p>
+                )}
+                {connection?.last_error && (
+                  <p role="alert" className="adm-calendar-error">
+                    {connection.last_error}
+                  </p>
+                )}
+              </div>
+
+              <div className="adm-action-btn-row">
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--primary"
+                  disabled={
+                    connectionLoading ||
+                    !connection?.status ||
+                    connection.configured === false
+                  }
+                  onClick={() => mutate("/google/connect")}
+                >
+                  {connection?.status === "connected"
+                    ? "Reconnect Google Calendar"
+                    : "Connect Google Calendar"}
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  disabled={
+                    connectionLoading ||
+                    !connection?.status ||
+                    connection.status === "disconnected"
+                  }
+                  onClick={() => mutate("/google/disconnect")}
+                >
+                  Disconnect Google Calendar
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  disabled={connectionLoading}
+                  onClick={refresh}
+                >
+                  Refresh status
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: Event Calendar Synchronization */}
+            <div className="adm-card adm-action-card">
+              <h4>Calendar and synchronization</h4>
+              <p className="adm-card__desc">
+                Synchronize the booking with Google Calendar or repair missing
+                event mappings.
+              </p>
+
+              <div className="adm-calendar-status-box">
+                <div className="adm-calendar-status-row">
+                  <span className="adm-calendar-status-label">Event Sync:</span>
+                  <span className="adm-calendar-status-value">
+                    Status: {booking.calendar_status}
+                    {booking.last_synced_at || booking.last_sync_at
+                      ? ` · Synced ${time(
+                          booking.last_synced_at || booking.last_sync_at,
+                        )}`
+                      : " · Pending initial sync"}
+                  </span>
+                </div>
+                {booking.calendar_error && (
+                  <p role="alert" className="adm-calendar-error">
+                    {booking.calendar_error}
+                  </p>
+                )}
+              </div>
+
+              <div className="adm-action-btn-row">
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  disabled={busy}
+                  onClick={() => mutate(`${path}/retry`)}
+                >
+                  Retry calendar sync
+                </button>
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  disabled={busy}
+                  onClick={() => mutate(`${path}/repair`)}
+                >
+                  Repair missing event or calendar mapping
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Action 5: Manage Booking */}
+        {(activeTab === "all" || activeTab === "manage") && (
+          <section
+            id="sec-manage"
+            className="adm-subsection"
+            aria-label="Manage booking"
+          >
+            {/* Card 1: Update Popsicle Count */}
+            {booking.status !== "cancelled" &&
+              booking.status !== "fulfilled" && (
+                <form
+                  className="adm-card adm-action-card"
+                  onSubmit={submit("final-count", (form) => ({
+                    quantity: Number(form.get("quantity")),
+                  }))}
+                >
+                  <h4>Popsicle count</h4>
+                  <p className="adm-card__desc">
+                    Update or finalize the headcount for catering preparation.
+                  </p>
+                  <div className="adm-popsicle-count-fields">
+                    <Input
+                      name="quantity"
+                      label="Final popsicle quantity"
+                      type="number"
+                      min="50"
+                      step="1"
+                      defaultValue={booking.quantity}
+                      disabled={busy}
+                    />
+                    <button
+                      type="submit"
+                      className="adm-btn adm-btn--primary"
+                      disabled={busy}
+                    >
+                      Set final popsicle count
+                    </button>
+                  </div>
+                </form>
+              )}
+
+            {/* Card 3: Reschedule Event */}
+            {booking.status !== "fulfilled" && (
+              <div className="adm-card adm-action-card">
+                <div className="adm-action-header-row">
+                  <div>
+                    <h4>Reschedule event</h4>
+                    <p className="adm-card__desc">
+                      Update the event date, start/end time, or venue address.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn--outline"
+                    onClick={() => setRescheduleOpen((prev) => !prev)}
+                  >
+                    {rescheduleOpen
+                      ? "Cancel rescheduling"
+                      : "Reschedule event"}
+                  </button>
+                </div>
+                {rescheduleOpen && (
+                  <form
+                    onSubmit={submit("reschedule", eventPayload)}
+                    className="adm-reschedule-form"
+                  >
+                    <fieldset disabled={busy}>
+                      <EventFields booking={booking} />
+                      <div className="adm-form-actions">
+                        <button
+                          type="submit"
+                          className="adm-btn adm-btn--primary"
+                        >
+                          Reserve new time and reschedule
+                        </button>
+                      </div>
+                    </fieldset>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* Card 4: Cancel or Reopen or Completed */}
+            {booking.status === "fulfilled" ? (
+              <div className="adm-card adm-action-card adm-action-card--fulfilled">
+                <h4>Event completed and fulfilled</h4>
+                <p className="adm-card__desc">
+                  All catering deliverables for this booking have been
+                  fulfilled. Rescheduling and cancellation are closed for
+                  completed orders.
+                </p>
+              </div>
+            ) : booking.status !== "cancelled" ? (
+              <div className="adm-card adm-action-card adm-action-card--danger">
+                <div className="adm-action-header-row">
+                  <div>
+                    <h4 className="adm-danger-text">Cancel booking</h4>
+                    <p className="adm-card__desc">
+                      Release the reserved catering date and inventory. Recorded
+                      payment history remains in the log.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="adm-btn adm-btn--danger-outline"
+                    onClick={() => setCancelConfirm((prev) => !prev)}
+                  >
+                    {cancelConfirm ? "Keep booking" : "Cancel booking"}
+                  </button>
+                </div>
+                {cancelConfirm && (
+                  <div className="adm-danger-confirm-box">
+                    <p>
+                      Are you sure you want to cancel this booking? This action
+                      will mark the booking as cancelled and release calendar
+                      capacity.
+                    </p>
+                    <div className="adm-danger-actions">
+                      <button
+                        type="button"
+                        className="adm-btn adm-btn--danger"
+                        disabled={busy}
+                        onClick={() => mutate(`${path}/cancel`, revision)}
+                      >
+                        Confirm cancellation
+                      </button>
+                      <button
+                        type="button"
+                        className="adm-btn adm-btn--outline"
+                        onClick={() => setCancelConfirm(false)}
+                      >
+                        Nevermind, keep booking
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form
+                className="adm-card adm-action-card"
+                onSubmit={submit("reopen", (form) => {
+                  if (booking.end_unspecified && !form.get("end"))
+                    throw new Error(
+                      "Choose the event end time before reopening.",
+                    );
+                  return {
+                    reason: form.get("reason"),
+                    ...(form.get("contract_url")
+                      ? { contract_url: form.get("contract_url") }
+                      : {}),
+                    ...(form.get("end")
+                      ? { end: new Date(form.get("end")).toISOString() }
+                      : {}),
+                  };
+                })}
+              >
+                <h4>Reopen cancelled booking</h4>
+                <p className="adm-card__desc">
+                  Recheck capacity and reactivate the customer's catering
+                  request.
+                </p>
+                <fieldset disabled={busy}>
+                  <Input
+                    name="reason"
+                    label="Reason for reopening"
+                    minLength={10}
+                  />
+                  {!booking.contract_url && (
+                    <Input
+                      name="contract_url"
+                      label="Customer contract link before reopening (optional, HTTPS)"
+                      type="url"
+                      required={false}
+                      pattern="https://.*"
+                    />
+                  )}
+                  {booking.end_unspecified && (
+                    <EventEndSelect
+                      name="end"
+                      label="Event end before reopening (Houston/Central time)"
+                      start={booking.start}
+                      required
+                    />
+                  )}
+                  <button type="submit" className="adm-btn adm-btn--primary">
+                    Reopen and check capacity
+                  </button>
+                </fieldset>
+              </form>
+            )}
+          </section>
+        )}
+
+        {/* Action 6: Automation Jobs */}
+        {(activeTab === "all" || activeTab === "jobs") && (
+          <section
+            id="sec-jobs"
+            className="adm-subsection"
+            aria-label="Automation jobs"
+          >
+            <div className="adm-card adm-jobs-card">
+              <h4>Automation jobs</h4>
+              {(detail.jobs || []).length === 0 ? (
+                <p className="adm-empty-note">
+                  No automation jobs logged for this booking.
+                </p>
+              ) : (
+                <ul className="adm-jobs-list">
+                  {(detail.jobs || []).map((job) => (
+                    <li key={job.key}>
+                      <strong>{job.kind}</strong>:{" "}
+                      {job.delivery?.status || job.status}
+                      {(job.delivery?.error || job.delivery?.last_error) && (
+                        <> · {job.delivery.error || job.delivery.last_error}</>
+                      )}
+                      {["failed", "dead_letter"].includes(
+                        job.delivery?.status,
+                      ) && (
+                        <button
+                          disabled={busy}
+                          type="button"
+                          onClick={() =>
+                            mutate(`/jobs/${encodeURIComponent(job.key)}/retry`)
+                          }
+                        >
+                          Replay {job.kind}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
     </article>
   );
 }
 
 function OrderSelections({ order }) {
   return (
-    <dl>
-      <dt>Customer order</dt>
-      <dd>{order.id}</dd>
-      <dt>Customer</dt>
-      <dd>
-        {order.customer.name} · {order.customer.email} · {order.customer.phone}
-      </dd>
-      <dt>Event type and notes</dt>
-      <dd>
-        {order.event.type} · {order.event.notes || "None"}
-      </dd>
-      <dt>Selections</dt>
-      <dd>
-        {order.catering_request.quantity}{" "}
-        {order.catering_request.popsicle_shape} popsicles ·{" "}
-        {order.catering_request.service_type}
-      </dd>
-      <dt>Flavors and add-ons</dt>
-      <dd>
-        {formatFlavorRequests(order.catering_request) || "None"} ·{" "}
-        {order.catering_request.add_ons.join(", ") || "None"}
-      </dd>
-      <dt>Dry ice blocks</dt>
-      <dd>{order.catering_request.dry_ice_blocks ?? "Automatic"}</dd>
-      <dt>Quoted total / deposit</dt>
-      <dd>
-        {money(order.pricing.total_cents, order.pricing.currency)} /{" "}
-        {money(order.pricing.deposit_due_cents, order.pricing.currency)}
-      </dd>
+    <dl className="adm-detail-grid">
+      <div className="adm-detail-item">
+        <dt>Customer order</dt>
+        <dd>{order.id}</dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Customer</dt>
+        <dd>
+          {order.customer.name} · {order.customer.email} ·{" "}
+          {order.customer.phone}
+        </dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Event type and notes</dt>
+        <dd>
+          {order.event.type} · {order.event.notes || "None"}
+        </dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Selections</dt>
+        <dd>
+          {order.catering_request.quantity}{" "}
+          {order.catering_request.popsicle_shape} popsicles ·{" "}
+          {order.catering_request.service_type}
+        </dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Flavors and add-ons</dt>
+        <dd>
+          {formatFlavorRequests(order.catering_request) || "None"} ·{" "}
+          {order.catering_request.add_ons.join(", ") || "None"}
+        </dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Dry ice blocks</dt>
+        <dd>{order.catering_request.dry_ice_blocks ?? "Automatic"}</dd>
+      </div>
+      <div className="adm-detail-item">
+        <dt>Quoted total / deposit</dt>
+        <dd>
+          {money(order.pricing.total_cents, order.pricing.currency)} /{" "}
+          {money(order.pricing.deposit_due_cents, order.pricing.currency)}
+        </dd>
+      </div>
     </dl>
   );
 }
@@ -882,35 +1621,56 @@ function CustomerOrder({ order, busy, mutate }) {
     }
   }
   return (
-    <details>
-      <summary>
-        {order.customer.name} · {order.id}
+    <details className="adm-order-intake-card">
+      <summary className="adm-order-intake-summary">
+        <div className="adm-order-intake-summary__main">
+          <span className="adm-order-intake-title">
+            {order.customer.name} · {order.id}
+          </span>
+          <span className="adm-order-intake-meta">
+            {order.event?.type || "Catering event"} · Starts{" "}
+            {time(order.event.starts_at)}
+          </span>
+        </div>
+        <div className="adm-order-intake-summary__aside">
+          <span className="adm-order-intake-pill">
+            {order.catering_request.quantity} paletas ·{" "}
+            {order.catering_request.service_type}
+          </span>
+          <span className="adm-order-intake-price">
+            {money(order.pricing.total_cents, order.pricing.currency)}
+          </span>
+          <span className="adm-order-intake-chevron" aria-hidden="true">
+            ▾
+          </span>
+        </div>
       </summary>
-      <OrderSelections order={order} />
-      {error && <p role="alert">{error}</p>}
-      <p>
-        Event starts: {time(order.event.starts_at)} · {order.event.timezone}
-      </p>
-      <form onSubmit={submit}>
-        <fieldset disabled={busy}>
-          <legend>Prepare customer order for booking</legend>
-          <EventEndSelect
-            name="end"
-            label="Confirmed event end (Houston/Central time)"
-            start={order.event.starts_at}
-            defaultValue={order.event.ends_at || ""}
-            required
-          />
-          <Input
-            name="contract_url"
-            label="Order contract link (optional, HTTPS)"
-            type="url"
-            required={false}
-            pattern="https://.*"
-          />
-          <button>Create booking from order</button>
-        </fieldset>
-      </form>
+      <div className="adm-order-intake-content">
+        <OrderSelections order={order} />
+        {error && <p role="alert">{error}</p>}
+        <form onSubmit={submit}>
+          <fieldset disabled={busy} className="adm-order-intake-fieldset">
+            <legend>Prepare customer order for booking</legend>
+            <EventEndSelect
+              name="end"
+              label="Confirmed event end (Houston/Central time)"
+              start={order.event.starts_at}
+              defaultValue={order.event.ends_at || ""}
+              required
+            />
+            <Input
+              name="contract_url"
+              label="Order contract link (optional, HTTPS)"
+              type="url"
+              required={false}
+              pattern="https://.*"
+            />
+            <button className="adm-btn adm-btn--primary">
+              Create booking from order
+            </button>
+          </fieldset>
+        </form>
+      </div>
     </details>
   );
 }

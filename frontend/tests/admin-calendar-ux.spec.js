@@ -72,7 +72,10 @@ function events() {
   ];
 }
 
-async function mockCalendar(page, { denyAfterFirst = false } = {}) {
+async function mockCalendar(
+  page,
+  { denyAfterFirst = false, role = "owner", configured = false } = {},
+) {
   let calendarReads = 0;
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
@@ -85,7 +88,7 @@ async function mockCalendar(page, { denyAfterFirst = false } = {}) {
           id: "calendar-owner",
           name: "Calendar Reviewer",
           email: "owner@example.invalid",
-          role: "owner",
+          role,
           permissions: ["bookings:read"],
         },
         csrf_token: "test-calendar-csrf",
@@ -111,7 +114,7 @@ async function mockCalendar(page, { denyAfterFirst = false } = {}) {
       });
     }
     if (url.pathname === "/api/v1/admin/automation/google")
-      return ok({ status: "disconnected", configured: false });
+      return ok({ status: "disconnected", configured });
     return route.fulfill({
       status: 401,
       json: { error: { code: "unauthenticated" } },
@@ -223,5 +226,97 @@ test("an explicit access denial clears calendar events and any open drawer", asy
   );
   await expect(
     page.getByRole("button", { name: /^Ongoing event,/ }),
+  ).toHaveCount(0);
+});
+
+test("calendar connection failures retain the provider explanation", async ({
+  page,
+}) => {
+  await mockCalendar(page, { configured: true });
+  let submitted;
+  await page.route("**/api/v1/admin/automation/google/connect", (route) => {
+    submitted = route.request();
+    return route.fulfill({
+      status: 503,
+      json: {
+        error: {
+          code: "automation_unavailable",
+          message: "Google authorization is temporarily unavailable.",
+        },
+      },
+    });
+  });
+  await page.goto("/admin/calendar");
+  await page
+    .getByRole("button", { name: "Connect Google Calendar", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "Google authorization is temporarily unavailable.",
+  );
+  expect(submitted.method()).toBe("POST");
+  expect(submitted.headers()["x-csrf-token"]).toBe("test-calendar-csrf");
+  await expect(
+    page.getByRole("button", { name: "Connect Google Calendar", exact: true }),
+  ).toBeEnabled();
+});
+
+test("calendar disconnection refreshes the displayed connection after success", async ({
+  page,
+}) => {
+  await mockCalendar(page, { configured: true });
+  let status = "connected";
+  let submitted;
+  await page.route("**/api/v1/admin/automation/google", (route) =>
+    route.fulfill({ json: { data: { status, configured: true } } }),
+  );
+  await page.route("**/api/v1/admin/automation/google/disconnect", (route) => {
+    submitted = route.request();
+    status = "disconnected";
+    return route.fulfill({ json: { data: { status } } });
+  });
+  await page.goto("/admin/calendar");
+  await page
+    .getByRole("button", { name: "Disconnect Google Calendar", exact: true })
+    .click();
+  await expect(
+    page.getByText("GOOGLE CALENDAR · DISCONNECTED", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Google Calendar", exact: true }),
+  ).toBeEnabled();
+  expect(submitted.method()).toBe("POST");
+  expect(submitted.headers()["x-csrf-token"]).toBe("test-calendar-csrf");
+});
+
+test("calendar connection actions explain expired verification and stay hidden for staff", async ({
+  page,
+}) => {
+  await mockCalendar(page, { configured: true });
+  await page.route("**/api/v1/admin/automation/google/connect", (route) =>
+    route.fulfill({
+      status: 403,
+      json: { error: { code: "reauthentication_required" } },
+    }),
+  );
+  await page.goto("/admin/calendar");
+  await page
+    .getByRole("button", { name: "Connect Google Calendar", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Sign in with your authenticator again",
+  );
+  await mockCalendar(page, { configured: true, role: "staff" });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Owner access required" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect Google Calendar", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Disconnect Google Calendar",
+      exact: true,
+    }),
   ).toHaveCount(0);
 });
