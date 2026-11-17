@@ -269,6 +269,10 @@ test("admin sign-in is invitation-only and submits password with its bound CSRF"
   await expect(
     page.getByText("Your authenticator app is required", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByText("every 4 hours", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("every 24 hours", { exact: false }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Continue with Google" }),
   ).toHaveCount(0);

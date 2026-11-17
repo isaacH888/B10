@@ -477,9 +477,9 @@ export function AdminPasswordLogin() {
         {reauthentication ? "Verify your access" : "Team sign-in"}
       </h1>
       <p className="auth-description">
-        Sign in with your team email and password. On this browser, re-enter
-        your password every 4 hours and verify your authenticator every 24
-        hours. A new browser requires both.
+        Sign in with your team email and password. Re-enter your password every
+        4 hours. Your authenticator app is required every 24 hours. A new
+        browser requires both.
       </p>
       <p className="auth-invitation-note">
         Administrator access is invitation only.
