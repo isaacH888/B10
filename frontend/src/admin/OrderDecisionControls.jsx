@@ -20,7 +20,29 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState("");
   const status = booking?.status || order?.status;
-  if (["cancelled", "fulfilled"].includes(status)) return null;
+  if (["cancelled", "fulfilled"].includes(status)) {
+    return (
+      <section
+        className="adm-card adm-action-card"
+        aria-label="Review customer request"
+      >
+        <h4>
+          {status === "fulfilled" ? "Booking fulfilled" : "Booking cancelled"}
+        </h4>
+        <p className="adm-card__desc">
+          {status === "fulfilled"
+            ? "This event is complete. No further approval decision is needed."
+            : "This request is cancelled. No approval decision is available."}
+        </p>
+        {status === "cancelled" && booking && (
+          <p className="adm-card__desc">
+            Use Manage Booking to reopen this booking if the event details
+            change.
+          </p>
+        )}
+      </section>
+    );
+  }
   const confirmed = status === "confirmed";
 
   const start = booking?.start || order?.event.starts_at;

@@ -564,3 +564,123 @@ for (const status of ["pending", "awaiting_deposit"]) {
     expect(mutations).toHaveLength(0);
   });
 }
+
+test("booking action selection stays visible and identifies the active section", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await mock(page);
+  await page.goto(`/admin/bookings/${booking.id}`);
+  const actions = page.getByRole("navigation", {
+    name: "Booking action sections",
+  });
+  await actions.scrollIntoViewIfNeeded();
+  await actions
+    .getByRole("button", { name: "Payments & Square", exact: true })
+    .click();
+  await expect(actions).toBeInViewport();
+  await expect(
+    actions.getByRole("button", { name: "Payments & Square", pressed: true }),
+  ).toBeVisible();
+  await expect(
+    actions.getByRole("button", { name: "All", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("region", { name: "Payments management", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Review and decision", exact: true }),
+  ).toHaveCount(0);
+});
+
+for (const status of ["fulfilled", "cancelled"]) {
+  test(`review explains why a ${status} booking has no decision form`, async ({
+    page,
+  }) => {
+    const mutations = await mock(page, "owner", { status });
+    await page.goto(`/admin/bookings/${booking.id}`);
+    await page
+      .getByRole("button", { name: "Review Request", exact: true })
+      .click();
+    const review = page.getByRole("region", {
+      name: "Review customer request",
+      exact: true,
+    });
+    await expect(
+      review.getByRole("heading", { name: `Booking ${status}`, exact: true }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole("button", { name: "Confirm availability", exact: true }),
+    ).toHaveCount(0);
+    if (status === "cancelled")
+      await expect(review).toContainText("Use Manage Booking to reopen");
+    expect(mutations).toHaveLength(0);
+  });
+}
+
+test("calendar controls stay disabled while a connection change is pending", async ({
+  page,
+}) => {
+  await mock(page);
+  let finish;
+  const pending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  await page.route(`**${prefix}/google/connect`, async (route) => {
+    await pending;
+    await route.fulfill({ json: { data: { status: "connected" } } });
+  });
+  await page.goto(`/admin/bookings/${booking.id}`);
+  await page
+    .getByRole("navigation", { name: "Booking action sections" })
+    .getByRole("button", { name: "Google Calendar", exact: true })
+    .click();
+  const connection = page.getByRole("region", {
+    name: "Google Calendar connection",
+    exact: true,
+  });
+  try {
+    await connection
+      .getByRole("button", { name: "Connect Google Calendar", exact: true })
+      .click();
+    await expect(
+      connection.getByRole("button", {
+        name: "Connect Google Calendar",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      connection.getByRole("button", {
+        name: "Disconnect Google Calendar",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(
+      connection.getByRole("button", { name: "Refresh status", exact: true }),
+    ).toBeDisabled();
+  } finally {
+    finish();
+  }
+  await expect(
+    connection.getByRole("button", {
+      name: "Connect Google Calendar",
+      exact: true,
+    }),
+  ).toBeEnabled();
+});
+
+test.describe("booking display follows the event's Central timezone", () => {
+  test.use({ timezoneId: "Asia/Tokyo" });
+  test("an owner abroad sees the Houston event start and end", async ({
+    page,
+  }) => {
+    await mock(page);
+    await page.goto(`/admin/bookings/${booking.id}`);
+    const event = page.getByRole("region", {
+      name: "CUSTOMER & EVENT",
+      exact: true,
+    });
+    await expect(event).toContainText("Jun 12, 2027, 2:00 PM CDT");
+    await expect(event).toContainText("Jun 12, 2027, 4:00 PM CDT");
+  });
+});
