@@ -122,7 +122,7 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
             />
           </label>
           {!confirmed && (
-            <>
+            <div className="od-review-inline-fields">
               <label>
                 Customer contract link (optional, HTTPS)
                 <input
@@ -139,7 +139,7 @@ export function OrderDecisionControls({ order, booking, onSaved }) {
                 onChange={setEnd}
                 label="Event end (Houston/Central time, required to confirm)"
               />
-            </>
+            </div>
           )}
           <div className="actions">
             {!confirmed && (

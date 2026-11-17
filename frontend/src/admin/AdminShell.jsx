@@ -5,15 +5,17 @@ import logoSrc from "../assets/logo.png";
 import paletasSrc from "../assets/paletas-flavor-preview.png";
 import iconDashboard from "../assets/admin/icon-dashboard.svg";
 import iconOrders from "../assets/admin/icon-orders.svg";
+import iconBookings from "../assets/admin/icon-bookings.svg";
 import iconCalendar from "../assets/admin/icon-calendar.svg";
 import iconInventory from "../assets/admin/icon-inventory.svg";
 import "./admin-dashboard.css";
 import "./admin-shell.css";
+import "./admin-theme.css";
 
 const pages = [
   { label: "Dashboard", href: "/admin/dashboard", icon: iconDashboard },
   { label: "Orders", href: "/admin/orders", icon: iconOrders },
-  { label: "Bookings", href: "/admin/automation", icon: iconOrders },
+  { label: "Bookings", href: "/admin/automation", icon: iconBookings },
   { label: "Calendar", href: "/admin/calendar", icon: iconCalendar },
   { label: "Inventory", href: "/admin/inventory", icon: iconInventory },
 ];

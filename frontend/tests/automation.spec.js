@@ -541,3 +541,26 @@ test("booking workspace uses start-based end choices and confirms before accepti
     },
   });
 });
+
+for (const status of ["pending", "awaiting_deposit"]) {
+  test(`booking review remains available for ${status} requests`, async ({
+    page,
+  }) => {
+    const mutations = await mock(page, "owner", { status });
+    await page.goto(`/admin/bookings/${booking.id}`);
+    await page
+      .getByRole("button", { name: "Review Request", exact: true })
+      .click();
+    const review = page.getByRole("region", {
+      name: "Review customer request",
+    });
+    await expect(review).toBeVisible();
+    await review
+      .getByRole("button", { name: "Confirm availability", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Confirm availability?" }),
+    ).toBeVisible();
+    expect(mutations).toHaveLength(0);
+  });
+}

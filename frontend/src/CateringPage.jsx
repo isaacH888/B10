@@ -12,10 +12,11 @@ import {
   serviceAreaKey,
 } from "./CateringAddress.jsx";
 import "./catering.css";
-import venueImage from "./assets/Venue.webp";
 import paletasImage from "./assets/paletas-flavors-640.webp";
 import eventCartImage from "./assets/story/audrey-event-cart.jpg";
 import parkEventImage from "./assets/story/audrey-park-event.jpg";
+import audreyTableImage from "./assets/story/audrey-catering-table.jpg";
+import diaDeLosMuertosImage from "./assets/story/dia-de-los-muertos-celebration.jpg";
 import paletaIllustration from "./assets/illustrations/paleta.svg";
 import fruitIllustration from "./assets/illustrations/fruit.svg";
 import cartIllustration from "./assets/illustrations/cart.svg";
@@ -2074,6 +2075,15 @@ function CateringModal({ onClose, draft, onDraftChange }) {
 
 const CATERING_HERO_SLIDES = [
   {
+    image: diaDeLosMuertosImage,
+    alt: "Guests in festive Día de los Muertos Catrina costumes at the Popssibilities booth with chalkboard flavor menu",
+    badge: "THEMED CELEBRATIONS",
+    title: "Festivals & Themed Celebrations",
+    objectPosition: "center 22%",
+    description:
+      "From cultural festivals and weddings to birthdays and holidays, we customize our paleta setups to celebrate in style.",
+  },
+  {
     image: eventCartImage,
     alt: "Popssibilities branded event cart setup",
     badge: "CART SETUP",
@@ -2083,22 +2093,13 @@ const CATERING_HERO_SLIDES = [
       "Charming mobile cart setup with our signature umbrella, perfect for outdoor or indoor celebrations.",
   },
   {
-    image: venueImage,
-    alt: "Celebration venue setup for paleta catering",
-    badge: "VENUE SETUP",
-    title: "Weddings & Private Celebrations",
-    objectPosition: "center 42%",
+    image: audreyTableImage,
+    alt: "Founder Audrey smiling behind the Popssibilities event table with artisan paleta molds and toppings",
+    badge: "PERSONALIZED SETUP",
+    title: "Handcrafted Event Experience",
+    objectPosition: "center 25%",
     description:
-      "Delight your guests with a colorful artisan dessert bar that makes every photo pop.",
-  },
-  {
-    image: paletasImage,
-    alt: "Handcrafted artisan paletas arranged by flavor",
-    badge: "ROTATING FLAVORS",
-    title: "Artisan Paleta Menus",
-    objectPosition: "center 28%",
-    description:
-      "Real fruit, dairy-free, and creamy selections freshly prepared and customized for your party.",
+      "Audrey brings handcrafted Mexican paletas, artisan toppings, and personalized service right to your event.",
   },
 ];
 

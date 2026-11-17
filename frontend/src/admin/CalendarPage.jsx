@@ -6,6 +6,8 @@ import { fetchCalendar } from "./adminApi.js";
 import { AdminNav, AdminPageHeader } from "./AdminShell.jsx";
 import { useDialogAccessibility } from "./useDialogAccessibility.js";
 import { AdminRefreshStatus, useAdminRefresh } from "./useAdminRefresh.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
+import { apiRequest, errorMessage, navigateToProvider } from "../auth/api.js";
 
 const DOW_LABELS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const MONTH_NAMES = [
@@ -271,6 +273,13 @@ function CalendarCell({ day, events, isToday, onSelect }) {
 // Main page
 // ---------------------------------------------------------------------------
 export function CalendarPage() {
+  const auth = useAuth();
+  const session = auth?.sessions?.admin?.data;
+  const csrfToken = session?.csrf_token;
+  const owner = session?.administrator?.role === "owner";
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleError, setGoogleError] = useState("");
+
   const [now, setNow] = useState(Date.now);
   const today = centralDateParts(now);
   const [year, setYear] = useState(today.year);
@@ -355,6 +364,58 @@ export function CalendarPage() {
     setSelectedEvent(null);
   }
 
+  async function handleConnectGoogle() {
+    setGoogleBusy(true);
+    setGoogleError("");
+    try {
+      const result = await apiRequest("/admin/automation/google/connect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({}),
+      });
+      if (result?.authorization_url) {
+        navigateToProvider(result.authorization_url);
+      } else {
+        refresh();
+      }
+    } catch (failure) {
+      setGoogleError(
+        failure.code === "reauthentication_required"
+          ? errorMessage(failure)
+          : failure.serverMessage || errorMessage(failure),
+      );
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
+  async function handleDisconnectGoogle() {
+    setGoogleBusy(true);
+    setGoogleError("");
+    try {
+      await apiRequest("/admin/automation/google/disconnect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+        body: JSON.stringify({}),
+      });
+      refresh();
+    } catch (failure) {
+      setGoogleError(
+        failure.code === "reauthentication_required"
+          ? errorMessage(failure)
+          : failure.serverMessage || errorMessage(failure),
+      );
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
   const activeStatuses = new Set([
     "pending",
     "awaiting_deposit",
@@ -422,14 +483,37 @@ export function CalendarPage() {
                   connection.setup_message ||
                   "Manage the current owner connection in the booking workspace."}
               </p>
+              {googleError && <p role="alert">{googleError}</p>}
               <p className="cal-gcal-banner__sync">
                 Event and booking data remain available when Google is
                 disconnected.
               </p>
             </div>
-            <Link to="/admin/automation" className="adm-btn adm-btn--outline">
-              Manage connection
-            </Link>
+            <div className="cal-gcal-banner__actions">
+              {owner && connection.status === "disconnected" && (
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--primary"
+                  disabled={googleBusy || connection.configured === false}
+                  onClick={handleConnectGoogle}
+                >
+                  Connect Google Calendar
+                </button>
+              )}
+              {owner && connection.status === "connected" && (
+                <button
+                  type="button"
+                  className="adm-btn adm-btn--outline"
+                  disabled={googleBusy}
+                  onClick={handleDisconnectGoogle}
+                >
+                  Disconnect Google Calendar
+                </button>
+              )}
+              <Link to="/admin/automation" className="adm-btn adm-btn--outline">
+                Manage connection
+              </Link>
+            </div>
           </div>
 
           {/* Nav row */}
