@@ -50,19 +50,23 @@ function eventPayload(form) {
 function EventFields({ booking = {} }) {
   return (
     <>
-      <Input
-        name="start"
-        label="Event start (Houston/Central time)"
-        type="datetime-local"
-        defaultValue={centralInputValue(booking.start)}
-      />
-      <Input
-        name="end"
-        label="Event end (Houston/Central time)"
-        type="datetime-local"
-        defaultValue={centralInputValue(booking.end)}
-      />
-      <p>All event times use Houston/Central time.</p>
+      <div className="adm-inline-fields">
+        <Input
+          name="start"
+          label="Event start (Houston/Central time)"
+          type="datetime-local"
+          defaultValue={centralInputValue(booking.start)}
+        />
+        <Input
+          name="end"
+          label="Event end (Houston/Central time)"
+          type="datetime-local"
+          defaultValue={centralInputValue(booking.end)}
+        />
+      </div>
+      <p className="adm-field-hint">
+        All event times use Houston/Central time.
+      </p>
       <Input
         name="venue"
         label="Venue"
@@ -672,6 +676,7 @@ function BookingInventory({ booking, refresh }) {
 }
 
 const BOOKING_ACTION_TABS = [
+  { id: "all", label: "All" },
   { id: "decision", label: "Review Request" },
   { id: "payments", label: "Payments & Square" },
   { id: "flavors", label: "Flavor Stock" },
@@ -690,14 +695,8 @@ function BookingDetail({
   connectionError,
 }) {
   const [formError, setFormError] = useState("");
-  const isAutomatedTest =
-    typeof navigator !== "undefined" && Boolean(navigator.webdriver);
-  const [activeTab, setActiveTab] = useState(
-    isAutomatedTest ? "all" : "decision",
-  );
-  const [rescheduleOpen, setRescheduleOpen] = useState(
-    Boolean(isAutomatedTest),
-  );
+  const [activeTab, setActiveTab] = useState("all");
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const booking = detail.booking;
   const path = `/bookings/${booking.id}`;
@@ -1009,12 +1008,10 @@ function BookingDetail({
               PAYMENTS OVERVIEW
             </h2>
             <p className="od-field-value od-field-value--bold">
-              {money(booking.paid_minor, booking.currency)} /{" "}
-              {money(booking.remaining_minor, booking.currency)}
+              {`${money(booking.paid_minor, booking.currency)} / ${money(booking.remaining_minor, booking.currency)}`}
             </p>
             <p className="od-field-value">
-              {booking.status} / {booking.payment_status} /{" "}
-              {booking.calendar_status}
+              {`${booking.status} / ${booking.payment_status} / ${booking.calendar_status}`}
             </p>
             {detail.payments.length > 0 ? (
               <p className="od-field-value" style={{ marginTop: "10px" }}>
@@ -1039,14 +1036,26 @@ function BookingDetail({
             className="adm-subsection-nav"
             aria-label="Booking action sections"
           >
-            {BOOKING_ACTION_TABS.map((sub) => (
+            {BOOKING_ACTION_TABS.filter((sub) =>
+              sub.id === "decision"
+                ? ["owner_review", "conditionally_confirmed"].includes(
+                    booking.status,
+                  )
+                : true,
+            ).map((sub) => (
               <button
                 key={sub.id}
                 type="button"
                 className={`adm-subsection-btn ${
                   activeTab === sub.id ? "adm-subsection-btn--active" : ""
                 }`}
-                onClick={() => setActiveTab(sub.id)}
+                onClick={() => {
+                  setActiveTab(sub.id);
+                  const el = document.getElementById(`sec-${sub.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
               >
                 {sub.label}
               </button>
@@ -1057,15 +1066,23 @@ function BookingDetail({
         {formError && <p role="alert">{formError}</p>}
 
         {/* Action 1: Review Request */}
-        {(activeTab === "decision" || activeTab === "all") && (
-          <section className="adm-subsection" aria-label="Review and decision">
-            <OrderDecisionControls booking={booking} onSaved={refresh} />
-          </section>
-        )}
+        {(activeTab === "all" || activeTab === "decision") &&
+          ["owner_review", "conditionally_confirmed"].includes(
+            booking.status,
+          ) && (
+            <section
+              id="sec-decision"
+              className="adm-subsection"
+              aria-label="Review and decision"
+            >
+              <OrderDecisionControls booking={booking} onSaved={refresh} />
+            </section>
+          )}
 
         {/* Action 2: Payments & Square */}
-        {(activeTab === "payments" || activeTab === "all") && (
+        {(activeTab === "all" || activeTab === "payments") && (
           <section
+            id="sec-payments"
             className="adm-subsection"
             aria-label="Payments and Square checkout"
           >
@@ -1140,15 +1157,20 @@ function BookingDetail({
         )}
 
         {/* Action 3: Flavor Stock */}
-        {(activeTab === "flavors" || activeTab === "all") && (
-          <section className="adm-subsection" aria-label="Flavor allocations">
+        {(activeTab === "all" || activeTab === "flavors") && (
+          <section
+            id="sec-flavors"
+            className="adm-subsection"
+            aria-label="Flavor allocations"
+          >
             <BookingInventory booking={booking} refresh={refresh} />
           </section>
         )}
 
         {/* Action 4: Google Calendar */}
-        {(activeTab === "calendar" || activeTab === "all") && (
+        {(activeTab === "all" || activeTab === "calendar") && (
           <section
+            id="sec-calendar"
             className="adm-subsection adm-calendar-panel"
             aria-label="Google Calendar connection"
           >
@@ -1197,9 +1219,9 @@ function BookingDetail({
                     {connectionError}
                   </p>
                 )}
-                {connection?.last_error && !connectionError && (
+                {connection?.last_error && (
                   <p role="alert" className="adm-calendar-error">
-                    {connection?.last_error}
+                    {connection.last_error}
                   </p>
                 )}
               </div>
@@ -1292,8 +1314,12 @@ function BookingDetail({
         )}
 
         {/* Action 5: Manage Booking */}
-        {(activeTab === "manage" || activeTab === "all") && (
-          <section className="adm-subsection" aria-label="Manage booking">
+        {(activeTab === "all" || activeTab === "manage") && (
+          <section
+            id="sec-manage"
+            className="adm-subsection"
+            aria-label="Manage booking"
+          >
             {/* Card 1: Update Popsicle Count */}
             {booking.status !== "cancelled" &&
               booking.status !== "fulfilled" && (
@@ -1307,7 +1333,7 @@ function BookingDetail({
                   <p className="adm-card__desc">
                     Update or finalize the headcount for catering preparation.
                   </p>
-                  <div className="adm-inline-fields">
+                  <div className="adm-popsicle-count-fields">
                     <Input
                       name="quantity"
                       label="Final popsicle quantity"
@@ -1477,9 +1503,13 @@ function BookingDetail({
           </section>
         )}
 
-        {/* Action 5: Automation Jobs */}
-        {(activeTab === "jobs" || activeTab === "all") && (
-          <section className="adm-subsection" aria-label="Automation jobs">
+        {/* Action 6: Automation Jobs */}
+        {(activeTab === "all" || activeTab === "jobs") && (
+          <section
+            id="sec-jobs"
+            className="adm-subsection"
+            aria-label="Automation jobs"
+          >
             <div className="adm-card adm-jobs-card">
               <h4>Automation jobs</h4>
               {(detail.jobs || []).length === 0 ? (
@@ -1599,8 +1629,7 @@ function CustomerOrder({ order, busy, mutate }) {
         </div>
         <div className="adm-order-intake-summary__aside">
           <span className="adm-order-intake-pill">
-            {order.catering_request.quantity}{" "}
-            {order.catering_request.popsicle_shape || "standard"} popsicles ·{" "}
+            {order.catering_request.quantity} paletas ·{" "}
             {order.catering_request.service_type}
           </span>
           <span className="adm-order-intake-price">

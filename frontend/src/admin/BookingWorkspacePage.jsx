@@ -14,23 +14,7 @@ export function BookingWorkspacePage() {
   return (
     <AdminShell
       activeRoute="/admin/automation"
-      title={
-        bookingId ? (
-          <span className="adm-breadcrumb-trail">
-            <Link to="/admin/automation" className="adm-breadcrumb-trail__link">
-              Bookings
-            </Link>
-            <span className="adm-breadcrumb-trail__sep" aria-hidden="true">
-              /
-            </span>
-            <span className="adm-breadcrumb-trail__current">
-              Booking details
-            </span>
-          </span>
-        ) : (
-          "Bookings"
-        )
-      }
+      title={bookingId ? "Bookings / Booking details" : "Bookings"}
     >
       <div className="adm-booking-workspace">
         {bookingId && (
