@@ -202,6 +202,51 @@ class NativeAdminFlow:
             }
             challenge = provider.native_password(identity["subject"], body["password"])
             self._native_identity(payload)
+            # A valid browser session is the device's proof of MFA. Password
+            # renewal never extends that session's original 24-hour deadline.
+            old_token = request.cookies.get(cookie_name(self.settings, "admin"))
+            if self.valid_token(old_token) and challenge.get("challenge") == "SOFTWARE_TOKEN_MFA":
+                try:
+                    previous = self.authenticate("admin", request, password_check=False)
+                except AuthError as error:
+                    if error.status == 503:
+                        raise
+                else:
+                    if previous["identity_id"] == identity["id"]:
+                        from .service import timestamp
+
+                        now = self.now()
+                        with self.store.session_lock(hashed(old_token)):
+                            current = self.store.get_session(hashed(old_token), "admin")
+                            now = self.now()
+                            if (
+                                not current
+                                or not self.admin_assured(current)
+                                or current["identity_id"] != identity["id"]
+                                or now >= current["expires_at"]
+                            ):
+                                raise expired()
+                            tokens = self.decrypt(current["encrypted_tokens"])
+                            tokens["admin_password_at"] = now
+                            if not self.store.update_tokens(
+                                hashed(old_token), self.encrypt(tokens), now
+                            ):
+                                raise expired()
+                        self.store.audit(
+                            "admin_password_renewed",
+                            identity_id=identity["id"],
+                            request_id=request_id,
+                        )
+                        return (
+                            {
+                                "step": "complete",
+                                "csrf_token": self.csrf("admin", old_token),
+                                "expires_at": timestamp(previous["expires_at"]),
+                            },
+                            None,
+                            binding,
+                            old_token,
+                        )
             return (
                 *self._native_put(self._native_advance(payload, challenge), binding, row=row),
                 None,

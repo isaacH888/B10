@@ -57,7 +57,7 @@ def test_customer_supports_google_and_password_while_admin_is_native_only():
 
 
 def test_clients_use_code_and_rotated_short_tokens():
-    for name, minutes, hours in [("AdminClient", 5, 8), ("CustomerClient", 15, 168)]:
+    for name, minutes, hours in [("AdminClient", 5, 24), ("CustomerClient", 15, 168)]:
         client = props(name)
         assert client["GenerateSecret"] is True
         assert client["AllowedOAuthFlows"] == ["code"]

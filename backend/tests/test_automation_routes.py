@@ -163,9 +163,12 @@ def test_stale_authentication_and_revoked_owner_access_fail_closed(owner_app):
     client, headers = signed_owner(owner_app)
     owner_app.test_clock["now"] += 301
     result = client.post(BASE + "/google/connect", json={}, headers=headers)
-    assert result.status_code == 403
-    assert result.json["error"]["code"] == "reauthentication_required"
+    assert result.status_code == 200
     assert client.get(BASE + "/google").status_code == 200
+    owner_app.test_clock["now"] += 14099
+    result = client.post(BASE + "/google/connect", json={}, headers=headers)
+    assert result.status_code == 401
+    assert result.json["error"]["code"] == "password_required"
     identity = next(iter(owner_app.test_store.identities.values()))
     identity["admin_active"] = False
     assert client.get(BASE + "/bookings").status_code == 403

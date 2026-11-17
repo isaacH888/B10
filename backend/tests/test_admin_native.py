@@ -390,7 +390,7 @@ def test_native_refresh_preserves_proof_freshness_and_logout_revokes(native_app)
     assert client.get("/api/v1/admin/session").status_code == 200
     assert native_app.test_providers["admin"].native_refresh_calls == 1
     assert next(iter(native_app.test_store.sessions.values()))["assurance"] == original
-    assert client.get("/_test/export").json["error"]["code"] == "reauthentication_required"
+    assert client.get("/_test/export").status_code == 200
     result = client.delete(
         "/api/v1/admin/session", headers={"Origin": ORIGIN, "X-CSRF-Token": session["csrf_token"]}
     )
@@ -610,3 +610,37 @@ def test_full_native_login_api_uses_real_mysql_state_sessions_and_integer_versio
         saved = cursor.fetchone()
         assert json.loads(saved["assurance"])["access_version"] == int(existing_epoch)
         assert "private-access-token" not in saved["encrypted_tokens"]
+
+
+def test_same_browser_password_every_four_hours_and_full_mfa_after_24_hours(native_app):
+    client = native_app.test_client()
+    login(client)
+    provider = native_app.test_providers["admin"]
+    initial = native_app.test_clock["now"]
+    for hours in (4, 8, 12, 16, 20):
+        native_app.test_clock["now"] = initial + hours * 3600
+        response = client.get("/api/v1/admin/session")
+        assert response.status_code == 401
+        assert response.json["error"]["code"] == "password_required"
+        assert password(client)["step"] == "complete"
+        assert client.get("/api/v1/admin/session").status_code == 200
+        assert provider.totp_calls == 1
+    fresh_device = native_app.test_client()
+    assert password(fresh_device)["step"] == "totp"
+    native_app.test_clock["now"] = initial + 24 * 3600
+    assert password(client)["step"] == "totp"
+
+
+def test_failed_password_cannot_renew_device_session(native_app):
+    client = native_app.test_client()
+    login(client)
+    native_app.test_clock["now"] = NOW + 14400
+    transaction = bootstrap(client)
+    native_app.test_providers["admin"].fail = AuthError("authentication_failed", "Invalid sign-in.")
+    result = post(
+        client, transaction, email="synthetic@example.invalid", password="synthetic-password"
+    )
+    assert result.status_code == 401
+    session = next(iter(native_app.test_store.sessions.values()))
+    tokens = native_app.extensions["auth_service"].decrypt(session["encrypted_tokens"])
+    assert tokens.get("admin_password_at", session["created_at"]) == NOW

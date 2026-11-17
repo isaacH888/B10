@@ -26,8 +26,9 @@ def environment_settings(environment):
         ),
         "AUTH_TOKEN_ENCRYPTION_KEY": os.getenv("AUTH_TOKEN_ENCRYPTION_KEY", ""),
         "AUTH_TRUSTED_PROXY_HOPS": int(os.getenv("AUTH_TRUSTED_PROXY_HOPS", "0")),
-        "ADMIN_IDLE_SECONDS": 900,
-        "ADMIN_SESSION_SECONDS": 28800,
+        "ADMIN_IDLE_SECONDS": 86400,
+        "ADMIN_SESSION_SECONDS": 86400,
+        "ADMIN_PASSWORD_SECONDS": 14400,
         "CUSTOMER_IDLE_SECONDS": 86400,
         "CUSTOMER_SESSION_SECONDS": 604800,
     }

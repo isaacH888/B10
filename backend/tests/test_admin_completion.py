@@ -161,8 +161,8 @@ def test_event_date_filters_and_safe_csv_export(admin_app):
     assert rows[0]["order_id"] == order["id"]
     assert rows[0]["total_cents"] == str(order["pricing"]["total_cents"])
     assert client.get(base + "/export?q=Nobody").get_data(as_text=True).count("\n") == 1
-    admin_app.test_clock["now"] += 301
-    assert client.get(base + "/export").status_code == 403
+    admin_app.test_clock["now"] += 14400
+    assert client.get(base + "/export").status_code == 401
 
 
 @pytest.mark.parametrize(

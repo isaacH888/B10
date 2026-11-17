@@ -463,7 +463,7 @@
         },
         "AccessTokenValidity": 5,
         "IdTokenValidity": 5,
-        "RefreshTokenValidity": 8,
+        "RefreshTokenValidity": 24,
         "TokenValidityUnits": {
           "AccessToken": "minutes",
           "IdToken": "minutes",

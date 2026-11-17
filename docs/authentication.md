@@ -21,12 +21,22 @@ Owner/Staff invitations, MFA recovery and disable remain private operator proced
 | Account creation | Private operator invitation | Managed self-registration or Google |
 | Pool tier | Plus | Essentials |
 | Access and ID token validity | 5 minutes | 15 minutes |
-| Refresh and application session limit | 8 hours | 7 days |
-| Application idle limit | 15 minutes | 24 hours |
+| Refresh and application session limit | 24 hours | 7 days |
+| Application idle limit | 24 hours, with password renewal every 4 hours | 24 hours |
 | MFA | Required native Cognito TOTP | Not required |
 | Recovery | Verified private operator | Verified email for password accounts; Google handles its accounts |
 
 Session reads do not extend idle time. Protected business actions may extend it within the fixed session lifetime. Every authenticated request rechecks local access and calls token-authorized Cognito `GetUser`, including checking current Cognito TOTP enrollment for administrators. This detects provider sign-out, revocation, and disable operations; provider or database failures deny access. The `aws.cognito.signin.user.admin` OAuth scope used for `GetUser` authorizes self-account APIs, not IAM pool administration. The browser never receives the access token. [AWS GetUser](https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_GetUser.html).
+
+An admin browser must complete password and authenticator verification for its
+initial session. During that fixed 24-hour session, password verification is due
+every 4 hours. Successful password renewal uses the existing server-side MFA
+proof and does not extend its original deadline. A new browser, logout, expired
+session, or revoked session requires full verification again. Device recognition
+uses the private session cookie; no trusted-device flag in local storage can
+bypass verification. Deploy the admin Cognito client's 24-hour refresh lifetime
+as well as the application code; existing refresh tokens may retain their old
+expiry and need one full sign-in after rollout.
 
 | Role | Allowed application permissions |
 | --- | --- |

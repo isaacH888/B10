@@ -258,7 +258,16 @@ class AuthService(NativeAdminFlow):
             self.settings["SECRET_KEY"].encode(), f"csrf:{area}:{token}".encode(), hashlib.sha256
         ).hexdigest()
 
-    def authenticate(self, area, request, touch=False, csrf=False, permission=None, fresh=False):
+    def authenticate(
+        self,
+        area,
+        request,
+        touch=False,
+        csrf=False,
+        permission=None,
+        fresh=False,
+        password_check=True,
+    ):
         token = request.cookies.get(cookie_name(self.settings, area))
         if not self.valid_token(token):
             raise AuthError("unauthenticated", "Please sign in to continue.")
@@ -289,7 +298,7 @@ class AuthService(NativeAdminFlow):
                 permissions = PERMISSIONS[session["admin_role"]]
                 if permission and permission not in permissions:
                     raise AuthError("forbidden", "You do not have permission for this action.", 403)
-                if fresh and now - self.authentication_time(session) > 300:
+                if fresh and now - self.authentication_time(session) >= 86400:
                     raise AuthError(
                         "reauthentication_required",
                         "Sign in with your authenticator again before this action.",
@@ -300,6 +309,13 @@ class AuthService(NativeAdminFlow):
                 self.store.revoke_session(token_hash, now)
                 raise AuthError("unauthenticated", "Please sign in to continue.")
             tokens = self.decrypt(session["encrypted_tokens"])
+            password_at = tokens.get("admin_password_at", session["created_at"])
+            if (
+                area == "admin"
+                and password_check
+                and now >= password_at + self.settings.get("ADMIN_PASSWORD_SECONDS", 14400)
+            ):
+                raise AuthError("password_required", "Enter your password again to continue.")
             try:
                 if now >= tokens["token_expires_at"] - 30:
                     native = (
@@ -321,6 +337,8 @@ class AuthService(NativeAdminFlow):
                     ):
                         raise AuthError("authentication_failed", "Invalid authentication response.")
                     tokens["token_expires_at"] = claims["token_expires_at"]
+                    if area == "admin":
+                        tokens["admin_password_at"] = password_at
                     if not self.store.update_tokens(token_hash, self.encrypt(tokens), now):
                         raise AuthError(
                             "session_expired", "Your session has expired. Please sign in again."
@@ -343,9 +361,14 @@ class AuthService(NativeAdminFlow):
                     raise AuthError(
                         "forbidden", "Administrator access is not available for this account.", 403
                     )
+                current_tokens = self.decrypt(current["encrypted_tokens"])
+                if password_check and now >= current_tokens.get(
+                    "admin_password_at", current["created_at"]
+                ) + self.settings.get("ADMIN_PASSWORD_SECONDS", 14400):
+                    raise AuthError("password_required", "Enter your password again to continue.")
                 if permission and permission not in PERMISSIONS[current["admin_role"]]:
                     raise AuthError("forbidden", "You do not have permission for this action.", 403)
-                if fresh and now - self.authentication_time(current) > 300:
+                if fresh and now - self.authentication_time(current) >= 86400:
                     raise AuthError(
                         "reauthentication_required",
                         "Sign in with your authenticator again before this action.",
@@ -372,6 +395,13 @@ class AuthService(NativeAdminFlow):
             session["expires_at"],
             session["last_seen"] + self.settings[f"{area.upper()}_IDLE_SECONDS"],
         )
+        if area == "admin":
+            tokens = self.decrypt(session["encrypted_tokens"])
+            idle_expires = min(
+                idle_expires,
+                tokens.get("admin_password_at", session["created_at"])
+                + self.settings.get("ADMIN_PASSWORD_SECONDS", 14400),
+            )
         return {
             "administrator" if area == "admin" else "customer": identity,
             "expires_at": timestamp(session["expires_at"]),

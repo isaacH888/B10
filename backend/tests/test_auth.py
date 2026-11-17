@@ -489,11 +489,11 @@ def test_polling_does_not_extend_idle_and_absolute_expiry(auth_app):
     sign_in(client, "admin")
     auth_app.test_clock["now"] += 600
     assert client.get("/api/v1/admin/session").status_code == 200
-    auth_app.test_clock["now"] += 301
+    auth_app.test_clock["now"] += 13800
     assert client.get("/api/v1/admin/session").status_code == 401
     auth_app.test_providers["admin"].auth_time = auth_app.test_clock["now"]
     sign_in(client, "admin")
-    auth_app.test_clock["now"] += 28800
+    auth_app.test_clock["now"] += 86400
     assert client.get("/api/v1/admin/session").status_code == 401
 
 
@@ -503,9 +503,9 @@ def test_sensitive_operation_requires_recent_mfa(auth_app):
     sign_in(client, "admin")
     auth_app.test_clock["now"] += 301
     result = client.get("/_test/export")
-    assert result.status_code == 403
-    assert result.json["error"]["code"] == "reauthentication_required"
-    assert client.get("/_test/booking").status_code == 200
+    assert result.status_code == 200
+    auth_app.test_clock["now"] += 14099
+    assert client.get("/_test/booking").json["error"]["code"] == "password_required"
 
 
 def test_concurrent_revocation_during_provider_request_cannot_authorize(auth_app, monkeypatch):
@@ -522,7 +522,7 @@ def test_concurrent_revocation_during_provider_request_cannot_authorize(auth_app
 
 
 @pytest.mark.parametrize(
-    "endpoint,elapsed,status", [("/_test/export", 301, 403), ("/_test/booking", 901, 401)]
+    "endpoint,elapsed,status", [("/_test/export", 14400, 401), ("/_test/booking", 86400, 401)]
 )
 def test_provider_delay_cannot_cross_expiry_or_mfa_freshness(
     auth_app, monkeypatch, endpoint, elapsed, status
