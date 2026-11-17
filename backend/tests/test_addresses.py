@@ -7,8 +7,10 @@ import pytest
 import requests
 from address_fixtures import LOCATION, FixedAddressProvider
 from app import create_app
-from app.addresses import AddressProviderUnavailable, GeoapifyAddressProvider
+from app.addresses import AddressProviderUnavailable, AddressService, GeoapifyAddressProvider
 from app.traffic import RequestBudget
+from test_auth import auth_app as auth_app
+from test_auth import customer_session
 from test_orders import order_payload
 
 ORIGIN = "http://localhost:5173"
@@ -16,26 +18,15 @@ BASE = "/api/v1/catering/address"
 
 
 @pytest.fixture
-def address_app(monkeypatch):
+def address_app(auth_app, monkeypatch):
     monkeypatch.setenv("APP_ENV", "development")
     provider = FixedAddressProvider(16094)
-    app = create_app(
-        {
-            "TESTING": True,
-            "AUTH_ENABLED": False,
-            "CUSTOMER_AUTH_ENABLED": False,
-            "DB_USER": "",
-            "DB_PASSWORD": "",
-            "GEOAPIFY_API_KEY": "",
-            "ADDRESS_PROVIDER": provider,
-            "ADDRESS_DISTANCE_PROVIDER": provider,
-            "AUTH_ORIGIN": ORIGIN,
-            "CORS_ORIGINS": [ORIGIN],
-            "AUTOMATION_ENABLED": False,
-            "EMAIL_ENABLED": False,
-        }
+    app = auth_app
+    app.config.update(DB_USER="", DB_PASSWORD="", GEOAPIFY_API_KEY="")
+    app.extensions["address_service"] = AddressService(
+        app.extensions["pricing_rules"], provider=provider, distance_provider=provider
     )
-    return app, app.test_client(), provider
+    return app, customer_session(app.test_client()), provider
 
 
 def post(client, path, body):
@@ -233,6 +224,7 @@ def test_incomplete_or_non_us_addresses_are_not_accepted(address_app, location):
 def test_address_endpoint_input_and_origin_limits(address_app):
     app, client, provider = address_app
     body = {"input": "100 Example", "session_token": str(uuid4())}
+    client.environ_base.pop("HTTP_ORIGIN", None)
     assert client.post(BASE + "/suggestions", json=body).status_code == 403
     assert (
         client.post(

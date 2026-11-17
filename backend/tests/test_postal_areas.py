@@ -4,8 +4,7 @@ import math
 
 import pytest
 from address_fixtures import LOCATION
-from app import create_app
-from app.addresses import METERS_PER_MILE
+from app.addresses import METERS_PER_MILE, AddressService
 from app.postal_areas import (
     CENTER_POSTAL_CODE,
     EARTH_RADIUS_METERS,
@@ -13,30 +12,20 @@ from app.postal_areas import (
     ZipRadiusProvider,
     postal_centers,
 )
+from test_auth import auth_app as auth_app
+from test_auth import customer_session
 
 ORIGIN = "http://localhost:5173"
 BASE = "/api/v1/catering/address"
 
 
 @pytest.fixture
-def local_app(monkeypatch):
+def local_app(auth_app, monkeypatch):
     monkeypatch.setenv("APP_ENV", "development")
-    app = create_app(
-        {
-            "TESTING": True,
-            "AUTH_ENABLED": False,
-            "CUSTOMER_AUTH_ENABLED": False,
-            "DB_USER": "",
-            "DB_PASSWORD": "",
-            "GEOAPIFY_API_KEY": "",
-            "AUTH_ORIGIN": ORIGIN,
-            "CORS_ORIGINS": [ORIGIN],
-            "DELIVERY_ORIGIN_ADDRESS": "An old kitchen setting must not move the center",
-            "AUTOMATION_ENABLED": False,
-            "EMAIL_ENABLED": False,
-        }
-    )
-    return app, app.test_client()
+    app = auth_app
+    app.config.update(DB_USER="", DB_PASSWORD="", GEOAPIFY_API_KEY="")
+    app.extensions["address_service"] = AddressService(app.extensions["pricing_rules"])
+    return app, customer_session(app.test_client())
 
 
 def check(client, code, **extra):

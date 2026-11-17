@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
+  const proxyEnv = loadEnv(mode, process.cwd(), "API_PROXY_");
   // The browser must send its session cookie to the same origin as the app.
   if (env.VITE_API_BASE_URL && env.VITE_API_BASE_URL !== "/api/v1") {
     throw new Error(
@@ -13,7 +14,10 @@ export default defineConfig(async ({ mode }) => {
     );
   }
   const proxy = {
-    "/api/v1": { target: "http://127.0.0.1:5000", changeOrigin: false },
+    "/api/v1": {
+      target: proxyEnv.API_PROXY_TARGET || "http://127.0.0.1:5000",
+      changeOrigin: false,
+    },
   };
   const { stdout: commit } = await promisify(execFile)(
     "git",

@@ -6,6 +6,7 @@ import pytest
 from app.automation.delivery import JobProcessor, MemoryMail, MemoryQueue
 from app.automation.domain import DomainError
 from test_auth import auth_app as auth_app
+from test_auth import customer_session
 from test_automation_domain import payload, payment
 from test_automation_domain import setup as setup
 from test_automation_routes import owner_app as owner_app
@@ -307,6 +308,7 @@ def test_reapproval_suppresses_the_previous_deposit_email(setup):
 
 def test_reopening_a_denied_request_requires_real_end_but_no_contract(intake_app):
     client, headers = signed_owner(intake_app)
+    customer_session(client)
     body = order_payload()
     body["event"]["ends_at"] = None
     quote = client.post(

@@ -248,6 +248,12 @@ export function OrderConfirmation() {
       <div className="confirmation-actions">
         <Link
           className="confirmation-button confirmation-button--primary"
+          to="/account?view=orders"
+        >
+          Track your order
+        </Link>
+        <Link
+          className="confirmation-button confirmation-button--primary"
           to="/order"
         >
           Start another catering request

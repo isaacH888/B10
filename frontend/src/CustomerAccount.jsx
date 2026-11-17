@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CustomerTestEmail } from "./CustomerTestEmail.jsx";
+import { CustomerOrders } from "./CustomerOrders.jsx";
 import "./customer-account.css";
 
 const views = [
   { id: "overview", label: "Account Overview", href: "/account" },
+  { id: "orders", label: "My Orders", href: "/account?view=orders" },
   {
     id: "security",
     label: "Sign-In & Security",
@@ -76,7 +78,9 @@ export function CustomerAccount({
                   ? "A few details that make this account yours."
                   : view === "security"
                     ? "Keep track of your current sign-in."
-                    : "See what a sample order confirmation looks like in your inbox."}
+                    : view === "orders"
+                      ? "Follow your catering requests from review to your event."
+                      : "See what a sample order confirmation looks like in your inbox."}
               </p>
             </div>
             {view === "overview" && (
@@ -131,6 +135,8 @@ export function CustomerAccount({
               </Link>
             </div>
           </section>
+
+          {view === "orders" && <CustomerOrders />}
 
           <section
             className="account-panel account-security"

@@ -32,7 +32,7 @@ async function sessions(page, { signedIn = false, unavailable = false } = {}) {
   });
 }
 
-test("the public homepage loads the uploaded images and opens the existing catering form", async ({
+test("the public homepage loads the uploaded images and asks for sign-in before the catering form", async ({
   page,
 }) => {
   const errors = [];
@@ -58,7 +58,11 @@ test("the public homepage loads the uploaded images and opens the existing cater
     .getByRole("button", { name: "Request a quote", exact: true })
     .first()
     .click();
-  await expect(page.getByLabel("Full name")).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?return_to=/);
+  await expect(
+    page.getByRole("button", { name: "Continue with Google" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -128,7 +132,7 @@ test("home and catering retain the same header, footer and customer navigation",
   await expect(page.getByRole("contentinfo")).toHaveCount(1);
 });
 
-test("footer and catering links open the public FAQs and lead back to a quote", async ({
+test("footer and catering links open the public FAQs and require sign-in before a quote", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -169,9 +173,9 @@ test("footer and catering links open the public FAQs and lead back to a quote", 
   await page
     .getByRole("link", { name: "Request a quote", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/order$/);
-  await expect(page.getByLabel("Full name")).toBeVisible();
-  await page.getByRole("button", { name: "Close catering form" }).click();
+  await expect(page).toHaveURL(/\/login\?return_to=/);
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
+  await page.goto("/order");
   await page.getByRole("link", { name: "Read our catering FAQs" }).click();
   await expect(page).toHaveURL(/\/faq$/);
 });

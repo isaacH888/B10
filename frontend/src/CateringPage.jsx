@@ -19,7 +19,9 @@ import parkEventImage from "./assets/story/audrey-park-event.jpg";
 import paletaIllustration from "./assets/illustrations/paleta.svg";
 import fruitIllustration from "./assets/illustrations/fruit.svg";
 import cartIllustration from "./assets/illustrations/cart.svg";
-import { apiRequest } from "./auth/api.js";
+import { apiRequest, errorMessage } from "./auth/api.js";
+import { useAuth } from "./auth/AuthContext.jsx";
+import { quoteReturn } from "./auth/customerReturn.js";
 import {
   CUSTOM_FLAVOR_NOTICE_MESSAGE,
   centralTimeToIso,
@@ -932,6 +934,8 @@ function StepSummary({
   onSubmitOrder,
   onEdit,
   submitError,
+  session,
+  onRetrySession,
 }) {
   const isLoading = quoteStatus === "loading";
   const isSubmitting = quoteStatus === "submitting";
@@ -1075,15 +1079,39 @@ function StepSummary({
       </p>
 
       {quoteStatus === "idle" && (
-        <button
-          type="button"
-          className="btn-next"
-          onClick={onGetQuote}
-          disabled={busy}
-          style={{ width: "100%", marginTop: "0.75rem" }}
-        >
-          Get quote
-        </button>
+        <>
+          {session.status === "signed-out" && (
+            <p>
+              Sign in with Google or your email to create a quote and track your
+              order in My Orders. Your details will be saved while you sign in.
+            </p>
+          )}
+          {session.status === "error" && (
+            <div role="alert">
+              <p>{errorMessage(session.error)}</p>
+              <button type="button" onClick={onRetrySession}>
+                Try sign-in again
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="btn-next"
+            onClick={onGetQuote}
+            disabled={
+              busy ||
+              ["loading", "error"].includes(session.status) ||
+              session.logoutPending
+            }
+            style={{ width: "100%", marginTop: "0.75rem" }}
+          >
+            {session.status === "loading"
+              ? "Checking your sign-in…"
+              : session.status === "authenticated"
+                ? "Get quote"
+                : "Sign in to get your quote"}
+          </button>
+        </>
       )}
 
       {isLoading && (
@@ -1343,6 +1371,8 @@ function buildRequestBody(form, quoteId) {
 
 function CateringModal({ onClose, draft, onDraftChange }) {
   const navigate = useNavigate();
+  const { sessions, refresh, expire } = useAuth();
+  const session = sessions.customer;
   const [currentStep, setCurrentStep] = useState(draft.step);
   const [stepDirection, setStepDirection] = useState("forward");
   const [form, setForm] = useState(draft.form);
@@ -1682,6 +1712,11 @@ function CateringModal({ onClose, draft, onDraftChange }) {
 
   async function handleGetQuote() {
     if (!validateForm()) return;
+    if (session.status !== "authenticated") {
+      if (session.status === "signed-out" && !session.logoutPending)
+        navigate(`/login?return_to=${encodeURIComponent(quoteReturn)}`);
+      return;
+    }
     setQuoteStatus("loading");
     setQuote(null);
     setSubmitError("");
@@ -1690,7 +1725,10 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       const requestBody = buildRequestBody(form, null);
       const data = await apiRequest("/quotes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": session.data.csrf_token,
+        },
         body: JSON.stringify(requestBody),
       });
       setQuote(data);
@@ -1702,6 +1740,13 @@ function CateringModal({ onClose, draft, onDraftChange }) {
         setQuoteStatus("requires_review");
       }
     } catch (error) {
+      if (error.status === 401) {
+        expire("customer");
+        navigate(
+          `/login?error=session_expired&return_to=${encodeURIComponent(quoteReturn)}`,
+        );
+        return;
+      }
       if (showServerFieldErrors(error)) return;
       setQuoteStatus("error");
     }
@@ -1725,6 +1770,7 @@ function CateringModal({ onClose, draft, onDraftChange }) {
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey.current,
+          "X-CSRF-Token": session.data.csrf_token,
         },
         body: JSON.stringify(requestBody),
       });
@@ -1732,6 +1778,13 @@ function CateringModal({ onClose, draft, onDraftChange }) {
       onDraftChange({ form: { ...initialForm }, step: 1 });
       navigate("/order/confirm", { state: { order } });
     } catch (error) {
+      if (error.status === 401) {
+        expire("customer");
+        navigate(
+          `/login?error=session_expired&return_to=${encodeURIComponent(quoteReturn)}`,
+        );
+        return;
+      }
       if (showServerFieldErrors(error)) return;
       if (
         ["outside_service_area", "address_verification_required"].includes(
@@ -1961,6 +2014,8 @@ function CateringModal({ onClose, draft, onDraftChange }) {
                     onSubmitOrder={handleSubmitOrder}
                     onEdit={handleEdit}
                     submitError={submitError}
+                    session={session}
+                    onRetrySession={() => refresh("customer")}
                   />
                 )}
               </div>
@@ -2276,19 +2331,31 @@ export function CateringPage() {
   const [draft, setDraft] = useState(readDraft);
   const triggerRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { sessions } = useAuth();
+  const session = sessions.customer;
+  const loginPath = `/login?${session.expired ? "error=session_expired&" : ""}return_to=${encodeURIComponent(quoteReturn)}`;
 
   useEffect(() => {
     if (
-      location.state?.openQuote ||
-      new URLSearchParams(location.search).has("quote")
+      session.status !== "loading" &&
+      (location.state?.openQuote ||
+        new URLSearchParams(location.search).has("quote"))
     ) {
-      setModalOpen(true);
+      if (session.status === "authenticated") setModalOpen(true);
+      else navigate(loginPath, { replace: true });
     }
-  }, [location]);
+  }, [location, session.status, navigate, loginPath]);
+
+  useEffect(() => {
+    if (modalOpen && ["signed-out", "error"].includes(session.status))
+      navigate(loginPath, { replace: true });
+  }, [modalOpen, session.status, navigate, loginPath]);
 
   function openForm(event) {
     triggerRef.current = event?.currentTarget || null;
-    setModalOpen(true);
+    if (session.status === "authenticated") setModalOpen(true);
+    else navigate(loginPath);
   }
 
   function closeForm() {
@@ -2504,6 +2571,7 @@ export function CateringPage() {
         </div>
       </section>
       {modalOpen &&
+        session.status === "authenticated" &&
         createPortal(
           <CateringModal
             onClose={closeForm}

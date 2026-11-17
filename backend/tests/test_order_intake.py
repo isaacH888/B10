@@ -11,6 +11,7 @@ from app import orders as order_routes
 from app.automation.intake import import_order
 from app.automation.store import MemoryTransaction, SQLTransaction, Store, StoreUnavailable
 from test_auth import auth_app as auth_app
+from test_auth import customer_session
 from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
@@ -28,7 +29,15 @@ def mysql_app(owner_app, sql_settings):
     owner_app.extensions["booking_service"].store = store
     yield owner_app
     with database.connect(sql_settings) as connection, connection.cursor() as cursor:
-        for table in ("automation_order_links", "order_items", "orders", "customers", "quotes"):
+        for table in (
+            "customer_order_accounts",
+            "customer_quote_accounts",
+            "automation_order_links",
+            "order_items",
+            "orders",
+            "customers",
+            "quotes",
+        ):
             cursor.execute("DELETE FROM " + table)
         connection.commit()
 
@@ -42,6 +51,8 @@ def intake_app(request, owner_app):
 
 
 def submit(client, **changes):
+    if "HTTP_X_CSRF_TOKEN" not in client.environ_base:
+        customer_session(client)
     body = order_payload(**changes)
     quote_body = {key: body[key] for key in ("catering_request", "event")}
     quote = client.post("/api/v1/quotes", json=quote_body)
@@ -72,6 +83,7 @@ def test_quoted_text_whitespace_does_not_block_submission(intake_app):
         field: " " + value + " " for field, value in body["event"]["location"].items()
     }
     with intake_app.test_client() as client:
+        customer_session(client)
         quote = client.post(
             "/api/v1/quotes",
             json={key: body[key] for key in ("catering_request", "event")},
@@ -267,12 +279,14 @@ def test_concurrent_mysql_customer_submissions_do_not_duplicate_customers_or_ord
 ):
     body = order_payload()
     with mysql_app.test_client() as client:
+        customer_session(client)
         quote = client.post(
             "/api/v1/quotes",
             json={key: body[key] for key in ("catering_request", "event")},
         )
         assert quote.status_code == 200
         body["quote_id"] = quote.json["data"]["id"]
+        source = client
     barrier = threading.Barrier(2)
     load_quote = order_routes._load_quote
 
@@ -291,6 +305,7 @@ def test_concurrent_mysql_customer_submissions_do_not_duplicate_customers_or_ord
         if scenario == "reused_quote":
             key += "-" + str(index)
         with mysql_app.test_client() as client:
+            customer_session(client, source=source)
             return client.post(
                 "/api/v1/orders",
                 json=payload,
@@ -322,6 +337,7 @@ def test_concurrent_mysql_submissions_of_distinct_quotes_do_not_deadlock(
 ):
     bodies = [order_payload(), order_payload()]
     with mysql_app.test_client() as client:
+        customer_session(client)
         for body in bodies:
             quote = client.post(
                 "/api/v1/quotes",
@@ -329,6 +345,7 @@ def test_concurrent_mysql_submissions_of_distinct_quotes_do_not_deadlock(
             )
             assert quote.status_code == 200
             body["quote_id"] = quote.json["data"]["id"]
+        source = client
     barrier = threading.Barrier(2)
     build_order = order_routes._build_order_from_quote
 
@@ -343,6 +360,7 @@ def test_concurrent_mysql_submissions_of_distinct_quotes_do_not_deadlock(
     def attempt(index):
         key = "distinct-quote-key-0123456789-" + str(0 if shared_key else index)
         with mysql_app.test_client() as client:
+            customer_session(client, source=source)
             return client.post(
                 "/api/v1/orders", json=bodies[index], headers={"Idempotency-Key": key}
             )

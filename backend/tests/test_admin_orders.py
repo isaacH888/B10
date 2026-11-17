@@ -38,7 +38,15 @@ def admin_app(request, owner_app):
     yield owner_app
     if request.param == "mysql":
         with database.connect(owner_app.config) as connection, connection.cursor() as cursor:
-            for table in ("automation_order_links", "order_items", "orders", "customers", "quotes"):
+            for table in (
+                "customer_order_accounts",
+                "customer_quote_accounts",
+                "automation_order_links",
+                "order_items",
+                "orders",
+                "customers",
+                "quotes",
+            ):
                 cursor.execute("DELETE FROM " + table)
             connection.commit()
 
@@ -70,7 +78,7 @@ def test_revoked_owner_cannot_read_saved_contacts(owner_app):
     owner_app.config.update(DB_USER="", DB_PASSWORD="")
     order = submit(owner_app)
     client, _ = signed_owner(owner_app)
-    identity = next(iter(owner_app.test_store.identities.values()))
+    identity = next(i for i in owner_app.test_store.identities.values() if i["area"] == "admin")
     identity["admin_active"] = False
     for path in ("", "/" + order["id"]):
         result = client.get(BASE + path)

@@ -48,6 +48,7 @@ from urllib.parse import urlsplit
 import pymysql
 from flask import Blueprint, current_app, g, jsonify, request
 
+from .auth.guards import require_customer
 from .flavors import SAMPLE_FLAVORS, FlavorAllocationError, clean_flavor_allocations
 from .health import connection_options, database_configured
 
@@ -940,6 +941,7 @@ def _persist_quote(quote, validated):
         "total_minor": total_minor,
         "payload_json": quote,
         "is_used": False,
+        "identity_id": g.principal["identity_id"],
     }
     if not database_configured(current_app.config):
         store = current_app.extensions["quotes_memory"]
@@ -953,6 +955,10 @@ def _persist_quote(quote, validated):
                 "INSERT INTO quotes (id, expires_at, delivery_distance_miles, total_minor, payload_json)"
                 " VALUES (%s, %s, %s, %s, %s)",
                 (quote_id, expires_at, distance, total_minor, payload_json),
+            )
+            cursor.execute(
+                "INSERT INTO customer_quote_accounts (quote_id, identity_id) VALUES (%s, %s)",
+                (quote_id, g.principal["identity_id"]),
             )
         connection.commit()
     except BaseException:
@@ -1010,6 +1016,7 @@ def _validation_error(message, field=None):
 
 
 @quotes_bp.post("/quotes")
+@require_customer
 def create_quote():
     try:
         payload = json.loads(request.get_data(), parse_constant=_reject_json_constant)

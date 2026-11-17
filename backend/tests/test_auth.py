@@ -250,6 +250,25 @@ def sign_in(client, area="customer"):
     return result
 
 
+def customer_session(client, source=None):
+    """A real test-provider session and same-origin headers for business API fixtures."""
+    if source is not None:
+        name = cookie_name(client.application.config, "customer")
+        client.set_cookie(name, source.get_cookie(name).value)
+        client.environ_base.update(
+            HTTP_ORIGIN=ORIGIN,
+            HTTP_X_CSRF_TOKEN=source.environ_base["HTTP_X_CSRF_TOKEN"],
+        )
+        return client
+    sign_in(client, "customer")
+    session = client.get("/api/v1/customer/session")
+    assert session.status_code == 200
+    client.environ_base.update(
+        HTTP_ORIGIN=ORIGIN, HTTP_X_CSRF_TOKEN=session.json["data"]["csrf_token"]
+    )
+    return client
+
+
 def test_unconfigured_authentication_never_grants_access(monkeypatch):
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("AUTH_ENABLED", "false")

@@ -23,6 +23,8 @@ from app.quotes import (
     load_business_rules,
     validate_quote_payload,
 )
+from test_auth import auth_app as auth_app
+from test_auth import customer_session
 
 LEGACY_SUITE = (
     Path(__file__).resolve().parents[2] / "docs/reference/legacy-node/popssibilities_tests.json"
@@ -35,20 +37,17 @@ LEGACY_SUITE = (
 
 
 @pytest.fixture
-def app(monkeypatch):
-    monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
-    monkeypatch.setenv("DB_USER", "")
-    monkeypatch.setenv("DB_PASSWORD", "")
+def app(auth_app):
     provider = FixedAddressProvider()
-    return create_app(
-        {"TESTING": True, "ADDRESS_PROVIDER": provider, "ADDRESS_DISTANCE_PROVIDER": provider}
-    )
+    auth_app.config.update(DB_USER="", DB_PASSWORD="")
+    auth_app.extensions["address_service"].provider = provider
+    auth_app.extensions["address_service"].distance_provider = provider
+    return auth_app
 
 
 @pytest.fixture
 def client(app):
-    return app.test_client()
+    return customer_session(app.test_client())
 
 
 @pytest.fixture
@@ -623,7 +622,7 @@ def test_shipped_config_is_loaded_from_json_file(app, rules):
     ) == (151, 3, 1000)
 
 
-def test_editing_config_changes_prices_without_code_changes(monkeypatch, tmp_path):
+def test_editing_config_changes_prices_without_code_changes(auth_app, monkeypatch, tmp_path):
     config = json.loads(
         (Path(__file__).resolve().parents[1] / "app/pricing.config.json").read_text(
             encoding="utf-8"
@@ -640,7 +639,13 @@ def test_editing_config_changes_prices_without_code_changes(monkeypatch, tmp_pat
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
     monkeypatch.setenv("DB_USER", "")
     monkeypatch.setenv("DB_PASSWORD", "")
-    client = create_app({"TESTING": True, "PRICING_CONFIG_PATH": str(path)}).test_client()
+
+    def configured_client():
+        app = create_app({**auth_app.config, "PRICING_CONFIG_PATH": str(path)})
+        app.config.update(DB_USER="", DB_PASSWORD="")
+        return customer_session(app.test_client())
+
+    client = configured_client()
 
     response = client.post("/api/v1/quotes", json=base_payload(total_quantity=20))
     assert response.status_code == 200
@@ -656,7 +661,7 @@ def test_editing_config_changes_prices_without_code_changes(monkeypatch, tmp_pat
     # exceeded_radius_action is also config-driven: anything else restores the legacy rejection.
     rules["logistics"]["delivery"]["exceeded_radius_action"] = "REJECT"
     path.write_text(json.dumps(config), encoding="utf-8")
-    strict = create_app({"TESTING": True, "PRICING_CONFIG_PATH": str(path)}).test_client()
+    strict = configured_client()
     assert_validation_error(
         strict.post(
             "/api/v1/quotes",

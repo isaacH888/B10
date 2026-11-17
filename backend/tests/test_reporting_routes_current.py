@@ -5,6 +5,7 @@ from test_admin_completion import confirmed_order
 from test_admin_orders import admin_app as admin_app
 from test_admin_orders import assert_contract, submit
 from test_auth import auth_app as auth_app
+from test_auth import customer_session
 from test_automation_routes import owner_app as owner_app
 from test_automation_routes import signed_owner
 from test_automation_store import sql_settings as sql_settings
@@ -83,6 +84,7 @@ def test_list_projects_verified_deposit_amounts_without_changing_the_source_orde
     body = order_payload()
     body["customer"]["name"] = "Synthetic Customer"
     body["quote_id"] = order["quote_id"]
+    customer_session(client)
     replay = client.post("/api/v1/orders", json=body, headers={"Idempotency-Key": key})
     assert replay.status_code == 201 and replay.json["data"] == order
 

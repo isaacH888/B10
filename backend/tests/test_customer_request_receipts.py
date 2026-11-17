@@ -189,6 +189,13 @@ def test_sql_order_and_receipt_commit_together_and_replay_after_restart(
             assert tx.get_delivery(job["key"])["status"] == "sent"
     finally:
         with database.connect(app.config) as connection, connection.cursor() as cursor:
-            for table in ("order_items", "orders", "customers", "quotes"):
+            for table in (
+                "customer_order_accounts",
+                "customer_quote_accounts",
+                "order_items",
+                "orders",
+                "customers",
+                "quotes",
+            ):
                 cursor.execute("DELETE FROM " + table)
             connection.commit()

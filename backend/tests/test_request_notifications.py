@@ -461,6 +461,8 @@ def test_sql_capture_restart_handoff_and_payment_preserve_one_event(scenario, sq
     finally:
         with database.connect(sql_settings) as connection, connection.cursor() as cursor:
             for table in (
+                "customer_order_accounts",
+                "customer_quote_accounts",
                 "automation_requests",
                 "automation_order_links",
                 "order_items",

@@ -129,7 +129,11 @@ test("a skipped intro stays skipped on reload and internal customer navigation",
     .getByRole("button", { name: "Request a quote", exact: true })
     .first()
     .click();
-  await expect(page.getByLabel("Full name")).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?return_to=/);
+  await expect(
+    page.getByRole("button", { name: "Continue with Google" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
 });
 
 test("a fresh tab has its own first public-entry intro", async ({

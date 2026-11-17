@@ -21,6 +21,10 @@
     {
       "name": "Payments",
       "description": "Hosted Checkout and verified Square payment notifications."
+    },
+    {
+      "name": "Customer",
+      "description": "Account-owned customer orders and status tracking."
     }
   ],
   "paths": {
@@ -28,10 +32,14 @@
       "post": {
         "operationId": "calculateQuote",
         "summary": "Calculate quote",
-        "description": "Catering pricing uses $4.50 regular and $3.00 heart-shaped unit prices. Eligibility and the existing delivery-fee formula use geographic ZIP-area distance from fixed Stafford ZIP 77477, with a 30-mile radius. Full event contact/address fields remain required. Unknown or outside-area ZIPs receive owner-review product/extra estimates without accepted pricing or deposits. Browser-supplied distances and totals are ignored. Pricing revision 2.1.0 records the service-area method change.",
+        "description": "Requires a verified customer session, exact Origin and X-CSRF-Token. Ownership is bound to the session identity, never a supplied email. Catering pricing uses $4.50 regular and $3.00 heart-shaped unit prices. Eligibility and the existing delivery-fee formula use geographic ZIP-area distance from fixed Stafford ZIP 77477, with a 30-mile radius. Full event contact/address fields remain required. Unknown or outside-area ZIPs receive owner-review product/extra estimates without accepted pricing or deposits. Browser-supplied distances and totals are ignored. Pricing revision 2.1.0 records the service-area method change.",
         "tags": ["Public"],
         "x-owner": "Anh Hyunh",
-        "security": [],
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Calculate quote succeeded.",
@@ -417,6 +425,68 @@
                 "description": "Do not cache private records, authentication results or financial quotes."
               }
             }
+          },
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -461,17 +531,32 @@
         "x-target-week": 3,
         "x-runtime-status": "not implemented",
         "x-integration-owner": "Isaac Hernandez",
-        "x-implemented": false
+        "x-implemented": false,
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token returned by GET /customer/session."
+          }
+        ]
       }
     },
     "/orders": {
       "post": {
         "operationId": "submitOrder",
         "summary": "Submit order",
-        "description": "Persist one order from an unexpired priced quote matching all event and catering fields. Reject requires_review quotes (proposed policy pending D08). Recompute or verify the accepted server snapshot, then commit the order and durable integration work before returning 201. Provider outages do not undo the order. Replay the original result for the same key and payload; different payload returns idempotency_conflict.",
+        "description": "Requires a verified customer session, exact Origin and X-CSRF-Token. Ownership is bound to the session identity, never a supplied email. Persist one order from an unexpired priced quote matching all event and catering fields. Reject requires_review quotes (proposed policy pending D08). Recompute or verify the accepted server snapshot, then commit the order and durable integration work before returning 201. Provider outages do not undo the order. Replay the original result for the same key and payload; different payload returns idempotency_conflict.",
         "tags": ["Public"],
         "x-owner": "Anh Hyunh",
-        "security": [],
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
         "responses": {
           "201": {
             "description": "Submit order succeeded.",
@@ -815,11 +900,82 @@
                 "description": "Do not cache private records, authentication results or financial quotes."
               }
             }
+          },
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This request is not allowed.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "forbidden",
+                    "message": "This request is not allowed.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
           }
         },
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token returned by GET /customer/session."
           }
         ],
         "requestBody": {
@@ -10621,6 +10777,168 @@
           }
         }
       }
+    },
+    "/customer/orders": {
+      "get": {
+        "operationId": "listCustomerOrders",
+        "summary": "List the signed-in customer’s orders",
+        "description": "Filters by the verified session identity before counting or paging. Contact email does not grant access. Existing guest orders without an account link remain private. Administrative notes, workflow internals and payment links are omitted.",
+        "tags": ["Customer"],
+        "security": [
+          {
+            "customerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Please sign in to continue.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "unauthenticated",
+                    "message": "Please sign in to continue.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authentication is temporarily unavailable. Please try again later.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "authentication_unavailable",
+                    "message": "Authentication is temporarily unavailable. Please try again later.",
+                    "fields": [],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Only orders owned by the signed-in customer, newest first. Current linked booking status and verified deposit amounts overlay the original order.",
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerOrdersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "One or more fields are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "validation_error",
+                    "message": "Invalid page size.",
+                    "fields": [
+                      {
+                        "field": "page_size",
+                        "message": "Use an integer between 1 and 100."
+                      }
+                    ],
+                    "request_id": "req_example_001"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Safe correlation identifier."
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store",
+                "description": "Do not cache private records, authentication results or financial quotes."
+              }
+            }
+          }
+        },
+        "x-owner": "Anh Hyunh",
+        "x-implemented": true
+      }
     }
   },
   "components": {
@@ -13575,6 +13893,92 @@
           },
           "can_pay": {
             "type": "boolean"
+          }
+        }
+      },
+      "CustomerOrder": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "event",
+          "catering_request",
+          "pricing",
+          "deposit",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending_review", "confirmed", "fulfilled", "cancelled"]
+          },
+          "event": {
+            "$ref": "#/components/schemas/Event"
+          },
+          "catering_request": {
+            "$ref": "#/components/schemas/CateringRequest"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/DepositSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerOrdersResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["items", "page", "page_size", "total"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CustomerOrder"
+                }
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta"
           }
         }
       }

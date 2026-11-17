@@ -10,6 +10,11 @@ import {
 } from "react-router-dom";
 import { AuthProvider, sessionDeadline, useAuth } from "./auth/AuthContext.jsx";
 import { apiRequest, callbackMessage, errorMessage } from "./auth/api.js";
+import {
+  quoteReturn,
+  rememberCustomerReturn,
+  readCustomerReturn,
+} from "./auth/customerReturn.js";
 import { AdminDashboardPage } from "./admin/AdminDashboardPage.jsx";
 import { CalendarPage } from "./admin/CalendarPage.jsx";
 import { InventoryPage } from "./admin/InventoryPage.jsx";
@@ -157,11 +162,21 @@ function LoginPage() {
   const [error, setError] = useState("");
   const session = sessions[area];
   const queryMessage = callbackMessage(params.get("error"));
+  const destination =
+    params.get("return_to") === quoteReturn
+      ? quoteReturn
+      : readCustomerReturn();
+
+  useEffect(() => {
+    if (session.status === "authenticated" && !queryMessage)
+      rememberCustomerReturn(null);
+  }, [session.status, queryMessage]);
 
   async function begin(provider) {
     setBusy(provider);
     setError("");
     try {
+      rememberCustomerReturn(destination);
       await login(area, provider);
     } catch (failure) {
       setError(errorMessage(failure));
@@ -170,7 +185,7 @@ function LoginPage() {
   }
 
   if (session.status === "authenticated" && !queryMessage) {
-    return <Navigate to="/account" replace />;
+    return <Navigate to={destination || "/account"} replace />;
   }
   return (
     <section>
@@ -178,6 +193,12 @@ function LoginPage() {
       <p>
         Sign in or create a customer account using email and password or Google.
       </p>
+      {destination && (
+        <p>
+          Sign in first to request a catering quote and track your order in My
+          Orders. After signing in, you’ll go straight to your quote form.
+        </p>
+      )}
       {queryMessage && <Notice>{queryMessage}</Notice>}
       {error && <Notice>{error}</Notice>}
       {session.status === "error" && !error && (
@@ -416,7 +437,7 @@ function ProtectedPage({
   }
   if (!admin) {
     return (
-      <CustomerAccount
+      <CustomerAccountLanding
         key={identity.id}
         identity={identity}
         csrfToken={session.data.csrf_token}
@@ -427,6 +448,15 @@ function ProtectedPage({
     );
   }
   return <Navigate to="/admin/dashboard" replace />;
+}
+
+function CustomerAccountLanding(props) {
+  const [destination] = useState(readCustomerReturn);
+  useEffect(() => {
+    if (destination) rememberCustomerReturn(null);
+  }, [destination]);
+  if (destination) return <Navigate to={destination} replace />;
+  return <CustomerAccount {...props} />;
 }
 
 function NotFound() {

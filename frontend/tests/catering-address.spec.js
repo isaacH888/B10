@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { customerSession } from "./customer-session.js";
 
 const location = {
   line1: "100 Example Street",
@@ -35,10 +36,12 @@ async function addressApi(
     selections = [],
     checks = [];
   await page.route("**/api/v1/**", (route) =>
-    route.fulfill({
-      status: 401,
-      json: { error: { code: "unauthenticated" } },
-    }),
+    new URL(route.request().url()).pathname === "/api/v1/customer/session"
+      ? route.fulfill({ json: { data: customerSession() } })
+      : route.fulfill({
+          status: 401,
+          json: { error: { code: "unauthenticated" } },
+        }),
   );
   await page.route("**/api/v1/catering/address/**", async (route) => {
     const path = new URL(route.request().url()).pathname.split("/").at(-1);

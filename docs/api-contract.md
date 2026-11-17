@@ -162,8 +162,9 @@ Planning an interface now does not implement the Week 5/6 features early.
 
 | Method and route | Purpose | Auth | Success | Request and response schemas |
 | --- | --- | --- | --- | --- |
-| `POST /quotes` | Calculate a quote or flag unresolved pricing | Public | 200 | `QuoteRequest` / `QuoteResponse` |
-| `POST /orders` | Submit one order against a server quote | Public, idempotency | 201 | `SubmitOrderRequest` / `OrderResponse` |
+| `POST /quotes` | Calculate a quote or flag unresolved pricing | Customer session, CSRF | 200 | `QuoteRequest` / `QuoteResponse` |
+| `POST /orders` | Submit one order against a server quote | Customer session, CSRF, idempotency | 201 | `SubmitOrderRequest` / `OrderResponse` |
+| `GET /customer/orders` | Read the signed-in customer's order statuses | Customer session | 200 | `CustomerOrdersResponse` |
 | `GET /orders/{order_id}` | Retrieve an administrative order | Admin | 200 | Path ID / `AdminOrderResponse` |
 | `GET /orders` | List and filter orders | Admin | 200 | Query filters / `ListOrdersResponse` |
 | `PATCH /orders/{order_id}` | Update order information | Admin, CSRF | 200 | `UpdateOrderRequest` / `AdminOrderResponse` |
@@ -199,6 +200,16 @@ endpoints and old Google-assured sessions grant no access. See
 [authentication](authentication.md) for assurance, refresh, revocation and recovery.
 
 ## Calculate quote
+
+Quote creation and order submission require customer sign-in with Google or
+email/password, exact Origin and `X-CSRF-Token`. Each quote and submitted order
+belongs to the verified identity, independently of contact email. Another
+identity's quote returns `404 not_found` on submission. Idempotency hashes include
+the identity so a different account cannot replay the original response.
+`GET /customer/orders` filters by that identity before pagination and returns
+current status and verified deposit summaries without admin notes. Apply
+`0014_customer_order_accounts.sql` before release; older guest records remain
+unclaimed. See [customer order intake](customer-order-intake.md).
 
 `POST /quotes` receives `catering_request` and `event` objects. Catering fields are
 quantity, `popsicle_shape` (`standard`/`heart`), flavor request text, add-on request

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { customerCsrf, customerSession } from "./customer-session.js";
 
 async function orderDetails(
   page,
@@ -9,6 +10,13 @@ async function orderDetails(
     .getByRole("button", { name: "Request a quote", exact: true })
     .first()
     .click();
+  await fillOrderDetails(page, { start, end, service });
+}
+
+async function fillOrderDetails(
+  page,
+  { start = "2099-01-15T15:00", end = "", service = "delivery" } = {},
+) {
   await page.locator("#cf-name").fill("Synthetic Reviewer");
   await page.locator("#cf-email").fill("reviewer@example.invalid");
   await page.locator("#cf-phone").fill("+1-202-555-0100");
@@ -37,6 +45,8 @@ async function api(
     orderId = "order_from_server_123",
     quoteValidation = null,
     orderValidation = null,
+    signedIn = true,
+    sessionTime,
   } = {},
 ) {
   const quotes = [],
@@ -44,7 +54,10 @@ async function api(
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
+    if (path === "/api/v1/customer/session" && signedIn)
+      return route.fulfill({ json: { data: customerSession(sessionTime) } });
     if (path === "/api/v1/quotes") {
+      expect(request.headers()["x-csrf-token"]).toBe(customerCsrf);
       const body = request.postDataJSON();
       quotes.push(body);
       if (quoteValidation && quotes.length === 1)
@@ -89,6 +102,7 @@ async function api(
       });
     }
     if (path === "/api/v1/orders") {
+      expect(request.headers()["x-csrf-token"]).toBe(customerCsrf);
       const body = request.postDataJSON();
       orders.push({ body, key: request.headers()["idempotency-key"] });
       if (orderValidation && orders.length === 1)
@@ -138,6 +152,133 @@ async function quote(page) {
     page.getByRole("button", { name: "Submit catering request", exact: true }),
   ).toBeVisible();
 }
+
+for (const [provider, label] of [
+  ["password", "Continue with email and password"],
+  ["google", "Continue with Google"],
+]) {
+  test(`customers sign in with ${provider} before entering the quote form`, async ({
+    page,
+  }) => {
+    const calls = await api(page, { signedIn: false });
+    await page.goto("/order");
+    await page
+      .getByRole("button", { name: "Request a quote", exact: true })
+      .first()
+      .click();
+    await expect(page).toHaveURL(/\/login\?return_to=/);
+    await expect(page.getByLabel("Full name")).toHaveCount(0);
+    await expect(
+      page.getByText(/Sign in first to request a catering quote/),
+    ).toBeVisible();
+    expect(calls.quotes).toHaveLength(0);
+    expect(calls.orders).toHaveLength(0);
+    await page.route("**/api/v1/customer/login", (route) => {
+      expect(route.request().postDataJSON()).toEqual({ provider });
+      return route.fulfill({
+        json: {
+          data: {
+            authorization_url: "https://customer.example.invalid/sign-in",
+          },
+        },
+      });
+    });
+    await page.route("https://customer.example.invalid/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<h1>Secure sign-in</h1>",
+      }),
+    );
+    await page.getByRole("button", { name: label }).click();
+    await expect(page).toHaveURL("https://customer.example.invalid/sign-in");
+    await page.route("**/api/v1/customer/session", (route) =>
+      route.fulfill({ json: { data: customerSession() } }),
+    );
+    await page.goto("http://127.0.0.1:5190/account");
+    await expect(page).toHaveURL(/\/order\?quote=1$/);
+    await expect(
+      page.getByRole("heading", { name: "Contact", exact: true }),
+    ).toBeVisible();
+    await fillOrderDetails(page);
+    await quote(page);
+    await expect(
+      page.getByRole("heading", { name: "Your Quote", exact: true }),
+    ).toBeVisible();
+    expect(calls.quotes).toHaveLength(1);
+  });
+}
+
+test("a direct quote link waits for sign-in before rendering any form fields", async ({
+  page,
+}) => {
+  const calls = await api(page, { signedIn: false });
+  let release;
+  const pending = new Promise((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v1/customer/session", async (route) => {
+    await pending;
+    await route.fulfill({
+      status: 401,
+      json: { error: { code: "unauthenticated" } },
+    });
+  });
+  await page.goto("/order?quote=1");
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  release();
+  await expect(page).toHaveURL(/\/login\?return_to=/);
+  expect(calls.quotes).toHaveLength(0);
+});
+
+test("a quote link opens the login retry screen when sign-in is unavailable", async ({
+  page,
+}) => {
+  await api(page, { signedIn: false });
+  await page.route("**/api/v1/customer/session", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: { code: "authentication_unavailable" } },
+    }),
+  );
+  await page.goto("/order?quote=1");
+  await expect(page).toHaveURL(/\/login\?return_to=/);
+  await expect(page.getByRole("alert")).toContainText(
+    "Sign-in is temporarily unavailable",
+  );
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
+  await page.route("**/api/v1/customer/session", (route) =>
+    route.fulfill({ json: { data: customerSession() } }),
+  );
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Contact", exact: true }),
+  ).toBeVisible();
+});
+
+test("an expired session returns customers to sign-in without losing their form", async ({
+  page,
+}) => {
+  await api(page);
+  await orderDetails(page);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await page.route("**/api/v1/quotes", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: { code: "session_expired" } },
+    }),
+  );
+  await page.getByRole("button", { name: "Get quote", exact: true }).click();
+  await expect(page).toHaveURL(/\/login\?error=session_expired&return_to=/);
+  await expect(page.getByRole("alert")).toContainText(
+    "Your session has expired",
+  );
+  const saved = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem("popssibilities.catering-draft.v1")),
+  );
+  expect(saved.form.name).toBe("Synthetic Reviewer");
+  expect(saved.step).toBe(5);
+});
 
 for (const phone of ["adf", "12345"]) {
   test(`invalid phone ${phone} is explained before the quote can be requested`, async ({
@@ -815,7 +956,7 @@ test.describe("Houston event schedule", () => {
       page,
     }) => {
       await page.clock.setFixedTime(new Date(now));
-      await api(page);
+      await api(page, { sessionTime: Date.parse(now) });
       await orderDetails(page, { start: tooSoon });
       await expect(page.locator("#cf-flavors")).toBeDisabled();
       await page.getByRole("button", { name: "Back", exact: true }).click();

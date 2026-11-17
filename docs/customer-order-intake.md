@@ -91,6 +91,9 @@ The shared OpenAPI catalog still needs a coordinated update for automation route
 
 ## Database and retry behavior
 
+The [customer quote sign-in handoff](customer-quote-auth-handoff.md) lists the
+hosted database, Cognito and deployment steps required for this account flow.
+
 Apply `0008_customer_order_intake.sql` through the existing explicit migration
 runner after migrations 0001-0007. It adds `customers`, `orders`, `order_items` and
 `automation_order_links`; existing migration contents/checksums are preserved.
@@ -102,6 +105,29 @@ Migration `0011_quotes_persistence.sql` adds the quote store. Apply it before
 running the new SQL-backed quote/order routes using `python -m app.migrations`
 from `backend` with the intended environment's migration settings.
 Do not run schema changes automatically during web startup.
+
+`POST /quotes` and `POST /orders` require a verified customer session (Google or
+email/password), the configured exact Origin and `X-CSRF-Token` from
+`GET /customer/session`. There is no guest-checkout fallback when authentication
+is disabled or unavailable. Browsing the catering page remains public. Selecting
+Request a quote requires sign-in before the form opens, including direct quote
+links from the FAQ. Already signed-in customers go directly to the form. After
+provider sign-in, the form opens automatically; an existing same-tab draft resumes.
+
+Apply `0014_customer_order_accounts.sql` before deploying these routes. It adds
+`customer_quote_accounts` and `customer_order_accounts`; runtime access needs
+`SELECT` and `INSERT` on both tables. Quote/order creation and its account link
+commit together. Ownership uses the verified session's stable identity ID,
+independently of the contact email supplied with the request. Matching email
+addresses never grant access to another identity's records. Historical guest
+orders remain unclaimed; this migration does not infer ownership by email.
+
+`GET /customer/orders?page=1&page_size=10` returns only that customer's orders,
+newest first, with `items`, `page`, `page_size` and `total`. It applies the existing
+live booking-status and verified-deposit projection, omits administrative notes
+and internal workflow fields, and is available under **My Account → My Orders**.
+The page refreshes while visible every 30 seconds and on focus, and supports
+manual refresh. Submission replays are also bound to the account identity.
 
 `POST /quotes` saves the quote's expiry, request/event payload, distance and price.
 Order submission requires a priced, unused quote within its 15-minute lifetime;
@@ -132,13 +158,17 @@ but are temporary per-process storage.
 Customer preview: <http://localhost:5173/order>. The local API uses a separate
 `popssibilities_dev_local` database on port 33306. Credentials are in ignored
 `backend/.env`, with file permissions 600. Public checkout uses real Flask/MySQL.
-Authentication, live mail and automation are disabled in this preview until
-the corresponding owner configuration is supplied. No fabricated admin login
-is exposed. An actual owner must configure Cognito/session access before manually
+Customer authentication must be configured before quotes or submissions work;
+an authentication-disabled preview now fails closed at that step. Live mail and
+automation also need their corresponding owner configuration. No fabricated
+login is exposed. An actual owner must configure Cognito/session access before manually
 reviewing `/admin/automation`.
 
-1. Complete all four form-entry steps using synthetic contact details and a future
-   event, then get a quote and place the order. The page must show a new server ID.
+1. Select Request a quote. Sign in using Google or email/password before the form
+   opens, then complete all four form-entry steps using synthetic contact details
+   and a future event. Get a quote and place the order. The page must show a new
+   server ID. Use Track your order to open My Orders; sign in again later with
+   the same account and confirm its status is still available.
 2. Return to the form, get a quote, select Back and change quantity. A fresh quote
    is required. Fractions and out-of-range counts must stay on the entry step.
 3. With a configured owner session and `AUTOMATION_ENABLED=true`, open

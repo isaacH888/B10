@@ -2,7 +2,7 @@
 
 import pytest
 from app import create_app
-from test_auth import ORIGIN, invite, sign_in
+from test_auth import ORIGIN, customer_session, invite, sign_in
 from test_auth import auth_app as auth_app
 from test_orders import HEADERS, bind_quote, order_payload
 
@@ -31,8 +31,8 @@ def submit(app):
     return response.json["data"]
 
 
-def test_public_quote_and_submission_work_with_authentication_enabled(order_app):
-    client = order_app.test_client()
+def test_signed_in_quote_and_submission_work_with_authentication_enabled(order_app):
+    client = customer_session(order_app.test_client())
     payload = order_payload()
     quote = client.post(
         "/api/v1/quotes",
@@ -137,7 +137,7 @@ def test_disabling_authentication_never_exposes_private_order_routes(monkeypatch
 def test_revoked_admin_access_blocks_order_mutations(order_app):
     order = submit(order_app)
     client, headers = administrator(order_app)
-    identity = next(iter(order_app.test_store.identities.values()))
+    identity = next(i for i in order_app.test_store.identities.values() if i["area"] == "admin")
     identity["admin_active"] = False
     response = client.patch(
         f"/api/v1/orders/{order['id']}/status",

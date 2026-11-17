@@ -38,7 +38,15 @@ def report_app(owner_app, sql_settings):
     owner_app.extensions["booking_service"].store = store
     yield owner_app
     with database.connect(sql_settings) as connection, connection.cursor() as cursor:
-        for table in ("automation_order_links", "order_items", "orders", "customers", "quotes"):
+        for table in (
+            "customer_order_accounts",
+            "customer_quote_accounts",
+            "automation_order_links",
+            "order_items",
+            "orders",
+            "customers",
+            "quotes",
+        ):
             cursor.execute("DELETE FROM " + table)
         connection.commit()
 

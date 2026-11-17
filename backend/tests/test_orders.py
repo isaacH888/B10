@@ -18,7 +18,7 @@ import pymysql
 import pytest
 from app.automation.store import MemoryStore
 from app.reports_queries import DEPOSIT_SQL, EVENT_SQL, LINKED_ORDERS_SQL, STATUS_SQL
-from test_auth import ORIGIN, invite, sign_in
+from test_auth import ORIGIN, customer_session, invite, sign_in
 from test_auth import auth_app as auth_app
 
 OPENAPI_PATH = Path(__file__).resolve().parents[2] / "docs/api/openapi.json"
@@ -46,7 +46,7 @@ def client(app):
     sign_in(client, "admin")
     session = client.get("/api/v1/admin/session")
     client.admin_headers = {"Origin": ORIGIN, "X-CSRF-Token": session.json["data"]["csrf_token"]}
-    return client
+    return customer_session(client)
 
 
 def order_payload(**catering):
@@ -86,6 +86,8 @@ def order_payload(**catering):
 
 def bind_quote(client, payload):
     """Persist a matching priced quote and set ``payload['quote_id']``."""
+    if "HTTP_X_CSRF_TOKEN" not in client.environ_base:
+        customer_session(client)
     response = client.post(
         "/api/v1/quotes",
         json={"catering_request": payload["catering_request"], "event": payload["event"]},
@@ -110,6 +112,8 @@ def mutated(path, value):
 
 
 def post_order(client, payload=None, headers=HEADERS):
+    if "HTTP_X_CSRF_TOKEN" not in client.environ_base:
+        customer_session(client)
     body = order_payload() if payload is None else payload
     if body.get("quote_id") == "quote_example_001":
         if payload is None:
@@ -545,6 +549,11 @@ class FakeCursor:
             self.connection.row_id += 1
             self.lastrowid = self.connection.row_id
             self.rowcount = 1
+        elif sql.startswith("INSERT INTO customer_quote_accounts"):
+            self.connection.quotes[params[0]]["identity_id"] = params[1]
+            self.rowcount = 1
+        elif sql.startswith("INSERT INTO customer_order_accounts"):
+            self.rowcount = 1
         elif sql.startswith("INSERT"):
             self.connection.row_id += 1
             self.lastrowid = self.connection.row_id
@@ -561,6 +570,7 @@ class FakeCursor:
                     row["total_minor"],
                     row["payload_json"],
                     row["is_used"],
+                    row.get("identity_id"),
                 )
             )
         elif sql.startswith("UPDATE quotes SET is_used"):
@@ -753,7 +763,14 @@ def test_database_mode_inserts_customer_order_and_items_then_commits(client, dat
     assert response.status_code == 201
     assert connection.committed and connection.closed and not connection.rolled_back
     tables = [re.match(r"INSERT INTO (\w+)", sql).group(1) for sql, _ in inserts(connection)]
-    assert tables == ["quotes", "customers", "orders", "order_items"]
+    assert tables == [
+        "quotes",
+        "customer_quote_accounts",
+        "customers",
+        "orders",
+        "customer_order_accounts",
+        "order_items",
+    ]
     orders_sql, orders_params = next(
         (sql, params) for sql, params in inserts(connection) if "INTO orders" in sql
     )

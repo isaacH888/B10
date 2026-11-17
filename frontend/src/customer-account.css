@@ -149,6 +149,50 @@
 .account-panel[hidden] {
   display: none;
 }
+.account-orders-toolbar,
+.account-order-heading,
+.account-order-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.account-orders-toolbar > p {
+  color: var(--account-muted);
+  line-height: 1.6;
+}
+.account-order {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--account-border);
+  border-radius: 16px;
+}
+.account-order-heading h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-order-status {
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: #f8e5ec;
+  color: var(--account-accent);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.account-order-reference {
+  margin: 1rem 0 1.5rem;
+  overflow-wrap: anywhere;
+  color: var(--account-muted);
+  font-size: 0.8rem;
+}
+.account-order-pagination {
+  margin-top: 1.5rem;
+}
+.account-orders button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .account-panel h3 {
   margin: 0 0 1.25rem;
   font-size: 1.1rem;

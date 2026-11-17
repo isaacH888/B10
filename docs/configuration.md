@@ -18,6 +18,7 @@ backend private files. The MySQL root password belongs only to Compose.
 | Variables | Consumer / owner | Current behavior or required handoff |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | React; Isaac foundation, Aneena/Dillion consumers | Same-origin `/api/v1`; Vite proxies to Flask locally; cross-origin bases are rejected |
+| `API_PROXY_TARGET` | Vite development/preview server only | Optional local Flask origin; defaults to `http://127.0.0.1:5000`. Set in ignored `frontend/.env.local` when another local service occupies port 5000. Does not configure hosted API routing. |
 | `APP_ENV`, `LOG_LEVEL` | Flask; Isaac | Validated and consumed at startup; environment is development/staging/production |
 | `APP_TIMEZONE` | Future event/reminder adapters; Anh/Shourya | Reserved America/Chicago display default; not yet used for domain timestamps |
 | `APP_SECRET_KEY` | Flask; Isaac foundation, Shourya auth | Required for enabled authentication; at least 32 characters; signs session-bound CSRF values |

@@ -35,6 +35,8 @@ def inventory_app(owner_app, sql_settings):
             "inventory_history",
             "inventory_actions",
             "inventory_items",
+            "customer_order_accounts",
+            "customer_quote_accounts",
             "automation_order_links",
             "order_items",
             "orders",

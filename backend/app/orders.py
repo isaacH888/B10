@@ -46,7 +46,7 @@ import pymysql
 from flask import Blueprint, current_app, g, jsonify, request
 
 from .auth.errors import AuthError
-from .auth.guards import require_admin
+from .auth.guards import require_admin, require_customer
 from .auth.service import PERMISSIONS
 from .flavors import FlavorAllocationError, clean_flavor_allocations
 from .health import connection_options, database_configured
@@ -86,7 +86,12 @@ class QuoteSubmissionError(Exception):
 
 @orders_bp.record_once
 def _create_memory_store(state):
-    state.app.extensions["orders_memory"] = {"lock": threading.Lock(), "orders": {}, "by_id": {}}
+    state.app.extensions["orders_memory"] = {
+        "lock": threading.Lock(),
+        "orders": {},
+        "by_id": {},
+        "owners": {},
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -346,14 +351,17 @@ def _quote_row_from_tuple(row):
         "total_minor": int(row[3]),
         "payload_json": _parse_payload_json(row[4]),
         "is_used": bool(row[5]),
+        "identity_id": row[6],
     }
 
 
 def _load_quote(quote_id, cursor=None):
     if cursor is not None:
         cursor.execute(
-            "SELECT id, expires_at, delivery_distance_miles, total_minor, payload_json, is_used"
-            " FROM quotes WHERE id = %s FOR UPDATE",
+            "SELECT q.id, q.expires_at, q.delivery_distance_miles, q.total_minor, q.payload_json,"
+            " q.is_used, a.identity_id FROM quotes q"
+            " LEFT JOIN customer_quote_accounts a ON a.quote_id = q.id"
+            " WHERE q.id = %s FOR UPDATE",
             (quote_id,),
         )
         row = cursor.fetchone()
@@ -408,6 +416,8 @@ def _norm_event_schedule(event):
 
 
 def _assert_quote_matches_order(stored, clean):
+    if stored.get("identity_id") != g.principal["identity_id"]:
+        raise QuoteSubmissionError(404, "not_found", "The requested quote was not found.")
     quote = stored["payload_json"] or {}
     if quote.get("status") != "priced" or not isinstance(quote.get("pricing"), dict):
         raise QuoteSubmissionError(
@@ -527,6 +537,7 @@ def _save_in_memory(key, digest, clean):
         saved = orders["orders"].setdefault(key, (digest, order))
         if saved[1] is order:
             orders["by_id"][order["id"]] = _admin_view(order)
+            orders["owners"][order["id"]] = g.principal["identity_id"]
         if saved[0] != digest:
             raise IdempotencyConflict
         return saved[1]
@@ -618,6 +629,10 @@ def _save_in_database(key, digest, clean):
                 ),
             )
             order_pk = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO customer_order_accounts (order_id, identity_id) VALUES (%s, %s)",
+                (order["id"], g.principal["identity_id"]),
+            )
             cursor.executemany(
                 "INSERT INTO order_items (order_id, code, description, amount_cents) VALUES (%s, %s, %s, %s)",
                 [
@@ -874,12 +889,17 @@ def _effective_event_start(order, booking):
     return _naive_utc(datetime.fromisoformat(order["event"]["starts_at"]))
 
 
-def _list_in_database(status, event_from, event_to, page, page_size):
+def _list_in_database(status, event_from, event_to, page, page_size, identity_id=None):
     where, params = _list_where(status, event_from, event_to)
+    source = LINKED_ORDERS_SQL
+    if identity_id is not None:
+        source += " JOIN customer_order_accounts a ON a.order_id = o.public_id"
+        where += (" AND " if where else " WHERE ") + "a.identity_id = %s"
+        params += (identity_id,)
     connection = pymysql.connect(**connection_options(current_app.config))
     try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*)" + LINKED_ORDERS_SQL + where, params)
+            cursor.execute("SELECT COUNT(*)" + source + where, params)
             total = cursor.fetchone()[0]
             cursor.execute(
                 "SELECT o.response_json, "
@@ -887,7 +907,7 @@ def _list_in_database(status, event_from, event_to, page, page_size):
                 + ", "
                 + DEPOSIT_SQL
                 + ", b.data"
-                + LINKED_ORDERS_SQL
+                + source
                 + where
                 + " ORDER BY o.id DESC LIMIT %s OFFSET %s",
                 params + (page_size, (page - 1) * page_size),
@@ -908,11 +928,15 @@ def _list_in_database(status, event_from, event_to, page, page_size):
         connection.close()
 
 
-def _list_in_memory(status, event_from, event_to, page, page_size):
+def _list_in_memory(status, event_from, event_to, page, page_size, identity_id=None):
     """Same filters, order and paging as the database query (insertion order stands in for ``id``)."""
     store = current_app.extensions["orders_memory"]
     with store["lock"]:
-        newest_first = list(reversed(store["by_id"].values()))
+        newest_first = [
+            order
+            for order in reversed(store["by_id"].values())
+            if identity_id is None or store["owners"].get(order["id"]) == identity_id
+        ]
     bookings = linked_bookings([order["id"] for order in newest_first])
     matches = []
     for order in newest_first:
@@ -956,6 +980,7 @@ def _valid_order_id(order_id):
 
 
 @orders_bp.post("/orders")
+@require_customer
 def submit_order():
     if not request.is_json:
         return _error(415, "unsupported_media_type", "Use application/json for this request.")
@@ -975,7 +1000,11 @@ def submit_order():
         return _error(422, "validation_error", "One or more fields are invalid.", errors)
 
     digest = hashlib.sha256(
-        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            {"identity_id": g.principal["identity_id"], "request": body},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
     ).hexdigest()
     save = _save_in_database if database_configured(current_app.config) else _save_in_memory
 
@@ -1035,6 +1064,40 @@ def _query_instant(errors, name):
         pass
     errors.append(_field(name, "must be an ISO 8601 date-time with a UTC offset"))
     return None
+
+
+@orders_bp.get("/customer/orders")
+@require_customer
+def list_customer_orders():
+    errors = []
+    page = _query_integer(errors, "page", 1, 1, 2**31 - 1)
+    page_size = _query_integer(errors, "page_size", 10, 1, 100)
+    if errors:
+        return _error(422, "validation_error", "One or more fields are invalid.", errors)
+    find = _list_in_database if database_configured(current_app.config) else _list_in_memory
+    try:
+        orders, total = find(None, None, None, page, page_size, g.principal["identity_id"])
+    except (pymysql.MySQLError, OSError):
+        return _service_unavailable()
+    public_fields = (
+        "id",
+        "status",
+        "event",
+        "catering_request",
+        "pricing",
+        "deposit",
+        "created_at",
+        "updated_at",
+    )
+    return jsonify(
+        data={
+            "items": [{key: order[key] for key in public_fields} for order in orders],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
+        meta={"request_id": g.request_id},
+    )
 
 
 @orders_bp.get("/orders")
