@@ -53,6 +53,8 @@ def test_deposit_rounded_up_confirms_with_balance_and_atomic_outbox(setup):
     store, service, _ = setup
     booking = approved(service)
     assert booking["deposit_minor"] == 5001
+    with store.transaction() as tx:
+        assert any(job["kind"] == "calendar" for job in tx.list_outbox())
     booking = service.verify_payment(booking["id"], payment(), "owner")
     assert (booking["status"], booking["payment_status"], booking["remaining_minor"]) == (
         "confirmed",

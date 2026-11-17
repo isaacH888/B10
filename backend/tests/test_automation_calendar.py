@@ -236,15 +236,40 @@ def test_reopen_restores_same_owned_event(projection):
     assert active(google)[0]["id"] == identifier
 
 
-def test_underpaid_reopen_before_pending_cancellation_still_removes_old_event(projection):
+def test_underpaid_reopen_before_pending_cancellation_keeps_tentative_event(projection):
     worker, store, google, booking = projection
     worker.run(booking["id"])
     mutate(store, status="cancelled", revision=2)
     # An owner reopens for a new deposit before the queued deletion runs.
     mutate(store, status="awaiting_deposit", revision=3)
     worker.run(booking["id"], revision=2)
-    assert not active(google)
+    assert len(active(google)) == 1
+    assert active(google)[0]["status"] == "tentative"
     assert current(store)["synced_revision"] == 3
+
+
+def test_approval_creates_event_and_deposit_updates_same_event_without_request_routing(projection):
+    worker, store, google, booking = projection
+    mutate(store, status="awaiting_deposit")
+    worker.run(booking["id"])
+    (event,) = active(google)
+    identifier = event["id"]
+    assert event["status"] == "tentative"
+    assert "Approved · Deposit pending" in event["summary"]
+    assert "Owner approved availability" in event["description"]
+    mutate(
+        store,
+        status="confirmed",
+        revision=2,
+        payment_status="deposit_paid",
+        currency="USD",
+        remaining_minor=5000,
+    )
+    worker.run(booking["id"])
+    (event,) = active(google)
+    assert event["id"] == identifier and event["status"] == "confirmed"
+    assert "deposit paid" in event["description"]
+    assert "USD 50.00" in event["description"]
 
 
 def test_manual_deleted_event_with_ownership_still_requires_owner_repair(projection):

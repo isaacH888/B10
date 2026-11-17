@@ -50,7 +50,7 @@ class CalendarWorker:
 
     @staticmethod
     def _visible(booking):
-        return booking["status"] == "confirmed" or (
+        return booking["status"] in {"confirmed", "awaiting_deposit"} or (
             booking.get("request_calendar")
             and booking["status"]
             in {"requested", "awaiting_deposit", "owner_review", "conditionally_confirmed"}
@@ -82,11 +82,22 @@ class CalendarWorker:
         title = f"{booking['reference']} · {booking['service_type']}"
         description = f"Booking: {booking['reference']}\nService: {booking['service_type']}\nPrivate owner dashboard: {link}"
         if pending:
-            title = f"Pending request · {booking.get('event_type', booking['service_type'])} · {booking['reference']}"
+            approved = booking["status"] == "awaiting_deposit"
+            label = "Approved · Deposit pending" if approved else "Pending request"
+            title = f"{label} · {booking.get('event_type', booking['service_type'])} · {booking['reference']}"
             description = (
-                "Pending catering request. Availability and deposit are not confirmed.\n"
-                + description
-            )
+                "Owner approved availability. Deposit payment is pending.\n"
+                if approved
+                else "Pending catering request. Availability and deposit are not confirmed.\n"
+            ) + description
+        elif booking.get("payment_status"):
+            description += "\nPayment status: " + booking["payment_status"].replace("_", " ")
+            if booking.get("remaining_minor") is not None:
+                from .delivery import money
+
+                description += "\nRemaining balance: " + money(
+                    booking["currency"], booking["remaining_minor"]
+                )
         if booking.get("end_unspecified"):
             description += "\nThe customer has not supplied an end time."
         body = {

@@ -409,7 +409,7 @@ class BookingService:
             self._reserve(tx, booking, payload, now)
             self._money(tx, booking)
             booking["owner_review_reason"] = None
-            kinds = ("deposit_request",)
+            kinds = ("deposit_request", "calendar")
             if booking["paid_minor"] >= booking["deposit_minor"]:
                 self._confirm(booking, now)
                 kinds = (
@@ -420,6 +420,7 @@ class BookingService:
                 )
             else:
                 booking["status"] = "awaiting_deposit"
+                booking["calendar_status"] = "pending"
         else:
             booking["status"] = (
                 "conditionally_confirmed" if decision == "conditionally_confirm" else "cancelled"

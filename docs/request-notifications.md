@@ -34,6 +34,12 @@ recipient, Google account or calendar.
    deposit update that same event to confirmed/busy. Rescheduling updates it;
    cancellation removes it. Delayed request jobs cannot demote a linked booking.
 
+Owner approval also creates a tentative **Approved · Deposit pending** event when
+incoming-request routing is disabled. It uses the booking owner's connected
+Google Calendar. Once the deposit is verified, synchronization updates the same
+event to confirmed and includes payment status and remaining balance. Calendar
+access and the dispatcher/worker must be active for these changes to reach Google.
+
 ## Setup
 
 Use the [live setup handoff](calendar-live-setup.md) for the account configuration,
