@@ -176,9 +176,9 @@ test("return URL cannot declare payment success", async ({ page }) => {
   await expect(
     page.getByText("We’re waiting for Square", { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Deposit paid" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Deposit paid" })).toHaveCount(
+    0,
+  );
 });
 
 test("verified payment return is public and displays amount", async ({
